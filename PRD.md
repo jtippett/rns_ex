@@ -244,7 +244,7 @@ Read `python/RNS/Cryptography/` for reference. Every crypto module must have tes
 - [x] **2.3 — PKCS7 padding and AES-256-CBC**
   Create `lib/rns/cryptography/pkcs7.ex` — implement `pad(data, block_size)` and `unpad(data)`. Read `python/RNS/Cryptography/PKCS7.py`. Create `lib/rns/cryptography/aes.ex` wrapping `:crypto.crypto_one_time/5` — provide `encrypt(plaintext, key, iv)` and `decrypt(ciphertext, key, iv)` for AES-256-CBC with PKCS7 padding. Write tests: roundtrip encryption, known test vectors, invalid padding detection, property-based tests.
 
-- [ ] **2.4 — X25519 key exchange**
+- [x] **2.4 — X25519 key exchange**
   Create `lib/rns/cryptography/x25519.ex`. Use `:crypto.generate_key(:ecdh, :x25519)` and `:crypto.compute_key(:ecdh, peer_pub, own_priv, :x25519)`. Implement `X25519.generate_keypair/0`, `X25519.from_private_bytes/1`, `X25519.private_bytes/1`, `X25519.public_key/1`, `X25519.exchange/2`. Match the API from `python/RNS/Cryptography/X25519.py`. Write tests: key generation, ECDH exchange between two parties produces same shared secret, RFC 7748 test vectors.
 
 - [ ] **2.5 — Ed25519 signatures**
