@@ -271,7 +271,7 @@ This is the largest module (3312 LOC in Python). Split into manageable sub-modul
 - [x] **4.1 — Transport core and data structures**
   Create `lib/rns/transport.ex` and `lib/rns/transport/path_management.ex`. Implement `RNS.Transport` as a GenServer. Define all constants. Set up ETS tables on init: `:rns_interfaces`, `:rns_destinations`, `:rns_pending_links`, `:rns_active_links`, `:rns_packet_hashlist`, `:rns_receipts`, `:rns_announce_table`, `:rns_destination_table`, `:rns_path_table`, `:rns_reverse_table`, `:rns_tunnel_table`, `:rns_link_table`. Implement `register_destination/1`, `deregister_destination/1`, `register_interface/1`, `deregister_interface/1`, `has_path/1`, `hops_to/1`, `next_hop/1`, `next_hop_interface/1`, `expire_path/1`, `request_path/2`. Path persistence: `save_path_table/0`, `load_path_table/0`. Write tests.
 
-- [ ] **4.2 — Transport announce handling**
+- [x] **4.2 — Transport announce handling**
   Create `lib/rns/transport/announce_handler.ex`. Port announce processing: `inbound_announce/3`, `outbound_announce/1`, `process_announce_queue/1`, `should_forward_announce/2`, `mark_path_unknown_for_destination/1`, rate limiting, deduplication, validation. Handle announce table: entry creation, expiry, retransmission timing. Handle path responses. Write tests: announce validation, rate limiting, deduplication, forwarding decisions.
 
 - [ ] **4.3 — Transport packet routing and delivery**

@@ -10,6 +10,7 @@ defmodule RNS.Transport do
   require Logger
 
   alias RNS.Transport.PathManagement
+  alias RNS.Transport.AnnounceHandler
 
   # ── Transport Type Constants ──────────────────────────────────────────
   @broadcast 0x00
@@ -447,11 +448,51 @@ defmodule RNS.Transport do
   # ── Table Entry Accessors ─────────────────────────────────────────────
 
   @doc "Returns an announce table entry, or nil."
-  @spec get_announce_entry(binary()) :: map() | nil
+  @spec get_announce_entry(binary()) :: AnnounceHandler.AnnounceEntry.t() | nil
   def get_announce_entry(destination_hash) do
     case :ets.lookup(@announce_table, destination_hash) do
       [{^destination_hash, entry}] -> entry
       [] -> nil
+    end
+  end
+
+  @doc "Inserts or updates an announce entry. Delegates to AnnounceHandler."
+  @spec put_announce_entry(binary(), AnnounceHandler.AnnounceEntry.t()) :: true
+  def put_announce_entry(destination_hash, entry) do
+    AnnounceHandler.put_announce_entry(destination_hash, entry)
+  end
+
+  @doc "Deletes an announce entry. Delegates to AnnounceHandler."
+  @spec delete_announce_entry(binary()) :: true
+  def delete_announce_entry(destination_hash) do
+    AnnounceHandler.delete_announce_entry(destination_hash)
+  end
+
+  @doc "Returns a held announces table entry, or nil."
+  @spec get_held_announce(binary()) :: map() | nil
+  def get_held_announce(destination_hash) do
+    case :ets.lookup(@held_announces_table, destination_hash) do
+      [{^destination_hash, entry}] -> entry
+      [] -> nil
+    end
+  end
+
+  @doc "Inserts a held announce entry."
+  @spec put_held_announce(binary(), map()) :: true
+  def put_held_announce(destination_hash, entry) do
+    :ets.insert(@held_announces_table, {destination_hash, entry})
+  end
+
+  @doc "Deletes and returns a held announce entry, or nil."
+  @spec pop_held_announce(binary()) :: map() | nil
+  def pop_held_announce(destination_hash) do
+    case :ets.lookup(@held_announces_table, destination_hash) do
+      [{^destination_hash, entry}] ->
+        :ets.delete(@held_announces_table, destination_hash)
+        entry
+
+      [] ->
+        nil
     end
   end
 
