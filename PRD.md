@@ -299,7 +299,7 @@ This is the largest module (3312 LOC in Python). Split into manageable sub-modul
 - [x] **6.1 — Buffer module**
   Port `python/RNS/Buffer.py` (369 LOC) → `lib/rns/buffer.ex`. Implement `StreamDataMessage` (a Channel message for stream data). Implement `RNS.Buffer.Reader` (reads from Channel). Implement `RNS.Buffer.Writer` (writes to Channel). Module functions: `create_reader/3`, `create_writer/2`, `create_bidirectional_buffer/4`. Wire buffering, flow control, close semantics. Write tests: read/write roundtrip, bidirectional buffer, flow control.
 
-- [ ] **6.2 — Resolver module (stub)**
+- [x] **6.2 — Resolver module (stub)**
   Port `python/RNS/Resolver.py` (34 LOC) → `lib/rns/resolver.ex`. This is a stub/placeholder in Python. Create `RNS.Resolver` with matching interface for future expansion. Write a basic test.
 
 ### Phase 7: Interface System
