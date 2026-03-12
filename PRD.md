@@ -255,7 +255,7 @@ Read `python/RNS/Cryptography/` for reference. Every crypto module must have tes
 
 ### Phase 3: Core Protocol
 
-- [ ] **3.1 — Identity module**
+- [x] **3.1 — Identity module**
   Port `python/RNS/Identity.py` (821 LOC) → `lib/rns/identity.ex`. Key constants: `@curve "Curve25519"`, `@keysize 512`, `@hashlength 256`, `@name_hash_length 80`, `@ratchetsize 256`, `@ratchet_expiry`, `@truncated_hashlength 128`. Implement `RNS.Identity` as a struct + GenServer-backed store (`RNS.IdentityStore`) for known destinations/ratchets (backed by ETS). Functions: `new/0`, `create_keys/1`, `get_private_key/1`, `load_private_key/2`, `load_public_key/2`, `encrypt/2`, `decrypt/2`, `sign/2`, `validate/3`, `prove/3`, `hash/1`, `hexhash/1`, `from_bytes/1`, `from_file/1`, `to_file/2`. Store functions: `remember/4`, `recall/1`, `recall_app_data/1`, `save_known_destinations/0`, `load_known_destinations/1`. Static: `full_hash/1`, `truncated_hash/1`, `get_random_hash/0`. Write thorough tests: key generation, sign/verify, encrypt/decrypt, hash computation, recall/remember, serialization.
 
 - [ ] **3.2 — Packet module**
