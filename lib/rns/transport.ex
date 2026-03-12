@@ -14,6 +14,7 @@ defmodule RNS.Transport do
   alias RNS.Transport.PathManagement
   alias RNS.Transport.AnnounceHandler
   alias RNS.Transport.TunnelManagement
+  alias RNS.Transport.CacheManagement
   alias RNS.Packet
   alias RNS.Identity
 
@@ -853,6 +854,56 @@ defmodule RNS.Transport do
   def load_path_table(file_path) do
     PathManagement.load_path_table(file_path)
   end
+
+  # ── Caching and Persistence ────────────────────────────────────────────
+
+  @doc "Determines whether a packet should be cached."
+  @spec should_cache(map()) :: boolean()
+  defdelegate should_cache(packet), to: CacheManagement
+
+  @doc "Caches a packet to disk storage."
+  @spec cache(map(), keyword()) :: :ok | {:error, term()}
+  def cache(packet, opts \\ []), do: CacheManagement.cache(packet, opts)
+
+  @doc "Retrieves a cached packet from disk."
+  @spec get_cached_packet(binary(), keyword()) :: map() | nil
+  def get_cached_packet(packet_hash, opts \\ []), do: CacheManagement.get_cached_packet(packet_hash, opts)
+
+  @doc "Handles a cache request packet."
+  @spec cache_request_packet(map()) :: boolean()
+  defdelegate cache_request_packet(packet), to: CacheManagement
+
+  @doc "Requests a cached packet by hash."
+  @spec cache_request(binary(), map()) :: :ok
+  defdelegate cache_request(packet_hash, destination), to: CacheManagement
+
+  @doc "Cleans the packet cache."
+  @spec clean_cache(String.t()) :: :ok
+  defdelegate clean_cache(cachepath), to: CacheManagement
+
+  @doc "Cleans the announce cache directory."
+  @spec clean_announce_cache(String.t()) :: :ok
+  defdelegate clean_announce_cache(cachepath), to: CacheManagement
+
+  @doc "Saves the packet hashlist to disk."
+  @spec save_packet_hashlist(String.t()) :: :ok | {:error, term()}
+  defdelegate save_packet_hashlist(file_path), to: CacheManagement
+
+  @doc "Loads the packet hashlist from disk."
+  @spec load_packet_hashlist(String.t()) :: :ok | {:error, term()}
+  defdelegate load_packet_hashlist(file_path), to: CacheManagement
+
+  @doc "Saves the tunnel table to disk."
+  @spec save_tunnel_table(String.t()) :: :ok | {:error, term()}
+  defdelegate save_tunnel_table(file_path), to: CacheManagement
+
+  @doc "Loads the tunnel table from disk."
+  @spec load_tunnel_table(String.t()) :: :ok | {:error, term()}
+  defdelegate load_tunnel_table(file_path), to: CacheManagement
+
+  @doc "Persists all transport data to disk."
+  @spec persist_data(String.t()) :: :ok
+  defdelegate persist_data(storage_path), to: CacheManagement
 
   # ── Packet Filter ─────────────────────────────────────────────────────
 
@@ -1883,12 +1934,16 @@ defmodule RNS.Transport do
   def init(opts) do
     create_ets_tables()
 
+    now = System.system_time(:second)
+
     state = %{
-      start_time: System.system_time(:second),
+      start_time: now,
       identity: nil,
       owner: nil,
       jobs_running: false,
       transport_enabled: Keyword.get(opts, :transport_enabled, false),
+      storage_path: Keyword.get(opts, :storage_path, nil),
+      cachepath: Keyword.get(opts, :cachepath, nil),
       traffic_rxb: 0,
       traffic_txb: 0,
       speed_rx: 0,
@@ -1897,7 +1952,7 @@ defmodule RNS.Transport do
       receipts_last_checked: 0,
       announces_last_checked: 0,
       tables_last_culled: 0,
-      cache_last_cleaned: 0,
+      cache_last_cleaned: now + 60,
       jobs_started: false
     }
 
@@ -1971,7 +2026,11 @@ defmodule RNS.Transport do
   end
 
   @impl true
-  def terminate(_reason, _state) do
+  def terminate(_reason, state) do
+    if state.storage_path do
+      CacheManagement.persist_data(state.storage_path)
+    end
+
     :ok
   end
 
@@ -1984,6 +2043,7 @@ defmodule RNS.Transport do
     |> maybe_check_announces(now)
     |> maybe_cull_tables(now)
     |> maybe_rotate_hashlist()
+    |> maybe_clean_cache(now)
   end
 
   defp maybe_check_links(state, now) do
@@ -2104,6 +2164,15 @@ defmodule RNS.Transport do
     end
 
     state
+  end
+
+  defp maybe_clean_cache(state, now) do
+    if state.cachepath != nil and now > state.cache_last_cleaned + div(@cache_clean_interval, 1000) do
+      CacheManagement.clean_cache(state.cachepath)
+      %{state | cache_last_cleaned: now}
+    else
+      state
+    end
   end
 
   # ── Table Culling Functions ───────────────────────────────────────────

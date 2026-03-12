@@ -1637,6 +1637,409 @@ defmodule RNS.TransportTest do
     end
   end
 
+  describe "CacheManagement" do
+    alias RNS.Transport.CacheManagement
+
+    setup do
+      # Create a temp directory for cache tests
+      tmp_dir = Path.join(System.tmp_dir!(), "rns_test_cache_#{:rand.uniform(999_999)}")
+      File.mkdir_p!(tmp_dir)
+      storage_dir = Path.join(tmp_dir, "storage")
+      File.mkdir_p!(storage_dir)
+      cache_dir = Path.join(storage_dir, "cache")
+      File.mkdir_p!(cache_dir)
+      announces_dir = Path.join(cache_dir, "announces")
+      File.mkdir_p!(announces_dir)
+
+      on_exit(fn -> File.rm_rf!(tmp_dir) end)
+
+      %{tmp_dir: tmp_dir, storage_dir: storage_dir, cache_dir: cache_dir, announces_dir: announces_dir}
+    end
+
+    # ── should_cache ──────────────────────────────────────────────
+
+    test "should_cache always returns false (caching disabled)" do
+      refute CacheManagement.should_cache(%{})
+      refute CacheManagement.should_cache(%{context: 0x05})
+    end
+
+    # ── cache/2 ───────────────────────────────────────────────────
+
+    test "cache does nothing when should_cache is false and force_cache is false" do
+      packet = %{raw: <<1, 2, 3>>, receiving_interface: nil}
+      assert :ok == CacheManagement.cache(packet)
+    end
+
+    test "cache writes packet to disk when force_cache is true", %{cache_dir: cache_dir} do
+      Application.put_env(:rns_ex, :cachepath, cache_dir)
+
+      raw = :crypto.strong_rand_bytes(30)
+      packet_hash = :crypto.hash(:sha256, raw)
+      packet = %RNS.Packet{raw: raw, receiving_interface: nil}
+      packet = %{packet | packet_hash: packet_hash}
+
+      assert :ok == CacheManagement.cache(packet, force_cache: true)
+
+      hex_hash = Base.encode16(packet_hash, case: :lower)
+      assert File.exists?(Path.join(cache_dir, hex_hash))
+
+      Application.delete_env(:rns_ex, :cachepath)
+    end
+
+    test "cache writes announce to announces subdirectory", %{cache_dir: cache_dir} do
+      Application.put_env(:rns_ex, :cachepath, cache_dir)
+
+      raw = :crypto.strong_rand_bytes(30)
+      packet_hash = :crypto.hash(:sha256, raw)
+      packet = %RNS.Packet{raw: raw, receiving_interface: nil}
+      packet = %{packet | packet_hash: packet_hash}
+
+      assert :ok == CacheManagement.cache(packet, force_cache: true, packet_type: "announce")
+
+      hex_hash = Base.encode16(packet_hash, case: :lower)
+      assert File.exists?(Path.join([cache_dir, "announces", hex_hash]))
+
+      Application.delete_env(:rns_ex, :cachepath)
+    end
+
+    # ── get_cached_packet ─────────────────────────────────────────
+
+    test "get_cached_packet returns nil for non-existent hash", %{cache_dir: cache_dir} do
+      Application.put_env(:rns_ex, :cachepath, cache_dir)
+
+      assert CacheManagement.get_cached_packet(:crypto.strong_rand_bytes(32)) == nil
+
+      Application.delete_env(:rns_ex, :cachepath)
+    end
+
+    test "cache and get_cached_packet roundtrip", %{cache_dir: cache_dir} do
+      Application.put_env(:rns_ex, :cachepath, cache_dir)
+
+      raw = :crypto.strong_rand_bytes(30)
+      packet_hash = :crypto.hash(:sha256, raw)
+      packet = %RNS.Packet{raw: raw, receiving_interface: nil}
+      packet = %{packet | packet_hash: packet_hash}
+
+      CacheManagement.cache(packet, force_cache: true)
+
+      retrieved = CacheManagement.get_cached_packet(packet_hash)
+      assert retrieved != nil
+      assert retrieved.raw == raw
+
+      Application.delete_env(:rns_ex, :cachepath)
+    end
+
+    test "get_cached_packet retrieves announce type", %{cache_dir: cache_dir} do
+      Application.put_env(:rns_ex, :cachepath, cache_dir)
+
+      raw = :crypto.strong_rand_bytes(30)
+      packet_hash = :crypto.hash(:sha256, raw)
+      packet = %RNS.Packet{raw: raw, receiving_interface: nil}
+      packet = %{packet | packet_hash: packet_hash}
+
+      CacheManagement.cache(packet, force_cache: true, packet_type: "announce")
+
+      retrieved = CacheManagement.get_cached_packet(packet_hash, packet_type: "announce")
+      assert retrieved != nil
+      assert retrieved.raw == raw
+
+      Application.delete_env(:rns_ex, :cachepath)
+    end
+
+    # ── cache_request_packet ──────────────────────────────────────
+
+    test "cache_request_packet returns false for wrong data length" do
+      packet = %{data: <<1, 2, 3>>}
+      refute CacheManagement.cache_request_packet(packet)
+    end
+
+    test "cache_request_packet returns false when cache miss" do
+      # HASHLENGTH/8 = 32 bytes
+      packet = %{data: :crypto.strong_rand_bytes(32)}
+      refute CacheManagement.cache_request_packet(packet)
+    end
+
+    # ── save_packet_hashlist / load_packet_hashlist ────────────────
+
+    test "save_packet_hashlist roundtrip", %{storage_dir: storage_dir} do
+      # Insert some hashes
+      h1 = :crypto.strong_rand_bytes(32)
+      h2 = :crypto.strong_rand_bytes(32)
+      h3 = :crypto.strong_rand_bytes(32)
+      Transport.mark_packet_hash(h1)
+      Transport.mark_packet_hash(h2)
+      Transport.mark_packet_hash(h3)
+
+      file_path = Path.join(storage_dir, "packet_hashlist")
+      assert :ok == CacheManagement.save_packet_hashlist(file_path)
+      assert File.exists?(file_path)
+
+      # Clear the hashlist table
+      :ets.delete_all_objects(:rns_packet_hashlist)
+      refute Transport.packet_hash_known?(h1)
+
+      # Load it back
+      assert :ok == CacheManagement.load_packet_hashlist(file_path)
+      assert Transport.packet_hash_known?(h1)
+      assert Transport.packet_hash_known?(h2)
+      assert Transport.packet_hash_known?(h3)
+    end
+
+    test "load_packet_hashlist returns error for non-existent file" do
+      assert {:error, :enoent} == CacheManagement.load_packet_hashlist("/tmp/nonexistent_hashlist_#{:rand.uniform(999_999)}")
+    end
+
+    test "save_packet_hashlist with empty hashlist", %{storage_dir: storage_dir} do
+      file_path = Path.join(storage_dir, "empty_hashlist")
+      assert :ok == CacheManagement.save_packet_hashlist(file_path)
+      assert File.exists?(file_path)
+
+      # Load it back (no-op but should work)
+      assert :ok == CacheManagement.load_packet_hashlist(file_path)
+    end
+
+    # ── save_tunnel_table / load_tunnel_table ─────────────────────
+
+    test "save_tunnel_table roundtrip", %{storage_dir: storage_dir} do
+      tunnel_id = :crypto.strong_rand_bytes(32)
+      dest_hash = :crypto.strong_rand_bytes(16)
+
+      path_entry = %Transport.PathEntry{
+        timestamp: System.system_time(:second),
+        next_hop: :crypto.strong_rand_bytes(16),
+        hops: 3,
+        expires: System.system_time(:second) + 7200,
+        random_blobs: [:crypto.strong_rand_bytes(10)],
+        interface: nil,
+        packet_hash: :crypto.strong_rand_bytes(32)
+      }
+
+      entry = %Transport.TunnelEntry{
+        tunnel_id: tunnel_id,
+        interface: nil,
+        paths: %{dest_hash => path_entry},
+        expires: System.system_time(:second) + 7200
+      }
+
+      Transport.put_tunnel_entry(tunnel_id, entry)
+
+      file_path = Path.join(storage_dir, "tunnels")
+      assert :ok == CacheManagement.save_tunnel_table(file_path)
+      assert File.exists?(file_path)
+
+      # Clear and reload
+      :ets.delete_all_objects(:rns_tunnel_table)
+      assert Transport.get_tunnel_entry(tunnel_id) == nil
+
+      assert :ok == CacheManagement.load_tunnel_table(file_path)
+
+      loaded = Transport.get_tunnel_entry(tunnel_id)
+      assert loaded != nil
+      assert loaded.tunnel_id == tunnel_id
+      assert Map.has_key?(loaded.paths, dest_hash)
+
+      loaded_path = loaded.paths[dest_hash]
+      assert loaded_path.hops == 3
+      assert loaded_path.next_hop == path_entry.next_hop
+    end
+
+    test "load_tunnel_table returns error for non-existent file" do
+      assert {:error, :enoent} == CacheManagement.load_tunnel_table("/tmp/nonexistent_tunnels_#{:rand.uniform(999_999)}")
+    end
+
+    test "save_tunnel_table with empty table", %{storage_dir: storage_dir} do
+      file_path = Path.join(storage_dir, "empty_tunnels")
+      assert :ok == CacheManagement.save_tunnel_table(file_path)
+
+      # Load back - should be empty
+      assert :ok == CacheManagement.load_tunnel_table(file_path)
+    end
+
+    test "save_tunnel_table truncates random_blobs", %{storage_dir: storage_dir} do
+      tunnel_id = :crypto.strong_rand_bytes(32)
+      dest_hash = :crypto.strong_rand_bytes(16)
+
+      # Create many random blobs (more than PERSIST_RANDOM_BLOBS=32)
+      many_blobs = for _ <- 1..50, do: :crypto.strong_rand_bytes(10)
+
+      path_entry = %Transport.PathEntry{
+        timestamp: System.system_time(:second),
+        next_hop: :crypto.strong_rand_bytes(16),
+        hops: 1,
+        expires: System.system_time(:second) + 7200,
+        random_blobs: many_blobs,
+        interface: nil,
+        packet_hash: :crypto.strong_rand_bytes(32)
+      }
+
+      entry = %Transport.TunnelEntry{
+        tunnel_id: tunnel_id,
+        interface: nil,
+        paths: %{dest_hash => path_entry},
+        expires: System.system_time(:second) + 7200
+      }
+
+      Transport.put_tunnel_entry(tunnel_id, entry)
+
+      file_path = Path.join(storage_dir, "tunnels_truncated")
+      CacheManagement.save_tunnel_table(file_path)
+
+      # Clear and reload
+      :ets.delete_all_objects(:rns_tunnel_table)
+      CacheManagement.load_tunnel_table(file_path)
+
+      loaded = Transport.get_tunnel_entry(tunnel_id)
+      loaded_path = loaded.paths[dest_hash]
+      # Should have at most 32 blobs
+      assert length(loaded_path.random_blobs) <= 32
+    end
+
+    test "load_tunnel_table skips tunnels with no valid paths", %{storage_dir: storage_dir} do
+      # Create tunnel with empty paths
+      tunnel_id = :crypto.strong_rand_bytes(32)
+
+      entry = %Transport.TunnelEntry{
+        tunnel_id: tunnel_id,
+        interface: nil,
+        paths: %{},
+        expires: System.system_time(:second) + 7200
+      }
+
+      Transport.put_tunnel_entry(tunnel_id, entry)
+
+      file_path = Path.join(storage_dir, "tunnels_empty_paths")
+      CacheManagement.save_tunnel_table(file_path)
+
+      # Clear and reload
+      :ets.delete_all_objects(:rns_tunnel_table)
+      CacheManagement.load_tunnel_table(file_path)
+
+      # Tunnel with no paths should not be loaded
+      assert Transport.get_tunnel_entry(tunnel_id) == nil
+    end
+
+    # ── clean_announce_cache ──────────────────────────────────────
+
+    test "clean_announce_cache removes unreferenced cached announces", %{cache_dir: cache_dir} do
+      announces_dir = Path.join(cache_dir, "announces")
+
+      # Create some fake cached announce files
+      referenced_hash = :crypto.strong_rand_bytes(16)
+      unreferenced_hash = :crypto.strong_rand_bytes(16)
+
+      ref_file = Path.join(announces_dir, Base.encode16(referenced_hash, case: :lower))
+      unref_file = Path.join(announces_dir, Base.encode16(unreferenced_hash, case: :lower))
+
+      File.write!(ref_file, "data")
+      File.write!(unref_file, "data")
+
+      # Add a path table entry referencing the first hash
+      add_path_entry(:crypto.strong_rand_bytes(16), packet_hash: referenced_hash)
+
+      CacheManagement.clean_announce_cache(cache_dir)
+
+      # Referenced file should still exist
+      assert File.exists?(ref_file)
+      # Unreferenced file should be removed
+      refute File.exists?(unref_file)
+    end
+
+    test "clean_announce_cache keeps tunnel-referenced announces", %{cache_dir: cache_dir} do
+      announces_dir = Path.join(cache_dir, "announces")
+
+      tunnel_hash = :crypto.strong_rand_bytes(16)
+      tunnel_file = Path.join(announces_dir, Base.encode16(tunnel_hash, case: :lower))
+      File.write!(tunnel_file, "data")
+
+      # Add a tunnel entry referencing this hash
+      tunnel_id = :crypto.strong_rand_bytes(32)
+      dest_hash = :crypto.strong_rand_bytes(16)
+
+      path_entry = %Transport.PathEntry{
+        timestamp: System.system_time(:second),
+        next_hop: :crypto.strong_rand_bytes(16),
+        hops: 1,
+        expires: System.system_time(:second) + 3600,
+        random_blobs: [],
+        interface: nil,
+        packet_hash: tunnel_hash
+      }
+
+      entry = %Transport.TunnelEntry{
+        tunnel_id: tunnel_id,
+        interface: nil,
+        paths: %{dest_hash => path_entry},
+        expires: System.system_time(:second) + 3600
+      }
+
+      Transport.put_tunnel_entry(tunnel_id, entry)
+
+      CacheManagement.clean_announce_cache(cache_dir)
+
+      # Tunnel-referenced file should still exist
+      assert File.exists?(tunnel_file)
+    end
+
+    test "clean_announce_cache removes files with invalid hex names", %{cache_dir: cache_dir} do
+      announces_dir = Path.join(cache_dir, "announces")
+
+      invalid_file = Path.join(announces_dir, "not_a_hex_hash")
+      File.write!(invalid_file, "data")
+
+      CacheManagement.clean_announce_cache(cache_dir)
+
+      refute File.exists?(invalid_file)
+    end
+
+    test "clean_announce_cache handles non-existent directory" do
+      assert :ok == CacheManagement.clean_announce_cache("/tmp/nonexistent_cache_#{:rand.uniform(999_999)}")
+    end
+
+    # ── persist_data ──────────────────────────────────────────────
+
+    test "persist_data saves all data", %{storage_dir: storage_dir} do
+      # Add some data to persist
+      Transport.mark_packet_hash(:crypto.strong_rand_bytes(32))
+      add_path_entry(:crypto.strong_rand_bytes(16))
+
+      iface = make_interface("PersistIface")
+      Transport.register_interface(iface)
+      add_path_entry(:crypto.strong_rand_bytes(16), interface: iface)
+
+      assert :ok == CacheManagement.persist_data(storage_dir)
+
+      assert File.exists?(Path.join(storage_dir, "packet_hashlist"))
+      assert File.exists?(Path.join(storage_dir, "destination_table"))
+      assert File.exists?(Path.join(storage_dir, "tunnels"))
+    end
+  end
+
+  describe "GenServer terminate persists data" do
+    test "terminate saves data when storage_path is set" do
+      tmp_dir = Path.join(System.tmp_dir!(), "rns_test_terminate_#{:rand.uniform(999_999)}")
+      File.mkdir_p!(tmp_dir)
+
+      on_exit(fn -> File.rm_rf!(tmp_dir) end)
+
+      # Stop current transport, start one with storage_path
+      GenServer.stop(RNS.Transport, :normal)
+      Process.sleep(10)
+      {:ok, _pid} = Transport.start_link(storage_path: tmp_dir)
+
+      # Add some data
+      Transport.mark_packet_hash(:crypto.strong_rand_bytes(32))
+
+      # Stop gracefully - should trigger persist_data
+      GenServer.stop(RNS.Transport, :normal)
+      Process.sleep(10)
+
+      assert File.exists?(Path.join(tmp_dir, "packet_hashlist"))
+
+      # Restart for subsequent tests
+      {:ok, _pid} = Transport.start_link([])
+    end
+  end
+
   # ── Helper functions ────────────────────────────────────────────────
 
   defp make_destination(direction) do

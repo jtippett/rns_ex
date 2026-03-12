@@ -277,7 +277,7 @@ This is the largest module (3312 LOC in Python). Split into manageable sub-modul
 - [x] **4.3 — Transport packet routing and delivery**
   Complete `lib/rns/transport.ex` with packet routing: `inbound/2`, `outbound/1`, `forward/1`, `transmit/2`, `internal_inbound/2`. Link management: `register_link/1`, `activate_link/1`, `find_link_for_request_packet/1`, `find_best_link/1`. Tunnel management in `lib/rns/transport/tunnel_management.ex`: `register_tunnel/2`, `tunnel_synthesize_handler/0`. Transport periodic jobs via `Process.send_after` — path/link/receipt expiry, cache cleaning. Write tests: packet routing decisions, link registration, receipt handling.
 
-- [ ] **4.4 — Transport caching and persistence**
+- [x] **4.4 — Transport caching and persistence**
   Implement caching: `cache/2`, packet hash deduplication, cache file storage. `save_packet_hashlist/0`, `load_packet_hashlist/0`, `save_tunnel_table/0`, `load_tunnel_table/0`. Wire up periodic job scheduling in GenServer `handle_info`. All ETS operations should be wrapped in clean function APIs. Write integration tests: cache persistence roundtrip, packet hashlist save/load, tunnel table persistence.
 
 ### Phase 5: Communication Layer
