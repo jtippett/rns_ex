@@ -328,7 +328,7 @@ This is the largest module (3312 LOC in Python). Split into manageable sub-modul
 - [x] **7.8 — Backbone interface**
   Port `python/RNS/Interfaces/BackboneInterface.py` (697 LOC) → `lib/rns/interfaces/backbone_interface.ex`. `RNS.Interfaces.Backbone` and `RNS.Interfaces.BackboneClient`. TCP and UDP modes, connection multiplexing, high-bandwidth optimization. Write tests: connection establishment, data transfer.
 
-- [ ] **7.9 — Pipe interface**
+- [x] **7.9 — Pipe interface**
   Port `python/RNS/Interfaces/PipeInterface.py` (205 LOC) → `lib/rns/interfaces/pipe_interface.ex`. Communicate with external programs via `Port.open/2` (stdin/stdout pipes). Process spawning, bidirectional I/O, lifecycle management. Write tests: pipe communication with simple echo subprocess.
 
 - [ ] **7.10 — I2P interface**
