@@ -282,7 +282,7 @@ This is the largest module (3312 LOC in Python). Split into manageable sub-modul
 
 ### Phase 5: Communication Layer
 
-- [ ] **5.1 — Channel module**
+- [x] **5.1 — Channel module**
   Port `python/RNS/Channel.py` (705 LOC) → `lib/rns/channel.ex`. Define `MessageState` (`:new`, `:sent`, `:delivered`, `:failed`). Define `MessageBase` behaviour with `pack/1`, `unpack/1`, `msgtype/0` callbacks. Implement `RNS.Channel.Envelope` struct: wraps messages with sequence numbers, timestamps, retry tracking. Implement `RNS.Channel` as a struct/process: `send/2`, `register_message_type/2`, `add_message_handler/2`, `remove_message_handler/2`, `get_mdu/1`, `is_ready_to_send?/1`. Implement `LinkChannelOutlet`. Handle message ordering, delivery confirmation, retry, windowing. Write tests: message serialization, ordering, delivery confirmation, windowing.
 
 - [ ] **5.2 — Link module — establishment and encryption**
