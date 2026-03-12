@@ -304,7 +304,7 @@ This is the largest module (3312 LOC in Python). Split into manageable sub-modul
 
 ### Phase 7: Interface System
 
-- [ ] **7.1 — Interface behaviour and base module**
+- [x] **7.1 — Interface behaviour and base module**
   Port `python/RNS/Interfaces/Interface.py` (302 LOC) → `lib/rns/interfaces/interface.ex`. Define `RNS.Interface` behaviour with callbacks: `process_outgoing/2`, `process_incoming/2`, `detach/1`. Create `use RNS.Interface` macro that injects shared logic: constants (`@mode_full`, `@mode_point_to_point`, `@mode_access_point`, `@mode_roaming`, `@mode_boundary`, `@mode_gateway`), default struct fields (`:name`, `:rxb`, `:txb`, `:online`, `:bitrate`, `:mtu`, `:announce_rate_target`, etc.), shared functions: `get_hash/1`, `should_ingress_limit/1`, `optimise_mtu/1`, `age/1`, `hold_announce/2`, `process_held_announces/1`, `received_announce/1`, `sent_announce/1`, announce frequency tracking, HDLC framing helpers, IFAC validation. Write tests: hash computation, announce rate limiting, HDLC framing, MTU optimization.
 
 - [ ] **7.2 — UDP interface**
