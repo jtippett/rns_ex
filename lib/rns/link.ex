@@ -33,8 +33,9 @@ defmodule RNS.Link do
   2. Responder validates, generates own keypair, derives shared secret, sends proof
   3. Initiator verifies proof, derives same shared secret
 
-  This module covers establishment and encryption (Task 5.2).
-  Lifecycle management (keepalive, teardown, stale detection) is Task 5.3.
+  Includes establishment, encryption (Task 5.2), and lifecycle management:
+  keepalive, teardown, stale detection, packet receive dispatch,
+  resource management, and watchdog checks (Task 5.3).
 
   Matches `python/RNS/Link.py`.
   """
@@ -867,6 +868,809 @@ defmodule RNS.Link do
   @spec set_remote_identified_callback(t(), function()) :: t()
   def set_remote_identified_callback(%__MODULE__{callbacks: cb} = link, callback) do
     %{link | callbacks: %{cb | remote_identified: callback}}
+  end
+
+  # ══════════════════════════════════════════════════════════════════
+  # Task 5.3 — Lifecycle management
+  # ══════════════════════════════════════════════════════════════════
+
+  # ── Timing queries ─────────────────────────────────────────────
+
+  @doc "Returns the time in seconds since this link was established."
+  @spec get_age(t()) :: number() | nil
+  def get_age(%__MODULE__{activated_at: nil}), do: nil
+
+  def get_age(%__MODULE__{activated_at: activated_at}) do
+    System.system_time(:second) - activated_at
+  end
+
+  @doc "Returns the time in seconds since last inbound packet (including keepalive)."
+  @spec no_inbound_for(t()) :: number()
+  def no_inbound_for(%__MODULE__{last_inbound: last_inbound, activated_at: activated_at}) do
+    activated = activated_at || 0
+    effective_last = max(last_inbound, activated)
+    System.system_time(:second) - effective_last
+  end
+
+  @doc "Returns the time in seconds since last outbound packet (including keepalive)."
+  @spec no_outbound_for(t()) :: number()
+  def no_outbound_for(%__MODULE__{last_outbound: last_outbound}) do
+    System.system_time(:second) - last_outbound
+  end
+
+  @doc "Returns the time in seconds since payload data traversed the link (excludes keepalive)."
+  @spec no_data_for(t()) :: number()
+  def no_data_for(%__MODULE__{last_data: last_data}) do
+    System.system_time(:second) - last_data
+  end
+
+  @doc "Returns the time in seconds since any activity on the link (including keepalive)."
+  @spec inactive_for(t()) :: number()
+  def inactive_for(%__MODULE__{} = link) do
+    min(no_inbound_for(link), no_outbound_for(link))
+  end
+
+  # ── Send keepalive ─────────────────────────────────────────────
+
+  @doc """
+  Builds keepalive packet data.
+
+  Returns `{keepalive_data, context, updated_link}` where keepalive_data is
+  `<<0xFF>>` and context is `:keepalive`. The caller creates and sends the packet.
+  """
+  @spec send_keepalive(t()) :: {binary(), atom(), t()}
+  def send_keepalive(%__MODULE__{} = link) do
+    updated = had_outbound(link, is_keepalive: true)
+    {<<0xFF>>, :keepalive, updated}
+  end
+
+  # ── Prove (responder side) ─────────────────────────────────────
+
+  @doc """
+  Builds proof data for the responder to send to the initiator.
+
+  Returns `{proof_data, updated_link}` where proof_data contains
+  signature + pub_bytes + signalling_bytes.
+  """
+  @spec prove(t()) :: {binary(), t()}
+  def prove(%__MODULE__{} = link) do
+    sig_bytes = signalling_bytes(link.mtu, link.mode)
+
+    signed_data =
+      link.link_id <> link.pub_bytes <> link.sig_pub_bytes <> sig_bytes
+
+    signature = link.owner.identity |> Identity.sign(signed_data)
+    proof_data = signature <> link.pub_bytes <> sig_bytes
+
+    updated = had_outbound(link)
+    {proof_data, updated}
+  end
+
+  # ── Prove packet (explicit proof for data packets) ─────────────
+
+  @doc """
+  Builds an explicit proof for a received data packet.
+
+  Returns `{proof_data, updated_link}` where proof_data contains
+  packet_hash + signature.
+  """
+  @spec prove_packet(t(), binary()) :: {binary(), t()}
+  def prove_packet(%__MODULE__{} = link, packet_hash) do
+    signature = sign(link, packet_hash)
+    proof_data = packet_hash <> signature
+    updated = had_outbound(link)
+    {proof_data, updated}
+  end
+
+  # ── Teardown ───────────────────────────────────────────────────
+
+  @doc """
+  Closes the link and purges encryption keys.
+
+  Returns `{teardown_data, updated_link}` where teardown_data is the
+  encrypted link_id to send as a LINKCLOSE packet (nil if link was PENDING).
+  """
+  @spec teardown(t()) :: {binary() | nil, t()}
+  def teardown(%__MODULE__{status: status} = link)
+      when status != @status_pending and status != @status_closed do
+    # Build teardown packet data (encrypted link_id)
+    teardown_data =
+      case encrypt(link, link.link_id) do
+        {:ok, data} -> data
+        _ -> nil
+      end
+
+    reason =
+      if link.initiator, do: @initiator_closed, else: @destination_closed
+
+    updated =
+      %{link | status: @status_closed, teardown_reason: reason}
+      |> link_closed()
+
+    {teardown_data, updated}
+  end
+
+  def teardown(%__MODULE__{} = link) do
+    reason =
+      if link.initiator, do: @initiator_closed, else: @destination_closed
+
+    updated =
+      %{link | status: @status_closed, teardown_reason: reason}
+      |> link_closed()
+
+    {nil, updated}
+  end
+
+  # ── Teardown packet (received LINKCLOSE from peer) ─────────────
+
+  @doc """
+  Processes an incoming LINKCLOSE packet.
+
+  Decrypts the payload and verifies it matches the link_id.
+  Returns `{:ok, updated_link}` on success or `{:error, reason}` on failure.
+  """
+  @spec teardown_packet(t(), map()) :: {:ok, t()} | {:error, term()}
+  def teardown_packet(%__MODULE__{} = link, packet) do
+    case decrypt(link, packet.data) do
+      {:ok, plaintext} ->
+        if plaintext == link.link_id do
+          reason =
+            if link.initiator, do: @destination_closed, else: @initiator_closed
+
+          updated =
+            %{link | status: @status_closed, teardown_reason: reason}
+            |> update_phy_stats(packet)
+            |> link_closed()
+
+          {:ok, updated}
+        else
+          {:error, :invalid_teardown_data}
+        end
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  rescue
+    _ -> {:error, :decryption_failed}
+  end
+
+  # ── Link closed (internal cleanup) ─────────────────────────────
+
+  @doc """
+  Clears encryption keys, cancels resources, shuts down channel,
+  and invokes the link_closed callback.
+  """
+  @spec link_closed(t()) :: t()
+  def link_closed(%__MODULE__{} = link) do
+    # Shut down channel if present
+    updated =
+      if link.channel do
+        %{link | channel: RNS.Channel.shutdown(link.channel)}
+      else
+        link
+      end
+
+    # Clear encryption keys
+    updated = %{updated |
+      prv: nil,
+      pub_bytes: nil,
+      shared_key: nil,
+      derived_key: nil,
+      token: nil
+    }
+
+    # Invoke link_closed callback
+    if updated.callbacks && updated.callbacks.link_closed do
+      try do
+        updated.callbacks.link_closed.(updated)
+      rescue
+        e ->
+          require Logger
+          Logger.error("Error in link closed callback: #{inspect(e)}")
+      end
+    end
+
+    updated
+  end
+
+  # ── Update phy stats ───────────────────────────────────────────
+
+  @doc "Updates physical layer statistics from a received packet."
+  @spec update_phy_stats(t(), map(), keyword()) :: t()
+  def update_phy_stats(%__MODULE__{} = link, packet, opts \\ []) do
+    force = Keyword.get(opts, :force_update, false)
+
+    if link.track_phy_stats or force do
+      rssi = Map.get(packet, :rssi, link.rssi)
+      snr = Map.get(packet, :snr, link.snr)
+      q = Map.get(packet, :q, link.q)
+
+      %{link |
+        rssi: rssi || link.rssi,
+        snr: snr || link.snr,
+        q: q || link.q
+      }
+    else
+      link
+    end
+  end
+
+  # ── Receive packet ─────────────────────────────────────────────
+
+  @doc """
+  Processes an inbound packet on this link.
+
+  Dispatches by packet type and context. Returns `{:ok, updated_link, actions}`
+  where actions is a list of side-effect tuples the caller should execute:
+  - `{:send_proof, proof_data}` — send a PROOF packet
+  - `{:send_keepalive_response, data}` — send a KEEPALIVE response
+  - `{:callback, fun, args}` — invoke a callback
+  """
+  @spec receive_packet(t(), map()) :: {:ok, t(), list()} | {:ignored, t()}
+  def receive_packet(%__MODULE__{status: @status_closed} = link, _packet) do
+    {:ignored, link}
+  end
+
+  def receive_packet(%__MODULE__{initiator: true} = link, %{context: context, data: data} = _packet)
+      when context == :keepalive and data == <<0xFF>> do
+    # Initiator ignores keepalive request packets
+    {:ignored, link}
+  end
+
+  def receive_packet(%__MODULE__{} = link, packet) do
+    context = Map.get(packet, :context)
+    receiving_interface = Map.get(packet, :receiving_interface)
+
+    if receiving_interface != nil and link.attached_interface != nil and
+       receiving_interface != link.attached_interface do
+      require Logger
+      Logger.error("Link packet received on unexpected interface!")
+      {:ignored, link}
+    else
+      now = System.system_time(:second)
+
+      updated = %{link |
+        last_inbound: now,
+        rx: link.rx + 1,
+        rxbytes: link.rxbytes + byte_size(Map.get(packet, :data, <<>>))
+      }
+
+      # Update last_data for non-keepalive packets
+      updated =
+        if context != :keepalive do
+          %{updated | last_data: now}
+        else
+          updated
+        end
+
+      # Revive stale link on any inbound
+      updated =
+        if updated.status == @status_stale do
+          %{updated | status: @status_active}
+        else
+          updated
+        end
+
+      packet_type = Map.get(packet, :packet_type, :data)
+      do_receive_packet(updated, packet, packet_type, context)
+    end
+  end
+
+  # ── Receive dispatch by packet type and context ────────────────
+
+  defp do_receive_packet(link, packet, :data, :none) do
+    case decrypt(link, packet.data) do
+      {:ok, plaintext} ->
+        link = update_phy_stats(link, packet)
+
+        actions = build_data_actions(link, packet, plaintext)
+        {:ok, link, actions}
+
+      {:error, _} ->
+        {:ok, link, []}
+    end
+  end
+
+  defp do_receive_packet(link, packet, :data, :linkidentify) do
+    case decrypt(link, packet.data) do
+      {:ok, plaintext} ->
+        keysize_bytes = div(Identity.keysize(), 8)
+        siglength_bytes = div(Identity.siglength(), 8)
+
+        if not link.initiator and byte_size(plaintext) == keysize_bytes + siglength_bytes do
+          public_key = binary_part(plaintext, 0, keysize_bytes)
+          signature = binary_part(plaintext, keysize_bytes, siglength_bytes)
+          signed_data = link.link_id <> public_key
+
+          identity = Identity.new(create_keys: false)
+          identity = Identity.load_public_key(identity, public_key)
+
+          if Identity.validate(identity, signature, signed_data) do
+            link = %{link | remote_identity: identity}
+            link = update_phy_stats(link, packet)
+
+            actions =
+              if link.callbacks && link.callbacks.remote_identified do
+                [{:callback, link.callbacks.remote_identified, [link, identity]}]
+              else
+                []
+              end
+
+            {:ok, link, actions}
+          else
+            {:ok, link, []}
+          end
+        else
+          {:ok, link, []}
+        end
+
+      {:error, _} ->
+        {:ok, link, []}
+    end
+  end
+
+  defp do_receive_packet(link, packet, :data, :request) do
+    case decrypt(link, packet.data) do
+      {:ok, packed_request} ->
+        link = update_phy_stats(link, packet)
+        request_id = Identity.truncated_hash(Map.get(packet, :raw, packet.data))
+
+        unpacked_request = Msgpax.unpack!(packed_request)
+        actions = [{:handle_request, request_id, unpacked_request}]
+        {:ok, link, actions}
+
+      {:error, _} ->
+        {:ok, link, []}
+    end
+  rescue
+    _ -> {:ok, link, []}
+  end
+
+  defp do_receive_packet(link, packet, :data, :response) do
+    case decrypt(link, packet.data) do
+      {:ok, packed_response} ->
+        link = update_phy_stats(link, packet)
+        unpacked = Msgpax.unpack!(packed_response)
+        request_id = Enum.at(unpacked, 0)
+        response_data = Enum.at(unpacked, 1)
+        transfer_size = byte_size(Msgpax.pack!(response_data) |> IO.iodata_to_binary()) - 2
+        actions = [{:handle_response, request_id, response_data, transfer_size, transfer_size}]
+        {:ok, link, actions}
+
+      {:error, _} ->
+        {:ok, link, []}
+    end
+  rescue
+    _ -> {:ok, link, []}
+  end
+
+  defp do_receive_packet(link, packet, :data, :lrrtt) do
+    if not link.initiator do
+      link = update_phy_stats(link, packet)
+
+      case rtt_packet(link, packet) do
+        {:ok, activated} ->
+          actions =
+            if activated.owner && activated.owner[:callbacks] &&
+               activated.owner[:callbacks][:link_established] do
+              [{:callback, activated.owner[:callbacks][:link_established], [activated]}]
+            else
+              []
+            end
+
+          {:ok, activated, actions}
+
+        {:error, _} ->
+          {:ok, link, []}
+      end
+    else
+      {:ok, link, []}
+    end
+  end
+
+  defp do_receive_packet(link, packet, :data, :linkclose) do
+    case teardown_packet(link, packet) do
+      {:ok, closed_link} -> {:ok, closed_link, []}
+      {:error, _} -> {:ok, link, []}
+    end
+  end
+
+  defp do_receive_packet(link, packet, :data, :keepalive) do
+    if not link.initiator and packet.data == <<0xFF>> do
+      # Responder responds to keepalive request
+      link = had_outbound(link, is_keepalive: true)
+      {:ok, link, [{:send_keepalive_response, <<0xFE>>}]}
+    else
+      {:ok, link, []}
+    end
+  end
+
+  defp do_receive_packet(link, packet, :data, :channel) do
+    if link.channel do
+      case decrypt(link, packet.data) do
+        {:ok, plaintext} ->
+          link = update_phy_stats(link, packet)
+          packet_hash = Map.get(packet, :packet_hash, <<>>)
+          actions = [
+            {:send_proof, packet_hash},
+            {:channel_receive, plaintext}
+          ]
+          {:ok, link, actions}
+
+        {:error, _} ->
+          {:ok, link, []}
+      end
+    else
+      {:ok, link, []}
+    end
+  end
+
+  defp do_receive_packet(link, packet, :data, :resource_adv) do
+    case decrypt(link, packet.data) do
+      {:ok, plaintext} ->
+        link = update_phy_stats(link, packet)
+        {:ok, link, [{:resource_advertisement, plaintext}]}
+
+      {:error, _} ->
+        {:ok, link, []}
+    end
+  end
+
+  defp do_receive_packet(link, packet, :data, context)
+       when context in [:resource_req, :resource_hmu, :resource_icl, :resource_rcl] do
+    case decrypt(link, packet.data) do
+      {:ok, plaintext} ->
+        link = update_phy_stats(link, packet)
+        {:ok, link, [{:resource_message, context, plaintext}]}
+
+      {:error, _} ->
+        {:ok, link, []}
+    end
+  end
+
+  defp do_receive_packet(link, packet, :data, :resource) do
+    link = update_phy_stats(link, packet)
+    {:ok, link, [{:resource_data, packet}]}
+  end
+
+  defp do_receive_packet(link, packet, :proof, :resource_prf) do
+    link = update_phy_stats(link, packet)
+    {:ok, link, [{:resource_proof, packet.data}]}
+  end
+
+  defp do_receive_packet(link, _packet, _type, _context) do
+    {:ok, link, []}
+  end
+
+  # ── Build data actions helper ──────────────────────────────────
+
+  defp build_data_actions(link, packet, plaintext) do
+    actions = []
+
+    # Invoke packet callback
+    actions =
+      if link.callbacks && link.callbacks.packet do
+        [{:callback, link.callbacks.packet, [plaintext, packet]} | actions]
+      else
+        actions
+      end
+
+    # Handle proof strategy
+    dest = link.destination
+    actions =
+      cond do
+        dest && Map.get(dest, :proof_strategy) == RNS.Destination.prove_all() ->
+          packet_hash = Map.get(packet, :packet_hash, <<>>)
+          [{:send_proof, packet_hash} | actions]
+
+        dest && Map.get(dest, :proof_strategy) == RNS.Destination.prove_app() &&
+          dest.callbacks && dest.callbacks.proof_requested ->
+          try do
+            if dest.callbacks.proof_requested.(packet) do
+              packet_hash = Map.get(packet, :packet_hash, <<>>)
+              [{:send_proof, packet_hash} | actions]
+            else
+              actions
+            end
+          rescue
+            _ -> actions
+          end
+
+        true ->
+          actions
+      end
+
+    Enum.reverse(actions)
+  end
+
+  # ── Handle request (on responder side) ─────────────────────────
+
+  @doc """
+  Handles an incoming request on the link.
+
+  Returns `{:ok, response_actions, updated_link}` where response_actions
+  contains the response to send.
+  """
+  @spec handle_request(t(), binary(), list()) :: {:ok, list(), t()}
+  def handle_request(%__MODULE__{status: @status_active} = link, request_id, unpacked_request) do
+    [requested_at, path_hash, request_data] = unpacked_request
+
+    dest = link.destination
+
+    allow_none = RNS.Destination.allow_none()
+    allow_all = RNS.Destination.allow_all()
+    allow_list = RNS.Destination.allow_list()
+
+    if dest && Map.has_key?(dest, :request_handlers) &&
+       Map.has_key?(dest.request_handlers, path_hash) do
+      {_path, response_generator, allow, allowed_list, _auto_compress} =
+        Map.get(dest.request_handlers, path_hash)
+
+      allowed =
+        case allow do
+          ^allow_none -> false
+          ^allow_all -> true
+          ^allow_list ->
+            link.remote_identity != nil and
+              link.remote_identity.hash in allowed_list
+          _ -> false
+        end
+
+      if allowed do
+        response = response_generator.(request_data, request_id, link.remote_identity, requested_at)
+
+        if response != nil do
+          packed_response = Msgpax.pack!([request_id, response]) |> IO.iodata_to_binary()
+
+          if byte_size(packed_response) <= link.mdu do
+            {:ok, [{:send_response, packed_response}], link}
+          else
+            {:ok, [{:send_response_resource, packed_response, request_id}], link}
+          end
+        else
+          {:ok, [], link}
+        end
+      else
+        {:ok, [], link}
+      end
+    else
+      {:ok, [], link}
+    end
+  end
+
+  def handle_request(%__MODULE__{} = link, _request_id, _unpacked_request) do
+    {:ok, [], link}
+  end
+
+  # ── Handle response ────────────────────────────────────────────
+
+  @doc """
+  Handles a response to a pending request on the link.
+
+  Finds the matching pending request by request_id and invokes its
+  response callback.
+  """
+  @spec handle_response(t(), binary(), term(), non_neg_integer(), non_neg_integer()) :: t()
+  def handle_response(%__MODULE__{status: @status_active} = link, request_id, response_data, response_size, response_transfer_size) do
+    {matching, remaining} =
+      Enum.split_with(link.pending_requests, fn req ->
+        Map.get(req, :request_id) == request_id
+      end)
+
+    case matching do
+      [pending_request | _] ->
+        if Map.has_key?(pending_request, :response_received) do
+          pending_request.response_received.(response_data, response_size, response_transfer_size)
+        end
+
+        %{link | pending_requests: remaining}
+
+      [] ->
+        link
+    end
+  end
+
+  def handle_response(%__MODULE__{} = link, _request_id, _response_data, _response_size, _response_transfer_size) do
+    link
+  end
+
+  # ── Resource management ────────────────────────────────────────
+
+  @doc "Sets the resource acceptance strategy."
+  @spec set_resource_strategy(t(), non_neg_integer()) :: t()
+  def set_resource_strategy(%__MODULE__{} = link, strategy)
+      when strategy in [@accept_none, @accept_app, @accept_all] do
+    %{link | resource_strategy: strategy}
+  end
+
+  @doc "Registers an outgoing resource on the link."
+  @spec register_outgoing_resource(t(), term()) :: t()
+  def register_outgoing_resource(%__MODULE__{} = link, resource) do
+    %{link | outgoing_resources: link.outgoing_resources ++ [resource]}
+  end
+
+  @doc "Registers an incoming resource on the link."
+  @spec register_incoming_resource(t(), term()) :: t()
+  def register_incoming_resource(%__MODULE__{} = link, resource) do
+    %{link | incoming_resources: link.incoming_resources ++ [resource]}
+  end
+
+  @doc "Checks if an incoming resource with the same hash already exists."
+  @spec has_incoming_resource?(t(), term()) :: boolean()
+  def has_incoming_resource?(%__MODULE__{incoming_resources: resources}, resource) do
+    resource_hash = Map.get(resource, :hash)
+    Enum.any?(resources, fn r -> Map.get(r, :hash) == resource_hash end)
+  end
+
+  @doc "Removes an outgoing resource from the link."
+  @spec cancel_outgoing_resource(t(), term()) :: t()
+  def cancel_outgoing_resource(%__MODULE__{} = link, resource) do
+    %{link | outgoing_resources: List.delete(link.outgoing_resources, resource)}
+  end
+
+  @doc "Removes an incoming resource from the link."
+  @spec cancel_incoming_resource(t(), term()) :: t()
+  def cancel_incoming_resource(%__MODULE__{} = link, resource) do
+    %{link | incoming_resources: List.delete(link.incoming_resources, resource)}
+  end
+
+  @doc "Returns true if the link is ready for a new outgoing resource."
+  @spec ready_for_new_resource?(t()) :: boolean()
+  def ready_for_new_resource?(%__MODULE__{outgoing_resources: []}), do: true
+  def ready_for_new_resource?(%__MODULE__{}), do: false
+
+  @doc "Records resource conclusion and updates expected rate."
+  @spec resource_concluded(t(), term()) :: t()
+  def resource_concluded(%__MODULE__{} = link, resource) do
+    concluded_at = System.system_time(:second)
+
+    link =
+      if resource in link.incoming_resources do
+        started = Map.get(resource, :started_transferring, concluded_at)
+        size = Map.get(resource, :size, 0)
+        rate = size * 8 / max(concluded_at - started, 0.0001)
+
+        %{link |
+          last_resource_window: Map.get(resource, :window),
+          last_resource_eifr: Map.get(resource, :eifr),
+          incoming_resources: List.delete(link.incoming_resources, resource),
+          expected_rate: rate
+        }
+      else
+        link
+      end
+
+    if resource in link.outgoing_resources do
+      started = Map.get(resource, :started_transferring, concluded_at)
+      size = Map.get(resource, :size, 0)
+      rate = size * 8 / max(concluded_at - started, 0.0001)
+
+      %{link |
+        outgoing_resources: List.delete(link.outgoing_resources, resource),
+        expected_rate: rate
+      }
+    else
+      link
+    end
+  end
+
+  @doc "Returns the last resource window size."
+  @spec get_last_resource_window(t()) :: non_neg_integer() | nil
+  def get_last_resource_window(%__MODULE__{last_resource_window: w}), do: w
+
+  @doc "Returns the last resource EIFR."
+  @spec get_last_resource_eifr(t()) :: number() | nil
+  def get_last_resource_eifr(%__MODULE__{last_resource_eifr: e}), do: e
+
+  # ── Get MTU / Get MDU / Get expected rate (status-gated) ───────
+
+  @doc "Returns the MTU of an established link."
+  @spec get_mtu(t()) :: non_neg_integer() | nil
+  def get_mtu(%__MODULE__{status: @status_active, mtu: mtu}), do: mtu
+  def get_mtu(%__MODULE__{}), do: nil
+
+  @doc "Returns the packet MDU of an established link."
+  @spec get_mdu(t()) :: non_neg_integer() | nil
+  def get_mdu(%__MODULE__{status: @status_active, mdu: mdu}), do: mdu
+  def get_mdu(%__MODULE__{}), do: nil
+
+  @doc "Returns the expected in-flight data rate of an established link."
+  @spec get_expected_rate(t()) :: number() | nil
+  def get_expected_rate(%__MODULE__{status: @status_active, expected_rate: rate}), do: rate
+  def get_expected_rate(%__MODULE__{}), do: nil
+
+  @doc "Returns the encryption mode of the link."
+  @spec get_mode(t()) :: non_neg_integer()
+  def get_mode(%__MODULE__{mode: mode}), do: mode
+
+  # ── Watchdog check ─────────────────────────────────────────────
+
+  @doc """
+  Performs a watchdog check on the link state.
+
+  Returns `{:ok, updated_link, actions}` where actions may include:
+  - `{:send_keepalive}` — initiator should send keepalive
+  - `{:teardown, reason}` — link should be torn down
+  - `{:stale}` — link has gone stale
+
+  This replaces the Python watchdog thread. Should be called periodically
+  via `Process.send_after`.
+  """
+  @spec watchdog_check(t()) :: {:ok, t(), list()}
+  def watchdog_check(%__MODULE__{status: @status_closed} = link) do
+    {:ok, link, []}
+  end
+
+  def watchdog_check(%__MODULE__{status: @status_pending} = link) do
+    establishment_timeout =
+      @establishment_timeout_per_hop * max(1, link.expected_hops || 1) + @keepalive
+
+    if link.request_time && System.system_time(:second) >= link.request_time + establishment_timeout do
+      closed = %{link | status: @status_closed, teardown_reason: @timeout}
+      closed = link_closed(closed)
+      {:ok, closed, [{:teardown, :timeout}]}
+    else
+      {:ok, link, []}
+    end
+  end
+
+  def watchdog_check(%__MODULE__{status: @status_handshake} = link) do
+    establishment_timeout =
+      @establishment_timeout_per_hop * max(1, link.expected_hops || 1) + @keepalive
+
+    if link.request_time && System.system_time(:second) >= link.request_time + establishment_timeout do
+      closed = %{link | status: @status_closed, teardown_reason: @timeout}
+      closed = link_closed(closed)
+      {:ok, closed, [{:teardown, :timeout}]}
+    else
+      {:ok, link, []}
+    end
+  end
+
+  def watchdog_check(%__MODULE__{status: @status_active} = link) do
+    activated = link.activated_at || 0
+    last_inbound = max(max(link.last_inbound, link.last_proof), activated)
+    now = System.system_time(:second)
+
+    cond do
+      now >= last_inbound + link.stale_time ->
+        # Link is stale
+        stale = %{link | status: @status_stale}
+        {:ok, stale, [{:stale}]}
+
+      now >= last_inbound + link.keepalive ->
+        # Need keepalive
+        actions =
+          if link.initiator and now >= link.last_keepalive + link.keepalive do
+            [{:send_keepalive}]
+          else
+            []
+          end
+
+        {:ok, link, actions}
+
+      true ->
+        {:ok, link, []}
+    end
+  end
+
+  def watchdog_check(%__MODULE__{status: @status_stale} = link) do
+    # Stale link: send final teardown and close
+    {teardown_data, closed} = teardown(link)
+    closed = %{closed | teardown_reason: @timeout}
+
+    actions =
+      if teardown_data do
+        [{:send_teardown, teardown_data}, {:teardown, :timeout}]
+      else
+        [{:teardown, :timeout}]
+      end
+
+    {:ok, closed, actions}
+  end
+
+  def watchdog_check(%__MODULE__{} = link) do
+    {:ok, link, []}
   end
 end
 

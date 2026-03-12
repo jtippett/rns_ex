@@ -288,7 +288,7 @@ This is the largest module (3312 LOC in Python). Split into manageable sub-modul
 - [x] **5.2 — Link module — establishment and encryption**
   Port `python/RNS/Link.py` (1549 LOC, part 1) → `lib/rns/link.ex`. Define constants. Implement `RNS.Link` as a GenServer. 3-step ECDH handshake: (1) initiator generates ephemeral X25519 keypair, sends link request, (2) responder validates, generates own keypair, derives shared secret, sends proof, (3) initiator verifies proof, derives same shared secret. `derive_keys/1` using HKDF. `encrypt/2`, `decrypt/2` with derived keys. `identify/2` and `request/5`. Write tests: key exchange, encrypt/decrypt roundtrip, link state transitions.
 
-- [ ] **5.3 — Link module — lifecycle management**
+- [x] **5.3 — Link module — lifecycle management**
   Complete `lib/rns/link.ex`. `send/3`, `receive/2`, `prove/2`, `prove_packet/1`, `validate_proof/1`. Keepalive via `Process.send_after`: `send_keepalive/1`, response handling. Teardown: `teardown/1`, `teardown_packet/1`. RTT tracking. `inactive_for/1`, `no_inbound_for/1`, `no_outbound_for/1`, `no_data_for/1`. Stale detection and auto-teardown. Wire callbacks. Write tests: keepalive timing, stale detection, teardown, RTT.
 
 - [ ] **5.4 — Resource module**
