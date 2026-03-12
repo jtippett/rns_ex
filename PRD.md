@@ -310,7 +310,7 @@ This is the largest module (3312 LOC in Python). Split into manageable sub-modul
 - [x] **7.2 — UDP interface**
   Port `python/RNS/Interfaces/UDPInterface.py` (140 LOC) → `lib/rns/interfaces/udp_interface.ex`. Implement as GenServer using `:gen_udp`. Support: bind address/port, target address/port, broadcast mode. `process_outgoing/2` sends via UDP, receive loop in `handle_info`. Config from parsed config object. Write tests: send/receive over localhost UDP, config parsing.
 
-- [ ] **7.3 — TCP interface (client and server)**
+- [x] **7.3 — TCP interface (client and server)**
   Port `python/RNS/Interfaces/TCPInterface.py` (661 LOC) → `lib/rns/interfaces/tcp_interface.ex`. Implement `RNS.Interfaces.TCPClient` and `RNS.Interfaces.TCPServer` as GenServers using `:gen_tcp`. Client: connect, HDLC framing, reconnection via `Process.send_after`, keepalive. Server: `ThousandIsland` / raw `:gen_tcp.listen` + accept loop, manage client list. Connection timeouts, graceful disconnection, HDLC escape sequences. Write tests: client/server over localhost, HDLC framing roundtrip, reconnection.
 
 - [ ] **7.4 — Local interface**
