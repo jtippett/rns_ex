@@ -241,7 +241,7 @@ Read `python/RNS/Cryptography/` for reference. Every crypto module must have tes
 - [x] **2.2 — HMAC and HKDF**
   Create `lib/rns/cryptography/hmac.ex` wrapping `:crypto.mac(:hmac, algo, key, data)` to provide `RNS.Cryptography.HMAC.digest(key, data, algorithm)`. Create `lib/rns/cryptography/hkdf.ex` implementing HKDF (RFC 5869) using HMAC — implement `extract/3` and `expand/4` steps, provide `RNS.Cryptography.HKDF.derive_key(ikm, length, salt, info)`. Match the Python HKDF interface exactly — read `python/RNS/Cryptography/HKDF.py`. Write tests with RFC 5869 test vectors.
 
-- [ ] **2.3 — PKCS7 padding and AES-256-CBC**
+- [x] **2.3 — PKCS7 padding and AES-256-CBC**
   Create `lib/rns/cryptography/pkcs7.ex` — implement `pad(data, block_size)` and `unpad(data)`. Read `python/RNS/Cryptography/PKCS7.py`. Create `lib/rns/cryptography/aes.ex` wrapping `:crypto.crypto_one_time/5` — provide `encrypt(plaintext, key, iv)` and `decrypt(ciphertext, key, iv)` for AES-256-CBC with PKCS7 padding. Write tests: roundtrip encryption, known test vectors, invalid padding detection, property-based tests.
 
 - [ ] **2.4 — X25519 key exchange**
