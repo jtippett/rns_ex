@@ -307,7 +307,7 @@ This is the largest module (3312 LOC in Python). Split into manageable sub-modul
 - [x] **7.1 — Interface behaviour and base module**
   Port `python/RNS/Interfaces/Interface.py` (302 LOC) → `lib/rns/interfaces/interface.ex`. Define `RNS.Interface` behaviour with callbacks: `process_outgoing/2`, `process_incoming/2`, `detach/1`. Create `use RNS.Interface` macro that injects shared logic: constants (`@mode_full`, `@mode_point_to_point`, `@mode_access_point`, `@mode_roaming`, `@mode_boundary`, `@mode_gateway`), default struct fields (`:name`, `:rxb`, `:txb`, `:online`, `:bitrate`, `:mtu`, `:announce_rate_target`, etc.), shared functions: `get_hash/1`, `should_ingress_limit/1`, `optimise_mtu/1`, `age/1`, `hold_announce/2`, `process_held_announces/1`, `received_announce/1`, `sent_announce/1`, announce frequency tracking, HDLC framing helpers, IFAC validation. Write tests: hash computation, announce rate limiting, HDLC framing, MTU optimization.
 
-- [ ] **7.2 — UDP interface**
+- [x] **7.2 — UDP interface**
   Port `python/RNS/Interfaces/UDPInterface.py` (140 LOC) → `lib/rns/interfaces/udp_interface.ex`. Implement as GenServer using `:gen_udp`. Support: bind address/port, target address/port, broadcast mode. `process_outgoing/2` sends via UDP, receive loop in `handle_info`. Config from parsed config object. Write tests: send/receive over localhost UDP, config parsing.
 
 - [ ] **7.3 — TCP interface (client and server)**
