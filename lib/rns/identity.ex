@@ -416,6 +416,78 @@ defmodule RNS.Identity do
     Token.decrypt(token, ciphertext)
   end
 
+  # --- Announce Validation ---
+
+  @doc """
+  Validates an announce packet by extracting the public key and signature
+  from the announce data and verifying the signature.
+
+  Returns `true` if the announce signature is valid, `false` otherwise.
+
+  Ported from `python/RNS/Identity.py` `validate_announce()`.
+  """
+  @spec validate_announce(map()) :: boolean()
+  def validate_announce(packet) do
+    try do
+      keysize_bytes = div(@keysize, 8)
+      name_hash_len = div(@name_hash_length, 8)
+      sig_len = div(@siglength, 8)
+      ratchetsize_bytes = div(@ratchetsize, 8)
+      destination_hash = packet.destination_hash
+      data = packet.data
+
+      # Extract fields based on context flag (ratchet present or not)
+      {name_hash, random_hash, ratchet, signature, app_data} =
+        if Map.get(packet, :context_flag, 0) == 1 do
+          # FLAG_SET: announce contains a ratchet
+          nh = binary_part(data, keysize_bytes, name_hash_len)
+          rh = binary_part(data, keysize_bytes + name_hash_len, 10)
+          rt = binary_part(data, keysize_bytes + name_hash_len + 10, ratchetsize_bytes)
+          sig = binary_part(data, keysize_bytes + name_hash_len + 10 + ratchetsize_bytes, sig_len)
+
+          ad =
+            if byte_size(data) > keysize_bytes + name_hash_len + 10 + sig_len + ratchetsize_bytes do
+              binary_part(data, keysize_bytes + name_hash_len + 10 + sig_len + ratchetsize_bytes,
+                byte_size(data) - (keysize_bytes + name_hash_len + 10 + sig_len + ratchetsize_bytes))
+            else
+              <<>>
+            end
+
+          {nh, rh, rt, sig, ad}
+        else
+          # FLAG_UNSET: no ratchet
+          nh = binary_part(data, keysize_bytes, name_hash_len)
+          rh = binary_part(data, keysize_bytes + name_hash_len, 10)
+          sig = binary_part(data, keysize_bytes + name_hash_len + 10, sig_len)
+
+          ad =
+            if byte_size(data) > keysize_bytes + name_hash_len + 10 + sig_len do
+              binary_part(data, keysize_bytes + name_hash_len + 10 + sig_len,
+                byte_size(data) - (keysize_bytes + name_hash_len + 10 + sig_len))
+            else
+              <<>>
+            end
+
+          {nh, rh, <<>>, sig, ad}
+        end
+
+      public_key = binary_part(data, 0, keysize_bytes)
+      signed_data = destination_hash <> public_key <> name_hash <> random_hash <> ratchet <> app_data
+
+      # Load the announced identity's public key and validate
+      announced_identity = new(create_keys: false)
+      announced_identity = load_public_key(announced_identity, public_key)
+
+      if announced_identity.pub_bytes != nil do
+        validate(announced_identity, signature, signed_data)
+      else
+        false
+      end
+    rescue
+      _ -> false
+    end
+  end
+
   # --- Hash helpers ---
 
   @doc "Returns the SHA-256 hash of data."

@@ -1,6 +1,8 @@
 defmodule RNS.TransportTest do
   use ExUnit.Case, async: false
 
+  import Bitwise
+
   alias RNS.Transport
 
   # We need to restart Transport between tests to get clean ETS tables
@@ -488,7 +490,1154 @@ defmodule RNS.TransportTest do
     end
   end
 
-  # Helper functions
+  # ── Task 4.3: Packet Routing and Delivery Tests ──────────────────────
+
+  describe "link registration" do
+    test "register_link adds initiator link to pending table" do
+      link = %{link_id: :crypto.strong_rand_bytes(16), initiator: true, status: :pending}
+      assert :ok == Transport.register_link(link)
+      assert Transport.get_pending_links() |> Enum.any?(fn l -> l.link_id == link.link_id end)
+    end
+
+    test "register_link adds non-initiator link to active table" do
+      link = %{link_id: :crypto.strong_rand_bytes(16), initiator: false, status: :active}
+      assert :ok == Transport.register_link(link)
+      assert Transport.get_active_links() |> Enum.any?(fn l -> l.link_id == link.link_id end)
+    end
+
+    test "activate_link moves pending link to active" do
+      link_id = :crypto.strong_rand_bytes(16)
+      link = %{link_id: link_id, initiator: true, status: :pending}
+      Transport.register_link(link)
+
+      activated_link = %{link | status: :active}
+      assert :ok == Transport.activate_link(activated_link)
+
+      assert Transport.get_pending_links() == []
+      assert Transport.get_active_links() |> Enum.any?(fn l -> l.link_id == link_id end)
+    end
+
+    test "activate_link returns error for non-pending link" do
+      link = %{link_id: :crypto.strong_rand_bytes(16), status: :active}
+      assert {:error, :not_pending} == Transport.activate_link(link)
+    end
+
+    test "activate_link returns error for non-active status" do
+      link_id = :crypto.strong_rand_bytes(16)
+      link = %{link_id: link_id, initiator: true, status: :pending}
+      Transport.register_link(link)
+
+      assert {:error, :invalid_status} == Transport.activate_link(link)
+    end
+
+    test "find_link_for_request_packet finds pending link" do
+      link_id = :crypto.strong_rand_bytes(16)
+      link = %{link_id: link_id, initiator: true, status: :pending}
+      Transport.register_link(link)
+
+      packet = %{destination_hash: link_id}
+      assert Transport.find_link_for_request_packet(packet) == link
+    end
+
+    test "find_link_for_request_packet returns nil when not found" do
+      packet = %{destination_hash: :crypto.strong_rand_bytes(16)}
+      assert Transport.find_link_for_request_packet(packet) == nil
+    end
+
+    test "find_best_link finds active link by destination hash" do
+      link_id = :crypto.strong_rand_bytes(16)
+      link = %{link_id: link_id, initiator: false, status: :active}
+      Transport.register_link(link)
+
+      assert Transport.find_best_link(link_id) == link
+    end
+
+    test "find_best_link returns nil when no active link found" do
+      assert Transport.find_best_link(:crypto.strong_rand_bytes(16)) == nil
+    end
+
+    test "remove_pending_link deletes from pending table" do
+      link_id = :crypto.strong_rand_bytes(16)
+      Transport.register_link(%{link_id: link_id, initiator: true, status: :pending})
+      Transport.remove_pending_link(link_id)
+      assert Transport.get_pending_links() == []
+    end
+
+    test "remove_active_link deletes from active table" do
+      link_id = :crypto.strong_rand_bytes(16)
+      Transport.register_link(%{link_id: link_id, initiator: false, status: :active})
+      Transport.remove_active_link(link_id)
+      assert Transport.get_active_links() == []
+    end
+  end
+
+  describe "reverse table operations" do
+    test "put and get reverse entry" do
+      hash = :crypto.strong_rand_bytes(16)
+      iface1 = make_interface("RevIface1")
+      iface2 = make_interface("RevIface2")
+
+      entry = %Transport.ReverseEntry{
+        received_on_interface: iface1,
+        outbound_interface: iface2,
+        timestamp: System.system_time(:second)
+      }
+
+      Transport.put_reverse_entry(hash, entry)
+      assert Transport.get_reverse_entry(hash) == entry
+    end
+
+    test "delete_reverse_entry removes entry" do
+      hash = :crypto.strong_rand_bytes(16)
+
+      entry = %Transport.ReverseEntry{
+        received_on_interface: nil,
+        outbound_interface: nil,
+        timestamp: System.system_time(:second)
+      }
+
+      Transport.put_reverse_entry(hash, entry)
+      Transport.delete_reverse_entry(hash)
+      assert Transport.get_reverse_entry(hash) == nil
+    end
+
+    test "pop_reverse_entry returns and removes entry" do
+      hash = :crypto.strong_rand_bytes(16)
+
+      entry = %Transport.ReverseEntry{
+        received_on_interface: nil,
+        outbound_interface: nil,
+        timestamp: System.system_time(:second)
+      }
+
+      Transport.put_reverse_entry(hash, entry)
+      assert Transport.pop_reverse_entry(hash) == entry
+      assert Transport.get_reverse_entry(hash) == nil
+    end
+
+    test "pop_reverse_entry returns nil for missing entry" do
+      assert Transport.pop_reverse_entry(:crypto.strong_rand_bytes(16)) == nil
+    end
+  end
+
+  describe "link table operations" do
+    test "put and get link entry" do
+      link_id = :crypto.strong_rand_bytes(16)
+
+      entry = %Transport.LinkEntry{
+        timestamp: System.system_time(:second),
+        next_hop: :crypto.strong_rand_bytes(16),
+        next_hop_interface: make_interface("LinkIface1"),
+        remaining_hops: 3,
+        received_on_interface: make_interface("LinkIface2"),
+        taken_hops: 2,
+        destination_hash: :crypto.strong_rand_bytes(16),
+        validated: false,
+        proof_timeout: System.system_time(:second) + 120
+      }
+
+      Transport.put_link_entry(link_id, entry)
+      assert Transport.get_link_entry(link_id) == entry
+    end
+
+    test "delete_link_entry removes entry" do
+      link_id = :crypto.strong_rand_bytes(16)
+
+      entry = %Transport.LinkEntry{
+        timestamp: System.system_time(:second),
+        next_hop: :crypto.strong_rand_bytes(16),
+        next_hop_interface: nil,
+        remaining_hops: 1,
+        received_on_interface: nil,
+        taken_hops: 1,
+        destination_hash: :crypto.strong_rand_bytes(16),
+        validated: false,
+        proof_timeout: System.system_time(:second) + 60
+      }
+
+      Transport.put_link_entry(link_id, entry)
+      Transport.delete_link_entry(link_id)
+      assert Transport.get_link_entry(link_id) == nil
+    end
+  end
+
+  describe "tunnel table operations" do
+    test "put and get tunnel entry" do
+      tunnel_id = :crypto.strong_rand_bytes(32)
+
+      entry = %Transport.TunnelEntry{
+        tunnel_id: tunnel_id,
+        interface: make_interface("TunIface"),
+        paths: %{},
+        expires: System.system_time(:second) + 3600
+      }
+
+      Transport.put_tunnel_entry(tunnel_id, entry)
+      assert Transport.get_tunnel_entry(tunnel_id) == entry
+    end
+
+    test "delete_tunnel_entry removes entry" do
+      tunnel_id = :crypto.strong_rand_bytes(32)
+
+      entry = %Transport.TunnelEntry{
+        tunnel_id: tunnel_id,
+        interface: nil,
+        paths: %{},
+        expires: System.system_time(:second) + 3600
+      }
+
+      Transport.put_tunnel_entry(tunnel_id, entry)
+      Transport.delete_tunnel_entry(tunnel_id)
+      assert Transport.get_tunnel_entry(tunnel_id) == nil
+    end
+
+    test "get_all_tunnels returns all entries" do
+      t1 = :crypto.strong_rand_bytes(32)
+      t2 = :crypto.strong_rand_bytes(32)
+
+      e1 = %Transport.TunnelEntry{tunnel_id: t1, interface: nil, paths: %{}, expires: 0}
+      e2 = %Transport.TunnelEntry{tunnel_id: t2, interface: nil, paths: %{}, expires: 0}
+
+      Transport.put_tunnel_entry(t1, e1)
+      Transport.put_tunnel_entry(t2, e2)
+
+      tunnels = Transport.get_all_tunnels()
+      assert length(tunnels) == 2
+    end
+  end
+
+  describe "receipt management" do
+    test "register and get receipt" do
+      receipt = %{hash: :crypto.strong_rand_bytes(32), sent_at: System.system_time(:second)}
+      Transport.register_receipt(receipt)
+      assert Transport.get_receipt(receipt.hash) == receipt
+    end
+
+    test "remove_receipt deletes receipt" do
+      receipt = %{hash: :crypto.strong_rand_bytes(32), sent_at: System.system_time(:second)}
+      Transport.register_receipt(receipt)
+      Transport.remove_receipt(receipt.hash)
+      assert Transport.get_receipt(receipt.hash) == nil
+    end
+
+    test "get_all_receipts returns all" do
+      r1 = %{hash: :crypto.strong_rand_bytes(32), sent_at: 1}
+      r2 = %{hash: :crypto.strong_rand_bytes(32), sent_at: 2}
+      Transport.register_receipt(r1)
+      Transport.register_receipt(r2)
+      assert Transport.receipt_count() == 2
+      assert length(Transport.get_all_receipts()) == 2
+    end
+
+    test "receipt_count tracks count" do
+      assert Transport.receipt_count() == 0
+      r = %{hash: :crypto.strong_rand_bytes(32), sent_at: 1}
+      Transport.register_receipt(r)
+      assert Transport.receipt_count() == 1
+    end
+  end
+
+  describe "path request tracking" do
+    test "record and retrieve path request timestamp" do
+      hash = :crypto.strong_rand_bytes(16)
+      assert Transport.last_path_request(hash) == 0
+
+      Transport.record_path_request(hash)
+      ts = Transport.last_path_request(hash)
+      assert ts > 0
+      assert_in_delta ts, System.system_time(:second), 2
+    end
+  end
+
+  describe "held announces" do
+    test "put and get held announce" do
+      hash = :crypto.strong_rand_bytes(16)
+      entry = %{some: :data}
+      Transport.put_held_announce(hash, entry)
+      assert Transport.get_held_announce(hash) == entry
+    end
+
+    test "pop_held_announce returns and removes" do
+      hash = :crypto.strong_rand_bytes(16)
+      entry = %{some: :data}
+      Transport.put_held_announce(hash, entry)
+      assert Transport.pop_held_announce(hash) == entry
+      assert Transport.get_held_announce(hash) == nil
+    end
+
+    test "pop_held_announce returns nil for missing" do
+      assert Transport.pop_held_announce(:crypto.strong_rand_bytes(16)) == nil
+    end
+  end
+
+  describe "packet_filter/2" do
+    test "accepts all packets when shared instance" do
+      packet = make_filter_packet()
+      assert Transport.packet_filter(packet, is_shared_instance: true)
+    end
+
+    test "rejects packet for other transport instance" do
+      other_hash = :crypto.strong_rand_bytes(16)
+      my_hash = :crypto.strong_rand_bytes(16)
+
+      packet = %{
+        make_filter_packet()
+        | transport_id: other_hash,
+          packet_type: 0x00
+      }
+
+      refute Transport.packet_filter(packet, transport_identity_hash: my_hash)
+    end
+
+    test "allows announce packets even with different transport_id" do
+      other_hash = :crypto.strong_rand_bytes(16)
+      my_hash = :crypto.strong_rand_bytes(16)
+
+      packet = %{
+        make_filter_packet()
+        | transport_id: other_hash,
+          packet_type: 0x01
+      }
+
+      # Announce packets bypass the transport_id check
+      assert Transport.packet_filter(packet, transport_identity_hash: my_hash)
+    end
+
+    test "allows passthrough contexts" do
+      for context <- [0xFA, 0x03, 0x05, 0x01, 0x08, 0x0E] do
+        packet = %{make_filter_packet() | context: context}
+        assert Transport.packet_filter(packet), "context #{context} should pass"
+      end
+    end
+
+    test "rejects PLAIN destination announces" do
+      packet = %{make_filter_packet() | destination_type: 0x02, packet_type: 0x01}
+      refute Transport.packet_filter(packet)
+    end
+
+    test "allows PLAIN destination data with 1 hop or less" do
+      packet = %{make_filter_packet() | destination_type: 0x02, packet_type: 0x00, hops: 1}
+      assert Transport.packet_filter(packet)
+    end
+
+    test "rejects PLAIN destination data with more than 1 hop" do
+      packet = %{make_filter_packet() | destination_type: 0x02, packet_type: 0x00, hops: 2}
+      refute Transport.packet_filter(packet)
+    end
+
+    test "rejects GROUP destination announces" do
+      packet = %{make_filter_packet() | destination_type: 0x01, packet_type: 0x01}
+      refute Transport.packet_filter(packet)
+    end
+
+    test "allows GROUP destination data with 1 hop or less" do
+      packet = %{make_filter_packet() | destination_type: 0x01, packet_type: 0x00, hops: 1}
+      assert Transport.packet_filter(packet)
+    end
+
+    test "rejects GROUP destination data with more than 1 hop" do
+      packet = %{make_filter_packet() | destination_type: 0x01, packet_type: 0x00, hops: 2}
+      refute Transport.packet_filter(packet)
+    end
+
+    test "accepts unknown packet hash" do
+      packet = make_filter_packet()
+      assert Transport.packet_filter(packet)
+    end
+
+    test "rejects known packet hash (duplicate)" do
+      packet = make_filter_packet()
+      Transport.mark_packet_hash(packet.packet_hash)
+      refute Transport.packet_filter(packet)
+    end
+
+    test "allows known hash for SINGLE announces (path updates)" do
+      packet = %{
+        make_filter_packet()
+        | packet_type: 0x01,
+          destination_type: 0x00
+      }
+
+      Transport.mark_packet_hash(packet.packet_hash)
+      assert Transport.packet_filter(packet)
+    end
+  end
+
+  describe "transmit/2" do
+    test "calls process_outgoing function on interface" do
+      test_pid = self()
+
+      interface = %{
+        process_outgoing: fn raw ->
+          send(test_pid, {:transmitted, raw})
+        end,
+        ifac_identity: nil
+      }
+
+      raw = <<0x00, 0x01, 0x02, 0x03>>
+      assert :ok == Transport.transmit(interface, raw)
+      assert_receive {:transmitted, ^raw}
+    end
+
+    test "sends to pid-based interface" do
+      test_pid = self()
+
+      interface = %{
+        pid: test_pid,
+        ifac_identity: nil
+      }
+
+      raw = <<0x00, 0x01, 0x02, 0x03>>
+      assert :ok == Transport.transmit(interface, raw)
+      assert_receive {:process_outgoing, ^raw}
+    end
+
+    test "returns error for interface with no handler" do
+      interface = %{ifac_identity: nil}
+      assert {:error, :no_handler} == Transport.transmit(interface, <<0x00>>)
+    end
+
+    test "transmit with IFAC masking" do
+      identity = RNS.Identity.new()
+      test_pid = self()
+
+      interface = %{
+        ifac_identity: identity,
+        ifac_size: 2,
+        ifac_key: :crypto.strong_rand_bytes(32),
+        process_outgoing: fn raw ->
+          send(test_pid, {:transmitted, raw})
+        end
+      }
+
+      raw = <<0x00, 0x01, 0x02, 0x03, 0x04, 0x05>>
+      assert :ok == Transport.transmit(interface, raw)
+      assert_receive {:transmitted, masked_raw}
+
+      # Masked raw should have IFAC flag set (0x80) in first byte
+      <<first_byte, _rest::binary>> = masked_raw
+      assert (first_byte &&& 0x80) == 0x80
+
+      # Masked raw should be longer due to IFAC insertion
+      assert byte_size(masked_raw) == byte_size(raw) + interface.ifac_size
+    end
+  end
+
+  describe "outbound/2" do
+    test "broadcasts on all interfaces when no path exists" do
+      test_pid = self()
+
+      iface =
+        make_interface("OutIface1")
+        |> Map.merge(%{
+          out: true,
+          process_outgoing: fn raw -> send(test_pid, {:sent_on, "OutIface1", raw}) end
+        })
+
+      Transport.register_interface(iface)
+
+      packet = %{
+        destination_hash: :crypto.strong_rand_bytes(16),
+        packet_type: 0x00,
+        destination_type: 0x00,
+        header_type: 0x00,
+        packet_hash: :crypto.strong_rand_bytes(32),
+        raw: <<0x00, 0x01>> <> :crypto.strong_rand_bytes(20),
+        context: 0x00,
+        flags: 0x00,
+        attached_interface: nil,
+        create_receipt: false
+      }
+
+      assert Transport.outbound(packet)
+      assert_receive {:sent_on, "OutIface1", _raw}
+    end
+
+    test "routes via path table when path exists with single hop" do
+      test_pid = self()
+      dest_hash = :crypto.strong_rand_bytes(16)
+
+      iface =
+        make_interface("PathIface")
+        |> Map.put(:process_outgoing, fn raw -> send(test_pid, {:sent_via_path, raw}) end)
+
+      Transport.register_interface(iface)
+      add_path_entry(dest_hash, hops: 1, interface: iface)
+
+      packet = %{
+        destination_hash: dest_hash,
+        packet_type: 0x00,
+        destination_type: 0x00,
+        header_type: 0x00,
+        packet_hash: :crypto.strong_rand_bytes(32),
+        raw: <<0x00, 0x01>> <> :crypto.strong_rand_bytes(20),
+        context: 0x00,
+        flags: 0x00,
+        attached_interface: nil,
+        create_receipt: false
+      }
+
+      assert Transport.outbound(packet)
+      assert_receive {:sent_via_path, _raw}
+    end
+
+    test "broadcasts announces (skips path table)" do
+      test_pid = self()
+      dest_hash = :crypto.strong_rand_bytes(16)
+
+      iface =
+        make_interface("AnnIface")
+        |> Map.merge(%{
+          out: true,
+          process_outgoing: fn raw -> send(test_pid, {:announce_sent, raw}) end
+        })
+
+      Transport.register_interface(iface)
+      add_path_entry(dest_hash, hops: 3, interface: iface)
+
+      packet = %{
+        destination_hash: dest_hash,
+        packet_type: 0x01,
+        destination_type: 0x00,
+        header_type: 0x00,
+        packet_hash: :crypto.strong_rand_bytes(32),
+        raw: <<0x00, 0x01>> <> :crypto.strong_rand_bytes(20),
+        context: 0x00,
+        flags: 0x00,
+        attached_interface: nil,
+        create_receipt: false
+      }
+
+      assert Transport.outbound(packet)
+      assert_receive {:announce_sent, _raw}
+    end
+  end
+
+  describe "forward/2" do
+    test "returns :no_path when path doesn't exist" do
+      packet = %{
+        destination_hash: :crypto.strong_rand_bytes(16),
+        raw: <<0x40, 0x01>> <> :crypto.strong_rand_bytes(30),
+        hops: 1,
+        flags: 0x40,
+        packet_type: 0x00,
+        receiving_interface: nil,
+        data: :crypto.strong_rand_bytes(32),
+        packet_hash: :crypto.strong_rand_bytes(32)
+      }
+
+      assert :no_path == Transport.forward(packet)
+    end
+
+    test "forwards packet to next hop via path table" do
+      test_pid = self()
+      dest_hash = :crypto.strong_rand_bytes(16)
+      next_hop = :crypto.strong_rand_bytes(16)
+
+      iface =
+        make_interface("FwdIface")
+        |> Map.put(:process_outgoing, fn raw -> send(test_pid, {:forwarded, raw}) end)
+
+      Transport.register_interface(iface)
+      add_path_entry(dest_hash, hops: 3, next_hop: next_hop, interface: iface)
+
+      packet = %RNS.Packet{
+        destination_hash: dest_hash,
+        raw: <<0x40, 0x01>> <> :crypto.strong_rand_bytes(30),
+        hops: 1,
+        flags: 0x40,
+        header_type: 0x01,
+        packet_type: 0x00,
+        receiving_interface: make_interface("InIface"),
+        data: :crypto.strong_rand_bytes(40),
+        packet_hash: :crypto.strong_rand_bytes(32)
+      }
+
+      assert :ok == Transport.forward(packet)
+      assert_receive {:forwarded, _raw}
+    end
+
+    test "records reverse entry for non-linkrequest packets" do
+      test_pid = self()
+      dest_hash = :crypto.strong_rand_bytes(16)
+
+      iface =
+        make_interface("RevFwdIface")
+        |> Map.put(:process_outgoing, fn _raw -> send(test_pid, :forwarded) end)
+
+      Transport.register_interface(iface)
+      add_path_entry(dest_hash, hops: 2, interface: iface)
+
+      # Build a proper packet that looks like a real HEADER_2 data packet
+      recv_iface = make_interface("RecvIface")
+
+      packet = %RNS.Packet{
+        destination_hash: dest_hash,
+        raw: <<0x40, 0x01>> <> :crypto.strong_rand_bytes(40),
+        hops: 1,
+        flags: 0x40,
+        header_type: 0x01,
+        packet_type: 0x00,
+        receiving_interface: recv_iface,
+        data: :crypto.strong_rand_bytes(32),
+        packet_hash: :crypto.strong_rand_bytes(32)
+      }
+
+      Transport.forward(packet)
+      assert_receive :forwarded
+
+      # Verify a reverse entry was created (for proof routing)
+      # The truncated hash is based on the packet's hashable part
+      truncated = RNS.Packet.get_truncated_hash(packet)
+      rev = Transport.get_reverse_entry(truncated)
+      assert rev != nil
+      assert rev.received_on_interface == recv_iface
+    end
+  end
+
+  describe "table culling" do
+    test "cull_path_states removes orphaned states" do
+      hash = :crypto.strong_rand_bytes(16)
+      add_path_entry(hash)
+      Transport.mark_path_unresponsive(hash)
+      assert Transport.path_is_unresponsive(hash)
+
+      # Remove path entry, state should be orphaned
+      :ets.delete(:rns_path_table, hash)
+      Transport.cull_path_states()
+      refute Transport.path_is_unresponsive(hash)
+    end
+
+    test "cull_path_states keeps states for active paths" do
+      hash = :crypto.strong_rand_bytes(16)
+      add_path_entry(hash)
+      Transport.mark_path_unresponsive(hash)
+
+      Transport.cull_path_states()
+      assert Transport.path_is_unresponsive(hash)
+    end
+
+    test "cull_reverse_table removes expired entries" do
+      hash = :crypto.strong_rand_bytes(16)
+      now = System.system_time(:second)
+
+      entry = %Transport.ReverseEntry{
+        received_on_interface: make_interface("CullRevIface1"),
+        outbound_interface: make_interface("CullRevIface2"),
+        timestamp: now - Transport.reverse_timeout() - 10
+      }
+
+      Transport.register_interface(entry.received_on_interface)
+      Transport.register_interface(entry.outbound_interface)
+      Transport.put_reverse_entry(hash, entry)
+
+      Transport.cull_reverse_table(now)
+      assert Transport.get_reverse_entry(hash) == nil
+    end
+
+    test "cull_reverse_table keeps fresh entries" do
+      hash = :crypto.strong_rand_bytes(16)
+      now = System.system_time(:second)
+      iface1 = make_interface("FreshRevIface1")
+      iface2 = make_interface("FreshRevIface2")
+
+      Transport.register_interface(iface1)
+      Transport.register_interface(iface2)
+
+      entry = %Transport.ReverseEntry{
+        received_on_interface: iface1,
+        outbound_interface: iface2,
+        timestamp: now
+      }
+
+      Transport.put_reverse_entry(hash, entry)
+
+      Transport.cull_reverse_table(now)
+      assert Transport.get_reverse_entry(hash) != nil
+    end
+
+    test "cull_link_table removes unvalidated entries past proof timeout" do
+      link_id = :crypto.strong_rand_bytes(16)
+      now = System.system_time(:second)
+
+      entry = %Transport.LinkEntry{
+        timestamp: now - 200,
+        next_hop: :crypto.strong_rand_bytes(16),
+        next_hop_interface: make_interface("CullLinkIface1"),
+        remaining_hops: 2,
+        received_on_interface: make_interface("CullLinkIface2"),
+        taken_hops: 1,
+        destination_hash: :crypto.strong_rand_bytes(16),
+        validated: false,
+        proof_timeout: now - 10
+      }
+
+      Transport.register_interface(entry.next_hop_interface)
+      Transport.register_interface(entry.received_on_interface)
+      Transport.put_link_entry(link_id, entry)
+
+      Transport.cull_link_table(now)
+      assert Transport.get_link_entry(link_id) == nil
+    end
+
+    test "cull_link_table removes validated entries past link timeout" do
+      link_id = :crypto.strong_rand_bytes(16)
+      now = System.system_time(:second)
+      iface1 = make_interface("CullVLinkIface1")
+      iface2 = make_interface("CullVLinkIface2")
+
+      Transport.register_interface(iface1)
+      Transport.register_interface(iface2)
+
+      entry = %Transport.LinkEntry{
+        timestamp: now - Transport.link_timeout() - 10,
+        next_hop: :crypto.strong_rand_bytes(16),
+        next_hop_interface: iface1,
+        remaining_hops: 2,
+        received_on_interface: iface2,
+        taken_hops: 1,
+        destination_hash: :crypto.strong_rand_bytes(16),
+        validated: true,
+        proof_timeout: now + 1000
+      }
+
+      Transport.put_link_entry(link_id, entry)
+
+      Transport.cull_link_table(now)
+      assert Transport.get_link_entry(link_id) == nil
+    end
+
+    test "cull_link_table keeps fresh validated entries" do
+      link_id = :crypto.strong_rand_bytes(16)
+      now = System.system_time(:second)
+      iface1 = make_interface("KeepLinkIface1")
+      iface2 = make_interface("KeepLinkIface2")
+
+      Transport.register_interface(iface1)
+      Transport.register_interface(iface2)
+
+      entry = %Transport.LinkEntry{
+        timestamp: now,
+        next_hop: :crypto.strong_rand_bytes(16),
+        next_hop_interface: iface1,
+        remaining_hops: 2,
+        received_on_interface: iface2,
+        taken_hops: 1,
+        destination_hash: :crypto.strong_rand_bytes(16),
+        validated: true,
+        proof_timeout: now + 1000
+      }
+
+      Transport.put_link_entry(link_id, entry)
+
+      Transport.cull_link_table(now)
+      assert Transport.get_link_entry(link_id) != nil
+    end
+
+    test "cull_tunnel_table removes expired tunnels" do
+      tunnel_id = :crypto.strong_rand_bytes(32)
+      now = System.system_time(:second)
+
+      entry = %Transport.TunnelEntry{
+        tunnel_id: tunnel_id,
+        interface: nil,
+        paths: %{},
+        expires: now - 10
+      }
+
+      Transport.put_tunnel_entry(tunnel_id, entry)
+
+      Transport.cull_tunnel_table(now)
+      assert Transport.get_tunnel_entry(tunnel_id) == nil
+    end
+
+    test "cull_tunnel_table keeps active tunnels" do
+      tunnel_id = :crypto.strong_rand_bytes(32)
+      now = System.system_time(:second)
+
+      entry = %Transport.TunnelEntry{
+        tunnel_id: tunnel_id,
+        interface: nil,
+        paths: %{},
+        expires: now + 3600
+      }
+
+      Transport.put_tunnel_entry(tunnel_id, entry)
+
+      Transport.cull_tunnel_table(now)
+      assert Transport.get_tunnel_entry(tunnel_id) != nil
+    end
+  end
+
+  describe "inbound/3" do
+    test "drops packets that are too short" do
+      assert :dropped == Transport.inbound(<<0x00, 0x01>>, nil)
+    end
+
+    test "drops packets with IFAC flag but no interface IFAC" do
+      # Set IFAC flag (0x80) in first byte
+      raw = <<0x80, 0x01, 0x02, 0x03, 0x04, 0x05>>
+      interface = %{ifac_identity: nil}
+      assert :dropped == Transport.inbound(raw, interface)
+    end
+
+    test "drops packets without IFAC flag when interface requires IFAC" do
+      identity = RNS.Identity.new()
+      raw = <<0x00, 0x01, 0x02, 0x03, 0x04, 0x05>>
+
+      interface = %{
+        ifac_identity: identity,
+        ifac_size: 2,
+        ifac_key: :crypto.strong_rand_bytes(32)
+      }
+
+      assert :dropped == Transport.inbound(raw, interface)
+    end
+
+    test "processes valid packet without IFAC" do
+      # Build a valid HEADER_1 DATA packet
+      dest_hash = :crypto.strong_rand_bytes(16)
+      # flags: header_1(0) | broadcast(0) | single(0) | data(0)
+      flags = 0x00
+      hops = 0x00
+      context = 0x00
+      data = :crypto.strong_rand_bytes(10)
+      raw = <<flags, hops>> <> dest_hash <> <<context>> <> data
+
+      interface = %{ifac_identity: nil}
+      result = Transport.inbound(raw, interface)
+
+      # Should process successfully (returns :ok since no local destination matches)
+      assert result == :ok
+    end
+  end
+
+  describe "periodic jobs" do
+    test "start_jobs enables the job scheduler" do
+      Transport.start_jobs()
+      # Give it a moment to process the cast
+      Process.sleep(50)
+
+      # Verify the GenServer is still alive (jobs didn't crash it)
+      assert Process.alive?(GenServer.whereis(RNS.Transport))
+    end
+
+    test "jobs tick processes without crashing" do
+      # Start jobs and let a tick happen
+      Transport.start_jobs()
+      Process.sleep(300)
+
+      # Transport should still be alive
+      assert Process.alive?(GenServer.whereis(RNS.Transport))
+    end
+  end
+
+  describe "internal_inbound/2" do
+    test "delivers data packet to registered destination" do
+      test_pid = self()
+      dest_hash = :crypto.strong_rand_bytes(16)
+
+      dest = %{
+        hash: dest_hash,
+        direction: 0x11,
+        type: 0x00,
+        receive_packet: fn packet ->
+          send(test_pid, {:received, packet.destination_hash})
+          true
+        end,
+        proof_strategy: nil
+      }
+
+      Transport.register_destination(dest)
+
+      packet = %{
+        destination_hash: dest_hash,
+        destination_type: 0x00,
+        packet_type: 0x00,
+        transport_id: nil,
+        context: 0x00,
+        hops: 1,
+        packet_hash: :crypto.strong_rand_bytes(32),
+        receiving_interface: nil,
+        data: :crypto.strong_rand_bytes(20),
+        raw: <<0x00, 0x01>> <> :crypto.strong_rand_bytes(30),
+        flags: 0x00,
+        header_type: 0x00,
+        context_flag: 0
+      }
+
+      Transport.internal_inbound(packet)
+      assert_receive {:received, ^dest_hash}
+    end
+
+    test "delivers link data to active link" do
+      test_pid = self()
+      link_id = :crypto.strong_rand_bytes(16)
+
+      link = %{
+        link_id: link_id,
+        initiator: false,
+        status: :active,
+        attached_interface: nil,
+        receive: fn packet ->
+          send(test_pid, {:link_received, packet.destination_hash})
+        end
+      }
+
+      Transport.register_link(link)
+
+      packet = %{
+        destination_hash: link_id,
+        destination_type: 0x03,
+        packet_type: 0x00,
+        transport_id: nil,
+        context: 0x00,
+        hops: 1,
+        packet_hash: :crypto.strong_rand_bytes(32),
+        receiving_interface: nil,
+        data: :crypto.strong_rand_bytes(20),
+        raw: <<0x00, 0x01>> <> :crypto.strong_rand_bytes(30),
+        flags: 0x00,
+        header_type: 0x00,
+        context_flag: 0
+      }
+
+      Transport.internal_inbound(packet)
+      assert_receive {:link_received, ^link_id}
+    end
+
+    test "delivers link request to matching destination" do
+      test_pid = self()
+      dest_hash = :crypto.strong_rand_bytes(16)
+
+      dest = %{
+        hash: dest_hash,
+        direction: 0x11,
+        type: 0x00,
+        receive_packet: fn packet ->
+          send(test_pid, {:link_request, packet.destination_hash})
+          true
+        end
+      }
+
+      Transport.register_destination(dest)
+
+      packet = %{
+        destination_hash: dest_hash,
+        destination_type: 0x00,
+        packet_type: 0x02,
+        transport_id: nil,
+        context: 0x00,
+        hops: 1,
+        packet_hash: :crypto.strong_rand_bytes(32),
+        receiving_interface: nil,
+        data: :crypto.strong_rand_bytes(20),
+        raw: <<0x00, 0x01>> <> :crypto.strong_rand_bytes(30),
+        flags: 0x00,
+        header_type: 0x00,
+        context_flag: 0
+      }
+
+      Transport.internal_inbound(packet)
+      assert_receive {:link_request, ^dest_hash}
+    end
+  end
+
+  describe "TunnelManagement" do
+    alias RNS.Transport.TunnelManagement
+
+    test "handle_tunnel creates new tunnel entry" do
+      tunnel_id = :crypto.strong_rand_bytes(32)
+      iface = make_interface("TunnelIface")
+
+      TunnelManagement.handle_tunnel(tunnel_id, iface)
+
+      entry = Transport.get_tunnel_entry(tunnel_id)
+      assert entry != nil
+      assert entry.tunnel_id == tunnel_id
+      assert entry.interface == iface
+      assert entry.paths == %{}
+      assert entry.expires > System.system_time(:second)
+    end
+
+    test "handle_tunnel updates existing tunnel" do
+      tunnel_id = :crypto.strong_rand_bytes(32)
+      iface1 = make_interface("TunIface1")
+      iface2 = make_interface("TunIface2")
+
+      TunnelManagement.handle_tunnel(tunnel_id, iface1)
+      TunnelManagement.handle_tunnel(tunnel_id, iface2)
+
+      entry = Transport.get_tunnel_entry(tunnel_id)
+      assert entry.interface == iface2
+    end
+
+    test "handle_tunnel restores valid paths from existing tunnel" do
+      tunnel_id = :crypto.strong_rand_bytes(32)
+      dest_hash = :crypto.strong_rand_bytes(16)
+      iface = make_interface("RestoreIface")
+
+      # Create initial tunnel with stored paths
+      path_entry = %Transport.PathEntry{
+        timestamp: System.system_time(:second),
+        next_hop: :crypto.strong_rand_bytes(16),
+        hops: 2,
+        expires: System.system_time(:second) + 3600,
+        random_blobs: [],
+        interface: iface,
+        packet_hash: :crypto.strong_rand_bytes(32)
+      }
+
+      initial_entry = %Transport.TunnelEntry{
+        tunnel_id: tunnel_id,
+        interface: iface,
+        paths: %{dest_hash => path_entry},
+        expires: System.system_time(:second) + 3600
+      }
+
+      Transport.put_tunnel_entry(tunnel_id, initial_entry)
+
+      # Simulate tunnel reappearing with new interface
+      new_iface = make_interface("NewRestoreIface")
+      TunnelManagement.handle_tunnel(tunnel_id, new_iface)
+
+      # Path should be restored
+      restored = Transport.get_path_entry(dest_hash)
+      assert restored != nil
+      assert restored.hops == 2
+      assert restored.interface == new_iface
+    end
+
+    test "handle_tunnel does not restore expired paths" do
+      tunnel_id = :crypto.strong_rand_bytes(32)
+      dest_hash = :crypto.strong_rand_bytes(16)
+      iface = make_interface("ExpiredPathIface")
+
+      expired_path = %Transport.PathEntry{
+        timestamp: System.system_time(:second) - 100,
+        next_hop: :crypto.strong_rand_bytes(16),
+        hops: 2,
+        expires: System.system_time(:second) - 50,
+        random_blobs: [],
+        interface: iface,
+        packet_hash: :crypto.strong_rand_bytes(32)
+      }
+
+      initial_entry = %Transport.TunnelEntry{
+        tunnel_id: tunnel_id,
+        interface: iface,
+        paths: %{dest_hash => expired_path},
+        expires: System.system_time(:second) + 3600
+      }
+
+      Transport.put_tunnel_entry(tunnel_id, initial_entry)
+
+      new_iface = make_interface("NewExpPathIface")
+      TunnelManagement.handle_tunnel(tunnel_id, new_iface)
+
+      # Expired path should NOT be restored
+      assert Transport.get_path_entry(dest_hash) == nil
+    end
+
+    test "void_tunnel_interface sets interface to nil" do
+      tunnel_id = :crypto.strong_rand_bytes(32)
+      iface = make_interface("VoidIface")
+
+      TunnelManagement.handle_tunnel(tunnel_id, iface)
+      entry = Transport.get_tunnel_entry(tunnel_id)
+      assert entry.interface == iface
+
+      TunnelManagement.void_tunnel_interface(tunnel_id)
+      entry = Transport.get_tunnel_entry(tunnel_id)
+      assert entry.interface == nil
+    end
+
+    test "void_tunnel_interface is no-op for unknown tunnel" do
+      assert :ok == TunnelManagement.void_tunnel_interface(:crypto.strong_rand_bytes(32))
+    end
+
+    test "tunnel_synthesize_handler rejects invalid data length" do
+      assert :invalid == TunnelManagement.tunnel_synthesize_handler(<<1, 2, 3>>, %{})
+    end
+
+    test "tunnel_synthesize_handler validates and creates tunnel with valid data" do
+      identity = RNS.Identity.new()
+      public_key = RNS.Identity.get_public_key(identity)
+      interface_hash = :crypto.strong_rand_bytes(32)
+      random_hash = :crypto.strong_rand_bytes(16)
+
+      tunnel_id_data = public_key <> interface_hash
+      signed_data = tunnel_id_data <> random_hash
+      signature = RNS.Identity.sign(identity, signed_data)
+
+      data = public_key <> interface_hash <> random_hash <> signature
+      iface = make_interface("SynthIface")
+      packet = %{receiving_interface: iface}
+
+      assert :ok == TunnelManagement.tunnel_synthesize_handler(data, packet)
+
+      # Verify tunnel was created
+      tunnel_id = RNS.Identity.full_hash(tunnel_id_data)
+      entry = Transport.get_tunnel_entry(tunnel_id)
+      assert entry != nil
+      assert entry.interface == iface
+    end
+
+    test "tunnel_synthesize_handler rejects invalid signature" do
+      identity = RNS.Identity.new()
+      public_key = RNS.Identity.get_public_key(identity)
+      interface_hash = :crypto.strong_rand_bytes(32)
+      random_hash = :crypto.strong_rand_bytes(16)
+
+      # Use random bytes as a bad signature
+      bad_signature = :crypto.strong_rand_bytes(64)
+
+      data = public_key <> interface_hash <> random_hash <> bad_signature
+      packet = %{receiving_interface: nil}
+
+      assert :invalid == TunnelManagement.tunnel_synthesize_handler(data, packet)
+    end
+  end
+
+  describe "Identity.validate_announce/1" do
+    test "validates a properly signed announce" do
+      identity = RNS.Identity.new()
+      public_key = RNS.Identity.get_public_key(identity)
+      name_hash = :crypto.strong_rand_bytes(10)
+      random_blob = :crypto.strong_rand_bytes(10)
+      destination_hash = RNS.Identity.truncated_hash(name_hash <> identity.hash)
+
+      signed_data = destination_hash <> public_key <> name_hash <> random_blob <> <<>>
+      signature = RNS.Identity.sign(identity, signed_data)
+
+      data = public_key <> name_hash <> random_blob <> signature
+      packet = %{destination_hash: destination_hash, data: data, context_flag: 0}
+
+      assert RNS.Identity.validate_announce(packet)
+    end
+
+    test "rejects announce with invalid signature" do
+      identity = RNS.Identity.new()
+      public_key = RNS.Identity.get_public_key(identity)
+      name_hash = :crypto.strong_rand_bytes(10)
+      random_blob = :crypto.strong_rand_bytes(10)
+      destination_hash = :crypto.strong_rand_bytes(16)
+
+      bad_sig = :crypto.strong_rand_bytes(64)
+
+      data = public_key <> name_hash <> random_blob <> bad_sig
+      packet = %{destination_hash: destination_hash, data: data, context_flag: 0}
+
+      refute RNS.Identity.validate_announce(packet)
+    end
+
+    test "rejects malformed announce data" do
+      packet = %{destination_hash: :crypto.strong_rand_bytes(16), data: <<1, 2, 3>>, context_flag: 0}
+      refute RNS.Identity.validate_announce(packet)
+    end
+  end
+
+  # ── Helper functions ────────────────────────────────────────────────
 
   defp make_destination(direction) do
     hash = :crypto.strong_rand_bytes(16)
@@ -525,5 +1674,17 @@ defmodule RNS.TransportTest do
     }
 
     Transport.put_path_entry(destination_hash, entry)
+  end
+
+  defp make_filter_packet(opts \\ []) do
+    %{
+      transport_id: opts[:transport_id] || nil,
+      packet_type: opts[:packet_type] || 0x00,
+      destination_type: opts[:destination_type] || 0x00,
+      context: opts[:context] || 0x00,
+      hops: opts[:hops] || 1,
+      packet_hash: opts[:packet_hash] || :crypto.strong_rand_bytes(32),
+      destination_hash: opts[:destination_hash] || :crypto.strong_rand_bytes(16)
+    }
   end
 end

@@ -274,7 +274,7 @@ This is the largest module (3312 LOC in Python). Split into manageable sub-modul
 - [x] **4.2 — Transport announce handling**
   Create `lib/rns/transport/announce_handler.ex`. Port announce processing: `inbound_announce/3`, `outbound_announce/1`, `process_announce_queue/1`, `should_forward_announce/2`, `mark_path_unknown_for_destination/1`, rate limiting, deduplication, validation. Handle announce table: entry creation, expiry, retransmission timing. Handle path responses. Write tests: announce validation, rate limiting, deduplication, forwarding decisions.
 
-- [ ] **4.3 — Transport packet routing and delivery**
+- [x] **4.3 — Transport packet routing and delivery**
   Complete `lib/rns/transport.ex` with packet routing: `inbound/2`, `outbound/1`, `forward/1`, `transmit/2`, `internal_inbound/2`. Link management: `register_link/1`, `activate_link/1`, `find_link_for_request_packet/1`, `find_best_link/1`. Tunnel management in `lib/rns/transport/tunnel_management.ex`: `register_tunnel/2`, `tunnel_synthesize_handler/0`. Transport periodic jobs via `Process.send_after` — path/link/receipt expiry, cache cleaning. Write tests: packet routing decisions, link registration, receipt handling.
 
 - [ ] **4.4 — Transport caching and persistence**

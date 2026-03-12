@@ -9,8 +9,13 @@ defmodule RNS.Transport do
   use GenServer
   require Logger
 
+  import Bitwise
+
   alias RNS.Transport.PathManagement
   alias RNS.Transport.AnnounceHandler
+  alias RNS.Transport.TunnelManagement
+  alias RNS.Packet
+  alias RNS.Identity
 
   # ── Transport Type Constants ──────────────────────────────────────────
   @broadcast 0x00
@@ -90,6 +95,43 @@ defmodule RNS.Transport do
   @announce_rate_table :rns_announce_rate_table
   @path_requests_table :rns_path_requests
   @path_states_table :rns_path_states
+
+  # ── Packet/Destination constants (avoid cross-module compile dependency) ─
+  @packet_data 0x00
+  @packet_announce 0x01
+  @packet_linkrequest 0x02
+  @packet_proof 0x03
+
+  @header_1 0x00
+  @header_2 0x01
+
+  @dest_single 0x00
+  @dest_group 0x01
+  @dest_plain 0x02
+  @dest_link 0x03
+
+  @context_none 0x00
+  @context_resource 0x01
+  @context_resource_req 0x03
+  @context_resource_prf 0x05
+  @context_resource_rcl 0x07
+  @context_cache_request 0x08
+  @context_path_response 0x0B
+  @context_channel 0x0E
+  @context_keepalive 0xFA
+  @context_lrproof 0xFF
+
+  @truncated_hashlength 128
+
+  # ── Passthrough contexts (always allowed through filter) ──────────────
+  @passthrough_contexts [
+    @context_keepalive,
+    @context_resource_req,
+    @context_resource_prf,
+    @context_resource,
+    @context_cache_request,
+    @context_channel
+  ]
 
   # ── Public Constant Accessors ─────────────────────────────────────────
 
@@ -243,6 +285,80 @@ defmodule RNS.Transport do
     defstruct [:timestamp, :next_hop, :hops, :expires, :random_blobs, :interface, :packet_hash]
   end
 
+  # ── LinkEntry struct ──────────────────────────────────────────────────
+
+  defmodule LinkEntry do
+    @moduledoc """
+    A single entry in the link table, used for routing packets through
+    multi-hop links.
+
+    Corresponds to the Python link table 9-element list:
+      [timestamp, next_hop, next_hop_interface, remaining_hops,
+       received_on_interface, taken_hops, destination_hash, validated, proof_timeout]
+    """
+    @type t :: %__MODULE__{
+            timestamp: number(),
+            next_hop: binary(),
+            next_hop_interface: map() | nil,
+            remaining_hops: non_neg_integer(),
+            received_on_interface: map() | nil,
+            taken_hops: non_neg_integer(),
+            destination_hash: binary(),
+            validated: boolean(),
+            proof_timeout: number()
+          }
+
+    defstruct [
+      :timestamp,
+      :next_hop,
+      :next_hop_interface,
+      :remaining_hops,
+      :received_on_interface,
+      :taken_hops,
+      :destination_hash,
+      :validated,
+      :proof_timeout
+    ]
+  end
+
+  # ── ReverseEntry struct ───────────────────────────────────────────────
+
+  defmodule ReverseEntry do
+    @moduledoc """
+    A single entry in the reverse table, used for routing proofs back
+    to their origin through the transport network.
+
+    Corresponds to the Python reverse table 3-element list:
+      [received_on_interface, outbound_interface, timestamp]
+    """
+    @type t :: %__MODULE__{
+            received_on_interface: map() | nil,
+            outbound_interface: map() | nil,
+            timestamp: number()
+          }
+
+    defstruct [:received_on_interface, :outbound_interface, :timestamp]
+  end
+
+  # ── TunnelEntry struct ────────────────────────────────────────────────
+
+  defmodule TunnelEntry do
+    @moduledoc """
+    A single entry in the tunnel table.
+
+    Corresponds to the Python tunnel table 4-element list:
+      [tunnel_id, interface, paths, expires]
+    """
+    @type t :: %__MODULE__{
+            tunnel_id: binary(),
+            interface: map() | nil,
+            paths: map(),
+            expires: number()
+          }
+
+    defstruct [:tunnel_id, :interface, :expires, paths: %{}]
+  end
+
   # ── GenServer Client API ──────────────────────────────────────────────
 
   @doc "Starts the Transport GenServer."
@@ -310,6 +426,94 @@ defmodule RNS.Transport do
       [{^hash, interface}] -> interface
       [] -> nil
     end
+  end
+
+  # ── Link Registration ─────────────────────────────────────────────────
+
+  @doc """
+  Registers a link with the Transport system.
+
+  If the link is an initiator, it is added to the pending links table.
+  Otherwise it is added to the active links table.
+  """
+  @spec register_link(map()) :: :ok
+  def register_link(link) do
+    if Map.get(link, :initiator, false) do
+      :ets.insert(@pending_links_table, {link.link_id, link})
+    else
+      :ets.insert(@active_links_table, {link.link_id, link})
+    end
+
+    :ok
+  end
+
+  @doc """
+  Activates a pending link by moving it to the active links table.
+
+  Returns `{:error, :not_pending}` if the link is not in the pending table,
+  or `{:error, :invalid_status}` if the link does not have an active status.
+  """
+  @spec activate_link(map()) :: :ok | {:error, :not_pending | :invalid_status}
+  def activate_link(link) do
+    case :ets.lookup(@pending_links_table, link.link_id) do
+      [{_, _pending}] ->
+        if Map.get(link, :status) != :active do
+          {:error, :invalid_status}
+        else
+          :ets.delete(@pending_links_table, link.link_id)
+          :ets.insert(@active_links_table, {link.link_id, link})
+          :ok
+        end
+
+      [] ->
+        {:error, :not_pending}
+    end
+  end
+
+  @doc """
+  Finds a pending link matching the given link request packet's destination hash.
+  """
+  @spec find_link_for_request_packet(map()) :: map() | nil
+  def find_link_for_request_packet(packet) do
+    case :ets.lookup(@pending_links_table, packet.destination_hash) do
+      [{_, link}] -> link
+      [] -> nil
+    end
+  end
+
+  @doc """
+  Finds an active link matching the given destination hash (link_id).
+  """
+  @spec find_best_link(binary()) :: map() | nil
+  def find_best_link(destination_hash) do
+    case :ets.lookup(@active_links_table, destination_hash) do
+      [{_, link}] -> link
+      [] -> nil
+    end
+  end
+
+  @doc "Returns all pending links."
+  @spec get_pending_links() :: [map()]
+  def get_pending_links do
+    :ets.tab2list(@pending_links_table) |> Enum.map(fn {_id, link} -> link end)
+  end
+
+  @doc "Returns all active links."
+  @spec get_active_links() :: [map()]
+  def get_active_links do
+    :ets.tab2list(@active_links_table) |> Enum.map(fn {_id, link} -> link end)
+  end
+
+  @doc "Removes a pending link by link_id."
+  @spec remove_pending_link(binary()) :: true
+  def remove_pending_link(link_id) do
+    :ets.delete(@pending_links_table, link_id)
+  end
+
+  @doc "Removes an active link by link_id."
+  @spec remove_active_link(binary()) :: true
+  def remove_active_link(link_id) do
+    :ets.delete(@active_links_table, link_id)
   end
 
   # ── Path Table Queries (direct ETS reads for concurrency) ─────────────
@@ -496,8 +700,10 @@ defmodule RNS.Transport do
     end
   end
 
+  # ── Reverse Table Operations ──────────────────────────────────────────
+
   @doc "Returns a reverse table entry, or nil."
-  @spec get_reverse_entry(binary()) :: map() | nil
+  @spec get_reverse_entry(binary()) :: ReverseEntry.t() | nil
   def get_reverse_entry(packet_hash) do
     case :ets.lookup(@reverse_table, packet_hash) do
       [{^packet_hash, entry}] -> entry
@@ -505,12 +711,132 @@ defmodule RNS.Transport do
     end
   end
 
+  @doc "Inserts or updates a reverse table entry."
+  @spec put_reverse_entry(binary(), ReverseEntry.t()) :: true
+  def put_reverse_entry(hash, %ReverseEntry{} = entry) do
+    :ets.insert(@reverse_table, {hash, entry})
+  end
+
+  @doc "Deletes a reverse table entry."
+  @spec delete_reverse_entry(binary()) :: true
+  def delete_reverse_entry(hash) do
+    :ets.delete(@reverse_table, hash)
+  end
+
+  @doc "Deletes and returns a reverse table entry, or nil."
+  @spec pop_reverse_entry(binary()) :: ReverseEntry.t() | nil
+  def pop_reverse_entry(hash) do
+    case :ets.lookup(@reverse_table, hash) do
+      [{^hash, entry}] ->
+        :ets.delete(@reverse_table, hash)
+        entry
+
+      [] ->
+        nil
+    end
+  end
+
+  # ── Link Table Operations ─────────────────────────────────────────────
+
   @doc "Returns a link table entry, or nil."
-  @spec get_link_entry(binary()) :: map() | nil
+  @spec get_link_entry(binary()) :: LinkEntry.t() | nil
   def get_link_entry(link_id) do
     case :ets.lookup(@link_table, link_id) do
       [{^link_id, entry}] -> entry
       [] -> nil
+    end
+  end
+
+  @doc "Inserts or updates a link table entry."
+  @spec put_link_entry(binary(), LinkEntry.t()) :: true
+  def put_link_entry(link_id, %LinkEntry{} = entry) do
+    :ets.insert(@link_table, {link_id, entry})
+  end
+
+  @doc "Deletes a link table entry."
+  @spec delete_link_entry(binary()) :: true
+  def delete_link_entry(link_id) do
+    :ets.delete(@link_table, link_id)
+  end
+
+  # ── Tunnel Table Operations ───────────────────────────────────────────
+
+  @doc "Returns a tunnel table entry, or nil."
+  @spec get_tunnel_entry(binary()) :: TunnelEntry.t() | nil
+  def get_tunnel_entry(tunnel_id) do
+    case :ets.lookup(@tunnel_table, tunnel_id) do
+      [{^tunnel_id, entry}] -> entry
+      [] -> nil
+    end
+  end
+
+  @doc "Inserts or updates a tunnel table entry."
+  @spec put_tunnel_entry(binary(), TunnelEntry.t()) :: true
+  def put_tunnel_entry(tunnel_id, %TunnelEntry{} = entry) do
+    :ets.insert(@tunnel_table, {tunnel_id, entry})
+  end
+
+  @doc "Deletes a tunnel table entry."
+  @spec delete_tunnel_entry(binary()) :: true
+  def delete_tunnel_entry(tunnel_id) do
+    :ets.delete(@tunnel_table, tunnel_id)
+  end
+
+  @doc "Returns all tunnel entries."
+  @spec get_all_tunnels() :: [{binary(), TunnelEntry.t()}]
+  def get_all_tunnels do
+    :ets.tab2list(@tunnel_table)
+  end
+
+  # ── Receipt Management ────────────────────────────────────────────────
+
+  @doc "Registers a packet receipt for proof tracking."
+  @spec register_receipt(map()) :: true
+  def register_receipt(receipt) do
+    :ets.insert(@receipts_table, {receipt.hash, receipt})
+  end
+
+  @doc "Returns a receipt by hash, or nil."
+  @spec get_receipt(binary()) :: map() | nil
+  def get_receipt(hash) do
+    case :ets.lookup(@receipts_table, hash) do
+      [{^hash, receipt}] -> receipt
+      [] -> nil
+    end
+  end
+
+  @doc "Removes a receipt by hash."
+  @spec remove_receipt(binary()) :: true
+  def remove_receipt(hash) do
+    :ets.delete(@receipts_table, hash)
+  end
+
+  @doc "Returns all receipts."
+  @spec get_all_receipts() :: [map()]
+  def get_all_receipts do
+    :ets.tab2list(@receipts_table) |> Enum.map(fn {_h, r} -> r end)
+  end
+
+  @doc "Returns the count of active receipts."
+  @spec receipt_count() :: non_neg_integer()
+  def receipt_count do
+    :ets.info(@receipts_table, :size)
+  end
+
+  # ── Path Request Tracking ─────────────────────────────────────────────
+
+  @doc "Records the timestamp of a path request for the given destination."
+  @spec record_path_request(binary()) :: true
+  def record_path_request(destination_hash) do
+    :ets.insert(@path_requests_table, {destination_hash, System.system_time(:second)})
+  end
+
+  @doc "Returns the timestamp of the last path request, or 0."
+  @spec last_path_request(binary()) :: non_neg_integer()
+  def last_path_request(destination_hash) do
+    case :ets.lookup(@path_requests_table, destination_hash) do
+      [{^destination_hash, timestamp}] -> timestamp
+      [] -> 0
     end
   end
 
@@ -528,10 +854,1033 @@ defmodule RNS.Transport do
     PathManagement.load_path_table(file_path)
   end
 
+  # ── Packet Filter ─────────────────────────────────────────────────────
+
+  @doc """
+  Determines whether an inbound packet should be accepted for processing.
+
+  Implements the packet_filter logic from Python Transport.py:
+  - Allows packets from shared instance connections
+  - Filters packets intended for other transport instances
+  - Allows passthrough contexts (keepalive, resource, cache, channel)
+  - Filters PLAIN/GROUP packets with too many hops
+  - Rejects duplicate packets (by hash) unless they are SINGLE announces
+
+  ## Options
+    * `:transport_identity_hash` - hash of this transport instance's identity
+    * `:is_shared_instance` - whether connected to shared instance (default: false)
+  """
+  @spec packet_filter(map(), keyword()) :: boolean()
+  def packet_filter(packet, opts \\ []) do
+    transport_identity_hash = opts[:transport_identity_hash]
+    is_shared_instance = Keyword.get(opts, :is_shared_instance, false)
+
+    cond do
+      # If connected to a shared instance, accept everything
+      is_shared_instance ->
+        true
+
+      # Filter packets intended for other transport instances
+      packet.transport_id != nil and packet.packet_type != @packet_announce and
+          packet.transport_id != transport_identity_hash ->
+        false
+
+      # Allow passthrough contexts
+      packet.context in @passthrough_contexts ->
+        true
+
+      # PLAIN destination handling
+      packet.destination_type == @dest_plain ->
+        if packet.packet_type != @packet_announce do
+          packet.hops <= 1
+        else
+          # PLAIN announces are invalid
+          false
+        end
+
+      # GROUP destination handling
+      packet.destination_type == @dest_group ->
+        if packet.packet_type != @packet_announce do
+          packet.hops <= 1
+        else
+          # GROUP announces are invalid
+          false
+        end
+
+      # Check packet hashlist for duplicates
+      not packet_hash_known?(packet.packet_hash) ->
+        true
+
+      # Allow SINGLE announces through even if hash is known (for path updates)
+      packet.packet_type == @packet_announce and packet.destination_type == @dest_single ->
+        true
+
+      # Default: drop duplicate
+      true ->
+        false
+    end
+  end
+
+  # ── Transmit ──────────────────────────────────────────────────────────
+
+  @doc """
+  Transmits raw packet data on the specified interface.
+
+  Handles IFAC (Interface Access Code) masking if the interface has
+  an `ifac_identity` configured. Otherwise sends the raw data directly.
+
+  The interface must implement a `process_outgoing/1` function (or be a
+  map with a `:process_outgoing` callback function).
+  """
+  @spec transmit(map(), binary()) :: :ok | {:error, term()}
+  def transmit(interface, raw) do
+    try do
+      if Map.get(interface, :ifac_identity) != nil do
+        transmit_with_ifac(interface, raw)
+      else
+        call_process_outgoing(interface, raw)
+      end
+    rescue
+      e ->
+        Logger.error("Error while transmitting on #{inspect(interface)}: #{Exception.message(e)}")
+        {:error, Exception.message(e)}
+    end
+  end
+
+  defp transmit_with_ifac(interface, raw) do
+    ifac_size = interface.ifac_size
+    ifac_identity = interface.ifac_identity
+
+    # Calculate packet access code
+    signature = Identity.sign(ifac_identity, raw)
+    ifac = binary_part(signature, byte_size(signature) - ifac_size, ifac_size)
+
+    # Generate mask using HKDF
+    mask =
+      RNS.Cryptography.HKDF.derive_key(
+        ifac,
+        byte_size(raw) + ifac_size,
+        interface.ifac_key,
+        nil
+      )
+
+    # Set IFAC flag in first header byte and build new payload
+    <<first_byte, second_byte, rest::binary>> = raw
+    new_header = <<first_byte ||| 0x80, second_byte>>
+    new_raw = new_header <> ifac <> rest
+
+    # Mask payload (preserve IFAC bytes unmasked)
+    masked_raw = mask_ifac_payload(new_raw, mask, ifac_size)
+
+    call_process_outgoing(interface, masked_raw)
+  end
+
+  defp mask_ifac_payload(payload, mask, ifac_size) do
+    payload
+    |> :binary.bin_to_list()
+    |> Enum.with_index()
+    |> Enum.map(fn {byte, i} ->
+      mask_byte = :binary.at(mask, i)
+
+      cond do
+        # First byte: mask but keep IFAC flag set
+        i == 0 -> bxor(byte, mask_byte) ||| 0x80
+        # Second byte and payload (after IFAC): mask
+        i == 1 or i > ifac_size + 1 -> bxor(byte, mask_byte)
+        # IFAC itself: don't mask
+        true -> byte
+      end
+    end)
+    |> :binary.list_to_bin()
+  end
+
+  defp call_process_outgoing(interface, raw) do
+    cond do
+      is_function(Map.get(interface, :process_outgoing), 1) ->
+        interface.process_outgoing.(raw)
+        :ok
+
+      is_pid(Map.get(interface, :pid)) ->
+        send(interface.pid, {:process_outgoing, raw})
+        :ok
+
+      true ->
+        Logger.warning("Interface #{inspect(interface)} has no process_outgoing handler")
+        {:error, :no_handler}
+    end
+  end
+
+  # ── Outbound ──────────────────────────────────────────────────────────
+
+  @doc """
+  Handles outgoing packet transmission.
+
+  Routes the packet based on the path table:
+  - If a path is known with hops > 1, inserts into transport (HEADER_2)
+  - If path is known with hops == 1, transmits directly on path interface
+  - If no path is known, broadcasts on all outgoing interfaces
+
+  Returns `true` if the packet was sent, `false` otherwise.
+
+  ## Options
+    * `:transport_identity` - this transport instance's identity (for HEADER_2)
+    * `:is_shared_instance` - whether connected to shared instance
+  """
+  @spec outbound(map(), keyword()) :: boolean()
+  def outbound(packet, opts \\ []) do
+    transport_identity = opts[:transport_identity]
+    is_shared_instance = Keyword.get(opts, :is_shared_instance, false)
+
+    sent =
+      if should_use_path_table?(packet) and has_path(packet.destination_hash) do
+        outbound_via_path(packet, transport_identity, is_shared_instance)
+      else
+        outbound_broadcast(packet)
+      end
+
+    # Generate receipt for qualifying packets
+    if sent and should_generate_receipt?(packet) do
+      receipt = RNS.PacketReceipt.new(packet)
+      register_receipt(receipt)
+    end
+
+    sent
+  end
+
+  defp should_use_path_table?(packet) do
+    packet.packet_type != @packet_announce and
+      packet.destination_type != @dest_plain and
+      packet.destination_type != @dest_group
+  end
+
+  defp should_generate_receipt?(packet) do
+    Map.get(packet, :create_receipt, false) and
+      packet.packet_type == @packet_data and
+      packet.destination_type != @dest_plain and
+      not (packet.context >= @context_keepalive and packet.context <= @context_lrproof) and
+      not (packet.context >= @context_resource and packet.context <= @context_resource_rcl)
+  end
+
+  defp outbound_via_path(packet, transport_identity, is_shared_instance) do
+    path_entry = get_path_entry(packet.destination_hash)
+    outbound_interface = path_entry.interface
+
+    cond do
+      # Multi-hop: insert into transport
+      path_entry.hops > 1 and packet.header_type == @header_1 ->
+        _transport_id_hash =
+          if transport_identity, do: transport_identity.hash, else: :crypto.strong_rand_bytes(16)
+
+        new_flags = (@header_2 <<< 6) ||| (@transport <<< 4) ||| (packet.flags &&& 0x0F)
+        next_hop_hash = path_entry.next_hop
+
+        new_raw =
+          <<new_flags::8>> <>
+            binary_part(packet.raw, 1, 1) <>
+            next_hop_hash <>
+            binary_part(packet.raw, 2, byte_size(packet.raw) - 2)
+
+        transmit(outbound_interface, new_raw)
+        update_path_timestamp(packet.destination_hash)
+        true
+
+      # Single hop via shared instance: also needs transport headers
+      path_entry.hops == 1 and is_shared_instance and packet.header_type == @header_1 ->
+        _transport_id_hash =
+          if transport_identity, do: transport_identity.hash, else: :crypto.strong_rand_bytes(16)
+
+        new_flags = (@header_2 <<< 6) ||| (@transport <<< 4) ||| (packet.flags &&& 0x0F)
+        next_hop_hash = path_entry.next_hop
+
+        new_raw =
+          <<new_flags::8>> <>
+            binary_part(packet.raw, 1, 1) <>
+            next_hop_hash <>
+            binary_part(packet.raw, 2, byte_size(packet.raw) - 2)
+
+        transmit(outbound_interface, new_raw)
+        update_path_timestamp(packet.destination_hash)
+        true
+
+      # Direct: transmit directly
+      true ->
+        transmit(outbound_interface, packet.raw)
+        true
+    end
+  end
+
+  defp outbound_broadcast(packet) do
+    interfaces = get_interfaces()
+    stored_hash = false
+
+    {sent, _stored} =
+      Enum.reduce(interfaces, {false, stored_hash}, fn interface, {sent_acc, hash_stored} ->
+        if Map.get(interface, :out, true) and should_transmit_on_interface?(packet, interface) do
+          hash_stored =
+            if not hash_stored do
+              mark_packet_hash(packet.packet_hash)
+              true
+            else
+              hash_stored
+            end
+
+          transmit(interface, packet.raw)
+          {true, hash_stored}
+        else
+          {sent_acc, hash_stored}
+        end
+      end)
+
+    sent
+  end
+
+  defp should_transmit_on_interface?(packet, interface) do
+    cond do
+      # Link destination: must match attached interface
+      packet.destination_type == @dest_link ->
+        Map.get(packet, :attached_interface) == nil or
+          Map.get(packet, :attached_interface) == interface
+
+      # Attached interface constraint
+      Map.get(packet, :attached_interface) != nil and
+          Map.get(packet, :attached_interface) != interface ->
+        false
+
+      # Announce packets have special mode-based rules
+      packet.packet_type == @packet_announce ->
+        should_transmit_announce?(packet, interface)
+
+      true ->
+        true
+    end
+  end
+
+  defp should_transmit_announce?(packet, interface) do
+    cond do
+      # If packet has attached_interface, allow
+      Map.get(packet, :attached_interface) != nil ->
+        true
+
+      # Access point mode blocks outgoing announces
+      Map.get(interface, :mode) == :mode_access_point ->
+        false
+
+      # Roaming mode: only allow local destinations or check from_interface
+      Map.get(interface, :mode) == :mode_roaming ->
+        local_dest =
+          Enum.any?(get_destinations(), fn d -> d.hash == packet.destination_hash end)
+
+        if local_dest do
+          true
+        else
+          from_interface = next_hop_interface(packet.destination_hash)
+
+          from_interface != nil and Map.has_key?(from_interface, :mode) and
+            from_interface.mode not in [:mode_roaming, :mode_boundary]
+        end
+
+      # Boundary mode: similar to roaming
+      Map.get(interface, :mode) == :mode_boundary ->
+        local_dest =
+          Enum.any?(get_destinations(), fn d -> d.hash == packet.destination_hash end)
+
+        if local_dest do
+          true
+        else
+          from_interface = next_hop_interface(packet.destination_hash)
+
+          from_interface != nil and Map.has_key?(from_interface, :mode) and
+            from_interface.mode != :mode_roaming
+        end
+
+      # Default mode: allow (with potential rate limiting for non-local)
+      true ->
+        true
+    end
+  end
+
+  defp update_path_timestamp(destination_hash) do
+    case get_path_entry(destination_hash) do
+      nil ->
+        :ok
+
+      entry ->
+        put_path_entry(destination_hash, %{entry | timestamp: System.system_time(:second)})
+    end
+  end
+
+  # ── Inbound ───────────────────────────────────────────────────────────
+
+  @doc """
+  Processes an inbound raw packet from an interface.
+
+  Handles:
+  - IFAC (Interface Access Code) validation
+  - Packet unpacking and hop count increment
+  - Packet filtering
+  - Transport routing (forwarding packets to next hop)
+  - Link transport handling
+  - Announce processing
+  - Local data delivery
+  - Proof routing
+
+  ## Options
+    * `:transport_identity` - this transport instance's identity
+    * `:transport_enabled` - whether this instance has transport enabled
+    * `:is_shared_instance` - whether connected to shared instance
+  """
+  @spec inbound(binary(), map() | nil, keyword()) :: :ok | :dropped
+  def inbound(raw, interface, opts \\ []) do
+    # Validate minimum packet length
+    if byte_size(raw) <= 2 do
+      :dropped
+    else
+      case validate_ifac(raw, interface) do
+        {:ok, validated_raw} ->
+          process_inbound(validated_raw, interface, opts)
+
+        :drop ->
+          :dropped
+      end
+    end
+  end
+
+  defp validate_ifac(raw, interface) do
+    has_ifac = Map.get(interface || %{}, :ifac_identity) != nil
+    ifac_flag_set = (:binary.at(raw, 0) &&& 0x80) == 0x80
+
+    cond do
+      # Interface has IFAC: validate
+      has_ifac and ifac_flag_set ->
+        ifac_size = interface.ifac_size
+
+        if byte_size(raw) > 2 + ifac_size do
+          ifac = binary_part(raw, 2, ifac_size)
+
+          # Generate mask
+          mask =
+            RNS.Cryptography.HKDF.derive_key(
+              ifac,
+              byte_size(raw),
+              interface.ifac_key,
+              nil
+            )
+
+          # Unmask payload
+          unmasked = unmask_ifac_payload(raw, mask, ifac_size)
+
+          # Unset IFAC flag and reassemble
+          <<first_byte, second_byte, _ifac::binary-size(ifac_size), rest::binary>> = unmasked
+          new_raw = <<first_byte &&& 0x7F, second_byte>> <> rest
+
+          # Calculate expected IFAC
+          expected_signature = Identity.sign(interface.ifac_identity, new_raw)
+          expected_ifac = binary_part(expected_signature, byte_size(expected_signature) - ifac_size, ifac_size)
+
+          if ifac == expected_ifac, do: {:ok, new_raw}, else: :drop
+        else
+          :drop
+        end
+
+      # Interface has IFAC but flag not set: drop
+      has_ifac and not ifac_flag_set ->
+        :drop
+
+      # No IFAC on interface but flag is set: drop
+      not has_ifac and ifac_flag_set ->
+        :drop
+
+      # No IFAC, no flag: pass through
+      true ->
+        {:ok, raw}
+    end
+  end
+
+  defp unmask_ifac_payload(payload, mask, ifac_size) do
+    payload
+    |> :binary.bin_to_list()
+    |> Enum.with_index()
+    |> Enum.map(fn {byte, i} ->
+      mask_byte = :binary.at(mask, i)
+
+      if i <= 1 or i > ifac_size + 1 do
+        bxor(byte, mask_byte)
+      else
+        byte
+      end
+    end)
+    |> :binary.list_to_bin()
+  end
+
+  defp process_inbound(raw, interface, opts) do
+    transport_identity = opts[:transport_identity]
+    _transport_enabled = Keyword.get(opts, :transport_enabled, false)
+    transport_identity_hash = if transport_identity, do: transport_identity.hash, else: nil
+
+    # Unpack the packet
+    packet = Packet.new(nil, raw)
+
+    case Packet.unpack(packet) do
+      %Packet{} = packet ->
+        # Set receiving interface and increment hop count
+        packet = %{packet | receiving_interface: interface, hops: packet.hops + 1}
+
+        # Apply packet filter
+        filter_opts = [
+          transport_identity_hash: transport_identity_hash,
+          is_shared_instance: Keyword.get(opts, :is_shared_instance, false)
+        ]
+
+        if packet_filter(packet, filter_opts) do
+          # Determine whether to remember packet hash
+          remember_hash =
+            packet.destination_hash not in link_table_keys() and
+              not (packet.packet_type == @packet_proof and packet.context == @context_lrproof)
+
+          if remember_hash, do: mark_packet_hash(packet.packet_hash)
+
+          # Route the packet
+          internal_inbound(packet, opts)
+        else
+          :dropped
+        end
+
+      false ->
+        :dropped
+    end
+  end
+
+  defp link_table_keys do
+    :ets.tab2list(@link_table) |> Enum.map(fn {key, _} -> key end)
+  end
+
+  # ── Internal Inbound Processing ───────────────────────────────────────
+
+  @doc """
+  Processes a validated, unpacked inbound packet.
+
+  Handles transport routing, announce processing, link requests,
+  data delivery, and proof routing.
+
+  ## Options
+    * `:transport_identity` - this transport instance's identity
+    * `:transport_enabled` - whether transport is enabled
+  """
+  @spec internal_inbound(map(), keyword()) :: :ok
+  def internal_inbound(packet, opts \\ []) do
+    transport_identity = opts[:transport_identity]
+    transport_enabled = Keyword.get(opts, :transport_enabled, false)
+    transport_identity_hash = if transport_identity, do: transport_identity.hash, else: nil
+
+    # Transport routing for packets addressed to us as transport node
+    if transport_enabled do
+      handle_transport_routing(packet, transport_identity_hash)
+      handle_link_transport(packet)
+    end
+
+    # Process by packet type
+    case packet.packet_type do
+      @packet_announce ->
+        handle_inbound_announce(packet, opts)
+
+      @packet_linkrequest ->
+        handle_inbound_link_request(packet, transport_identity_hash)
+
+      @packet_data ->
+        handle_inbound_data(packet)
+
+      @packet_proof ->
+        handle_inbound_proof(packet, opts)
+
+      _ ->
+        :ok
+    end
+
+    :ok
+  end
+
+  # ── Transport Routing (forwarding through transport network) ──────────
+
+  defp handle_transport_routing(packet, transport_identity_hash) do
+    # Only process non-announce packets that are addressed to us as transport
+    if packet.transport_id != nil and packet.packet_type != @packet_announce and
+         packet.transport_id == transport_identity_hash do
+      forward(packet, transport_identity_hash)
+    end
+  end
+
+  @doc """
+  Forwards a packet through the transport network to its next hop.
+
+  Looks up the destination in the path table and either:
+  - Forwards with updated hop count (remaining_hops > 1)
+  - Strips transport headers (remaining_hops == 1)
+  - Passes through directly (remaining_hops == 0)
+
+  Also records link table entries for LINKREQUEST packets and
+  reverse table entries for other packet types (for proof routing).
+  """
+  @spec forward(map(), binary() | nil) :: :ok | :no_path
+  def forward(packet, _transport_identity_hash \\ nil) do
+    case get_path_entry(packet.destination_hash) do
+      nil ->
+        Logger.debug(
+          "Got packet in transport, but no path to #{Base.encode16(packet.destination_hash)}. Dropping."
+        )
+
+        :no_path
+
+      path_entry ->
+        next_hop_addr = path_entry.next_hop
+        remaining_hops = path_entry.hops
+        outbound_interface = path_entry.interface
+        hash_len = div(@truncated_hashlength, 8)
+
+        new_raw =
+          cond do
+            remaining_hops > 1 ->
+              # Forward with updated hop count and next hop address
+              binary_part(packet.raw, 0, 1) <>
+                <<packet.hops::8>> <>
+                next_hop_addr <>
+                binary_part(packet.raw, hash_len + 2, byte_size(packet.raw) - hash_len - 2)
+
+            remaining_hops == 1 ->
+              # Strip transport headers, convert back to HEADER_1
+              new_flags = (@header_1 <<< 6) ||| (@broadcast <<< 4) ||| (packet.flags &&& 0x0F)
+
+              <<new_flags::8>> <>
+                <<packet.hops::8>> <>
+                binary_part(packet.raw, hash_len + 2, byte_size(packet.raw) - hash_len - 2)
+
+            true ->
+              # remaining_hops == 0, just update hop count
+              binary_part(packet.raw, 0, 1) <>
+                <<packet.hops::8>> <>
+                binary_part(packet.raw, 2, byte_size(packet.raw) - 2)
+          end
+
+        # Record link table entry for link requests, reverse entry for others
+        if packet.packet_type == @packet_linkrequest do
+          record_link_table_entry(packet, next_hop_addr, outbound_interface, remaining_hops)
+        else
+          record_reverse_entry(packet, outbound_interface)
+        end
+
+        transmit(outbound_interface, new_raw)
+        update_path_timestamp(packet.destination_hash)
+        :ok
+    end
+  end
+
+  defp record_link_table_entry(packet, next_hop, outbound_interface, remaining_hops) do
+    now = System.system_time(:second)
+    # Default proof timeout: current time + establishment timeout per hop * remaining hops
+    proof_timeout = now + Packet.timeout_per_hop() * max(1, remaining_hops)
+
+    # Derive link_id from the link request packet data (first 32 bytes of X25519 public key)
+    link_id =
+      if byte_size(packet.data) >= 32 do
+        Identity.truncated_hash(binary_part(packet.data, 0, 32))
+      else
+        packet.destination_hash
+      end
+
+    entry = %LinkEntry{
+      timestamp: now,
+      next_hop: next_hop,
+      next_hop_interface: outbound_interface,
+      remaining_hops: remaining_hops,
+      received_on_interface: packet.receiving_interface,
+      taken_hops: packet.hops,
+      destination_hash: packet.destination_hash,
+      validated: false,
+      proof_timeout: proof_timeout
+    }
+
+    put_link_entry(link_id, entry)
+  end
+
+  defp record_reverse_entry(packet, outbound_interface) do
+    truncated_hash = Packet.get_truncated_hash(packet)
+
+    entry = %ReverseEntry{
+      received_on_interface: packet.receiving_interface,
+      outbound_interface: outbound_interface,
+      timestamp: System.system_time(:second)
+    }
+
+    put_reverse_entry(truncated_hash, entry)
+  end
+
+  # ── Link Transport Handling ───────────────────────────────────────────
+
+  defp handle_link_transport(packet) do
+    # Don't handle announces, link requests, or LR proofs through link table
+    if packet.packet_type != @packet_announce and
+         packet.packet_type != @packet_linkrequest and
+         packet.context != @context_lrproof do
+      case get_link_entry(packet.destination_hash) do
+        nil ->
+          :ok
+
+        link_entry ->
+          outbound_interface = determine_link_outbound_interface(packet, link_entry)
+
+          if outbound_interface != nil do
+            mark_packet_hash(packet.packet_hash)
+
+            new_raw =
+              binary_part(packet.raw, 0, 1) <>
+                <<packet.hops::8>> <>
+                binary_part(packet.raw, 2, byte_size(packet.raw) - 2)
+
+            transmit(outbound_interface, new_raw)
+
+            # Update link table timestamp
+            put_link_entry(packet.destination_hash, %{
+              link_entry
+              | timestamp: System.system_time(:second)
+            })
+          end
+      end
+    end
+  end
+
+  defp determine_link_outbound_interface(packet, link_entry) do
+    cond do
+      # Same interface for both directions: check hop count matches
+      link_entry.next_hop_interface == link_entry.received_on_interface ->
+        if packet.hops == link_entry.remaining_hops or packet.hops == link_entry.taken_hops do
+          link_entry.next_hop_interface
+        else
+          nil
+        end
+
+      # Received on next-hop interface: send to received-on interface
+      packet.receiving_interface == link_entry.next_hop_interface ->
+        if packet.hops == link_entry.remaining_hops do
+          link_entry.received_on_interface
+        else
+          nil
+        end
+
+      # Received on received-on interface: send to next-hop interface
+      packet.receiving_interface == link_entry.received_on_interface ->
+        if packet.hops == link_entry.taken_hops do
+          link_entry.next_hop_interface
+        else
+          nil
+        end
+
+      true ->
+        nil
+    end
+  end
+
+  # ── Announce Handling ─────────────────────────────────────────────────
+
+  defp handle_inbound_announce(packet, opts) do
+    transport_enabled = Keyword.get(opts, :transport_enabled, false)
+
+    # Validate announce signature
+    if Identity.validate_announce(packet) do
+      received_from =
+        if packet.transport_id != nil do
+          # Track rebroadcasts from other transport nodes
+          if transport_enabled do
+            case get_announce_entry(packet.destination_hash) do
+              nil -> :ok
+
+              entry ->
+                AnnounceHandler.handle_rebroadcast_tracking(
+                  packet.destination_hash,
+                  packet.hops,
+                  entry
+                )
+            end
+          end
+
+          packet.transport_id
+        else
+          packet.destination_hash
+        end
+
+      random_blob = AnnounceHandler.extract_random_blob(packet)
+
+      if AnnounceHandler.should_add_path?(packet.destination_hash, packet, random_blob) do
+        # Check rate limiting
+        interface = packet.receiving_interface || %{}
+
+        {rate_blocked, _rate_entry} =
+          if packet.context != @context_path_response do
+            AnnounceHandler.check_announce_rate(packet.destination_hash, interface)
+          else
+            {false, nil}
+          end
+
+        now = System.system_time(:second)
+        expires = AnnounceHandler.calculate_path_expiry(interface)
+
+        # Update random blobs
+        existing_blobs =
+          case get_path_entry(packet.destination_hash) do
+            nil -> []
+            pe -> pe.random_blobs || []
+          end
+
+        random_blobs = AnnounceHandler.update_random_blobs(existing_blobs, random_blob)
+
+        # Insert into announce table for retransmission (if transport enabled and not rate blocked)
+        if transport_enabled and packet.context != @context_path_response and not rate_blocked do
+          retransmit_timeout = now + :rand.uniform() * @pathfinder_rw
+
+          announce_entry = %AnnounceHandler.AnnounceEntry{
+            timestamp: now,
+            retransmit_timeout: retransmit_timeout,
+            retries: 0,
+            received_from: received_from,
+            hops: packet.hops,
+            packet: packet,
+            local_rebroadcasts: 0,
+            block_rebroadcasts: false,
+            attached_interface: nil
+          }
+
+          put_announce_entry(packet.destination_hash, announce_entry)
+        end
+
+        # Update path table
+        path_entry = %PathEntry{
+          timestamp: now,
+          next_hop: received_from,
+          hops: packet.hops,
+          expires: expires,
+          random_blobs: random_blobs,
+          interface: packet.receiving_interface,
+          packet_hash: packet.packet_hash
+        }
+
+        put_path_entry(packet.destination_hash, path_entry)
+      end
+    end
+
+    :ok
+  end
+
+  # ── Link Request Handling ─────────────────────────────────────────────
+
+  defp handle_inbound_link_request(packet, transport_identity_hash) do
+    # Only process if addressed to us (or no transport_id)
+    if packet.transport_id == nil or packet.transport_id == transport_identity_hash do
+      destinations = get_destinations()
+
+      Enum.each(destinations, fn destination ->
+        if destination.hash == packet.destination_hash and
+             destination.type == packet.destination_type do
+          # Deliver to destination
+          if is_function(Map.get(destination, :receive_packet), 1) do
+            destination.receive_packet.(packet)
+          end
+        end
+      end)
+    end
+
+    :ok
+  end
+
+  # ── Data Packet Handling ──────────────────────────────────────────────
+
+  defp handle_inbound_data(packet) do
+    if packet.destination_type == @dest_link do
+      # Route to active link
+      case find_best_link(packet.destination_hash) do
+        nil ->
+          :ok
+
+        link ->
+          if Map.get(link, :attached_interface) == packet.receiving_interface do
+            if is_function(Map.get(link, :receive), 1) do
+              link.receive.(Map.put(packet, :link, link))
+            end
+          end
+      end
+    else
+      # Route to local destination
+      destinations = get_destinations()
+
+      Enum.each(destinations, fn destination ->
+        if destination.hash == packet.destination_hash and
+             destination.type == packet.destination_type do
+          delivered =
+            if is_function(Map.get(destination, :receive_packet), 1) do
+              destination.receive_packet.(packet)
+            else
+              false
+            end
+
+          if delivered do
+            handle_proof_strategy(packet, destination)
+          end
+        end
+      end)
+    end
+
+    :ok
+  end
+
+  defp handle_proof_strategy(packet, destination) do
+    prove_all = 0x23
+    prove_app = 0x22
+
+    cond do
+      Map.get(destination, :proof_strategy) == prove_all ->
+        if is_function(Map.get(packet, :prove), 0) do
+          packet.prove.()
+        end
+
+      Map.get(destination, :proof_strategy) == prove_app ->
+        callback = get_in(destination, [:callbacks, :proof_requested])
+
+        if is_function(callback, 1) do
+          try do
+            if callback.(packet), do: packet.prove.()
+          rescue
+            e ->
+              Logger.error("Error in proof request callback: #{Exception.message(e)}")
+          end
+        end
+
+      true ->
+        :ok
+    end
+  end
+
+  # ── Proof Handling ────────────────────────────────────────────────────
+
+  defp handle_inbound_proof(packet, opts) do
+    transport_enabled = Keyword.get(opts, :transport_enabled, false)
+
+    if packet.context == @context_lrproof do
+      handle_link_request_proof(packet, opts)
+    else
+      # Route proofs through reverse table
+      if transport_enabled do
+        case pop_reverse_entry(packet.destination_hash) do
+          nil ->
+            :ok
+
+          reverse_entry ->
+            if packet.receiving_interface == reverse_entry.outbound_interface do
+              new_raw =
+                binary_part(packet.raw, 0, 1) <>
+                  <<packet.hops::8>> <>
+                  binary_part(packet.raw, 2, byte_size(packet.raw) - 2)
+
+              transmit(reverse_entry.received_on_interface, new_raw)
+            end
+        end
+      end
+
+      # Match with receipts
+      match_receipt(packet)
+    end
+
+    :ok
+  end
+
+  defp handle_link_request_proof(packet, opts) do
+    transport_enabled = Keyword.get(opts, :transport_enabled, false)
+
+    if transport_enabled do
+      case get_link_entry(packet.destination_hash) do
+        nil ->
+          :ok
+
+        link_entry ->
+          if packet.hops == link_entry.remaining_hops and
+               packet.receiving_interface == link_entry.next_hop_interface do
+            # Validate and forward the link proof
+            new_raw =
+              binary_part(packet.raw, 0, 1) <>
+                <<packet.hops::8>> <>
+                binary_part(packet.raw, 2, byte_size(packet.raw) - 2)
+
+            # Mark link as validated
+            put_link_entry(packet.destination_hash, %{link_entry | validated: true})
+            transmit(link_entry.received_on_interface, new_raw)
+          end
+      end
+    end
+
+    # Check if this is for a local pending link
+    case find_link_for_request_packet(packet) do
+      nil ->
+        :ok
+
+      link ->
+        expected_hops = Map.get(link, :expected_hops, @pathfinder_m)
+
+        if packet.hops == expected_hops or expected_hops == @pathfinder_m do
+          mark_packet_hash(packet.packet_hash)
+
+          if is_function(Map.get(link, :validate_proof), 1) do
+            link.validate_proof.(packet)
+          end
+        end
+    end
+
+    :ok
+  end
+
+  defp match_receipt(packet) do
+    # Determine proof hash for explicit proofs
+    hashlength_bytes = div(256, 8)
+    siglength_bytes = div(512, 8)
+    expl_length = hashlength_bytes + siglength_bytes
+
+    proof_hash =
+      if byte_size(packet.data) == expl_length do
+        binary_part(packet.data, 0, hashlength_bytes)
+      else
+        nil
+      end
+
+    receipts = get_all_receipts()
+
+    Enum.each(receipts, fn receipt ->
+      validated =
+        cond do
+          # Explicit proof: only check if hash matches
+          proof_hash != nil -> receipt.hash == proof_hash
+          # Implicit proof: check every receipt
+          true -> true
+        end
+
+      if validated do
+        if is_function(Map.get(receipt, :validate_proof_packet), 1) do
+          if receipt.validate_proof_packet.(packet) do
+            remove_receipt(receipt.hash)
+          end
+        end
+      end
+    end)
+  end
+
+  # ── Periodic Jobs ─────────────────────────────────────────────────────
+
+  @doc """
+  Starts the periodic job scheduler. Called after transport is fully initialized.
+  """
+  @spec start_jobs() :: :ok
+  def start_jobs do
+    GenServer.cast(__MODULE__, :start_jobs)
+  end
+
   # ── GenServer Callbacks ───────────────────────────────────────────────
 
   @impl true
-  def init(_opts) do
+  def init(opts) do
     create_ets_tables()
 
     state = %{
@@ -539,10 +1888,17 @@ defmodule RNS.Transport do
       identity: nil,
       owner: nil,
       jobs_running: false,
+      transport_enabled: Keyword.get(opts, :transport_enabled, false),
       traffic_rxb: 0,
       traffic_txb: 0,
       speed_rx: 0,
-      speed_tx: 0
+      speed_tx: 0,
+      links_last_checked: 0,
+      receipts_last_checked: 0,
+      announces_last_checked: 0,
+      tables_last_culled: 0,
+      cache_last_cleaned: 0,
+      jobs_started: false
     }
 
     {:ok, state}
@@ -589,11 +1945,242 @@ defmodule RNS.Transport do
   end
 
   @impl true
+  def handle_cast(:start_jobs, state) do
+    if not state.jobs_started do
+      schedule_job(:jobs_tick, @job_interval)
+      {:noreply, %{state | jobs_started: true}}
+    else
+      {:noreply, state}
+    end
+  end
+
+  @impl true
+  def handle_info(:jobs_tick, state) do
+    now_ms = System.monotonic_time(:millisecond)
+    now = System.system_time(:second)
+
+    state = run_periodic_jobs(state, now, now_ms)
+
+    schedule_job(:jobs_tick, @job_interval)
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_info(_msg, state) do
+    {:noreply, state}
+  end
+
+  @impl true
   def terminate(_reason, _state) do
     :ok
   end
 
+  # ── Periodic Job Logic ────────────────────────────────────────────────
+
+  defp run_periodic_jobs(state, now, _now_ms) do
+    state
+    |> maybe_check_links(now)
+    |> maybe_check_receipts(now)
+    |> maybe_check_announces(now)
+    |> maybe_cull_tables(now)
+    |> maybe_rotate_hashlist()
+  end
+
+  defp maybe_check_links(state, now) do
+    if now > state.links_last_checked + div(@links_check_interval, 1000) do
+      # Remove closed pending links
+      pending = :ets.tab2list(@pending_links_table)
+
+      Enum.each(pending, fn {link_id, link} ->
+        if Map.get(link, :status) == :closed do
+          :ets.delete(@pending_links_table, link_id)
+
+          # Expire path and potentially rediscover
+          if Map.get(link, :destination) do
+            expire_path(link.destination.hash)
+          end
+        end
+      end)
+
+      # Remove closed active links
+      active = :ets.tab2list(@active_links_table)
+
+      Enum.each(active, fn {link_id, link} ->
+        if Map.get(link, :status) == :closed do
+          :ets.delete(@active_links_table, link_id)
+        end
+      end)
+
+      %{state | links_last_checked: now}
+    else
+      state
+    end
+  end
+
+  defp maybe_check_receipts(state, now) do
+    if now > state.receipts_last_checked + div(@receipts_check_interval, 1000) do
+      # Cull excess receipts
+      receipts = get_all_receipts()
+
+      if length(receipts) > @max_receipts do
+        # Sort by sent_at and remove oldest
+        sorted = Enum.sort_by(receipts, & &1.sent_at)
+        excess = length(sorted) - @max_receipts
+
+        sorted
+        |> Enum.take(excess)
+        |> Enum.each(fn receipt ->
+          remove_receipt(receipt.hash)
+        end)
+      end
+
+      # Check timeouts on remaining receipts
+      :ets.tab2list(@receipts_table)
+      |> Enum.each(fn {hash, receipt} ->
+        timeout = Map.get(receipt, :timeout, 0)
+        sent_at = Map.get(receipt, :sent_at, 0)
+
+        if timeout > 0 and sent_at > 0 and
+             System.system_time(:second) > sent_at + timeout do
+          # Timeout callback
+          if is_function(get_in(receipt, [:callbacks, :timeout]), 1) do
+            try do
+              receipt.callbacks.timeout.(receipt)
+            rescue
+              _ -> :ok
+            end
+          end
+
+          remove_receipt(hash)
+        end
+      end)
+
+      %{state | receipts_last_checked: now}
+    else
+      state
+    end
+  end
+
+  defp maybe_check_announces(state, now) do
+    if now > state.announces_last_checked + div(@announces_check_interval, 1000) do
+      {_outgoing, _completed} = AnnounceHandler.process_announce_queue()
+
+      # Check for held announces to reinsert
+      :ets.tab2list(@held_announces_table)
+      |> Enum.each(fn {dest_hash, held_entry} ->
+        if get_announce_entry(dest_hash) == nil do
+          put_announce_entry(dest_hash, held_entry)
+          :ets.delete(@held_announces_table, dest_hash)
+        end
+      end)
+
+      %{state | announces_last_checked: now}
+    else
+      state
+    end
+  end
+
+  defp maybe_cull_tables(state, now) do
+    if now > state.tables_last_culled + div(@tables_cull_interval, 1000) do
+      cull_path_states()
+      cull_reverse_table(now)
+      cull_link_table(now)
+      cull_tunnel_table(now)
+
+      %{state | tables_last_culled: now}
+    else
+      state
+    end
+  end
+
+  defp maybe_rotate_hashlist(state) do
+    hashlist_size = :ets.info(@packet_hashlist_table, :size)
+
+    if hashlist_size > div(@hashlist_maxsize, 2) do
+      # In Python, this swaps to a prev hashlist. In our ETS approach,
+      # we just delete the oldest half of entries.
+      # Since ETS doesn't maintain insertion order, we clear the table.
+      :ets.delete_all_objects(@packet_hashlist_table)
+    end
+
+    state
+  end
+
+  # ── Table Culling Functions ───────────────────────────────────────────
+
+  @doc "Removes path state entries for destinations no longer in the path table."
+  @spec cull_path_states() :: :ok
+  def cull_path_states do
+    :ets.tab2list(@path_states_table)
+    |> Enum.each(fn {dest_hash, _state} ->
+      unless has_path(dest_hash) do
+        :ets.delete(@path_states_table, dest_hash)
+      end
+    end)
+
+    :ok
+  end
+
+  @doc "Removes expired reverse table entries."
+  @spec cull_reverse_table(non_neg_integer()) :: :ok
+  def cull_reverse_table(now) do
+    interfaces = get_interfaces()
+    interface_set = MapSet.new(interfaces)
+
+    :ets.tab2list(@reverse_table)
+    |> Enum.each(fn {hash, entry} ->
+      stale =
+        now > entry.timestamp + @reverse_timeout or
+          entry.outbound_interface not in interface_set or
+          entry.received_on_interface not in interface_set
+
+      if stale, do: :ets.delete(@reverse_table, hash)
+    end)
+
+    :ok
+  end
+
+  @doc "Removes expired or invalid link table entries."
+  @spec cull_link_table(non_neg_integer()) :: :ok
+  def cull_link_table(now) do
+    interfaces = get_interfaces()
+    interface_set = MapSet.new(interfaces)
+
+    :ets.tab2list(@link_table)
+    |> Enum.each(fn {link_id, entry} ->
+      stale =
+        if entry.validated do
+          now > entry.timestamp + @link_timeout or
+            entry.next_hop_interface not in interface_set or
+            entry.received_on_interface not in interface_set
+        else
+          now > entry.proof_timeout
+        end
+
+      if stale, do: :ets.delete(@link_table, link_id)
+    end)
+
+    :ok
+  end
+
+  @doc "Removes expired tunnel table entries."
+  @spec cull_tunnel_table(non_neg_integer()) :: :ok
+  def cull_tunnel_table(now) do
+    :ets.tab2list(@tunnel_table)
+    |> Enum.each(fn {tunnel_id, entry} ->
+      if now > entry.expires do
+        :ets.delete(@tunnel_table, tunnel_id)
+      end
+    end)
+
+    :ok
+  end
+
   # ── Private Functions ─────────────────────────────────────────────────
+
+  defp schedule_job(msg, interval) do
+    Process.send_after(self(), msg, interval)
+  end
 
   defp create_ets_tables do
     ets_opts = [:set, :public, :named_table, read_concurrency: true]
@@ -622,7 +2209,9 @@ defmodule RNS.Transport do
 
   defp safe_create_table(name, opts) do
     case :ets.info(name) do
-      :undefined -> :ets.new(name, opts)
+      :undefined ->
+        :ets.new(name, opts)
+
       _ ->
         :ets.delete_all_objects(name)
         name
