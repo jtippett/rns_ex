@@ -261,7 +261,7 @@ Read `python/RNS/Cryptography/` for reference. Every crypto module must have tes
 - [x] **3.2 — Packet module**
   Port `python/RNS/Packet.py` (602 LOC) → `lib/rns/packet.ex`. Define all constants as module attributes: `@data 0x00`, `@announce 0x01`, `@linkrequest 0x02`, `@proof 0x03`. Header types, transport types, context types. Implement `RNS.Packet` as a struct: `new/2`, `pack/1`, `unpack/1`, `encrypt/1`, `decrypt/1`, `send/1`, `resend/1`, `prove/2`, `update_hash/1`, `get_hash/1`. Implement `RNS.PacketReceipt` struct with callbacks: `set_timeout/2`, `set_delivery_callback/2`, status tracking. Implement `RNS.ProofDestination`. Port MTU/MDU constants. Use binary pattern matching for pack/unpack — this is where Elixir shines. Write tests: packet creation, pack/unpack roundtrip, hash computation, header encoding, MTU boundaries.
 
-- [ ] **3.3 — Destination module**
+- [x] **3.3 — Destination module**
   Port `python/RNS/Destination.py` (691 LOC) → `lib/rns/destination.ex`. Define types: `@single 0x00`, `@group 0x01`, `@plain 0x02`, `@link 0x03`. Directions: `@in 0x11`, `@out 0x12`. Proof strategies. Implement `RNS.Destination` as a struct: `new/4` (identity, direction, type, app_name, aspects), `hash/1`, `hexhash/1`, `announce/2`, `accepts_links?/1`, `set_link_established_callback/2`, `set_packet_callback/2`, `set_proof_requested_callback/2`, `set_proof_strategy/2`, `register_request_handler/4`, `encrypt/2`, `decrypt/2`, `sign/2`. Handle ratchets. Wire registration with `RNS.Transport.register_destination/1`. Write tests: destination creation, hash derivation matches Python, encryption/decryption, announce generation.
 
 ### Phase 4: Transport Layer
