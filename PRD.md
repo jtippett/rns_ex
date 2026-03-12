@@ -222,7 +222,7 @@ Running `mix test` on this project can cause **severe network degradation on the
 
 ### Phase 1: Project Foundation
 
-- [ ] **1.1 — Initialize Elixir Mix project**
+- [x] **1.1 — Initialize Elixir Mix project**
   Create `mix.exs` (app: `:rns_ex`, module: `RNS`, version: "0.1.0", elixir: "~> 1.15", erlang OTP >= 26). Add all dependencies listed above. Create `lib/rns.ex` entry point with `defmodule RNS` and version constant. Create `lib/rns/version.ex`. Create `test/test_helper.exs` with `ExUnit.start()`. Create `.formatter.exs`. Create `.gitignore` for Elixir (`_build/`, `deps/`, `*.beam`, `.elixir_ls/`). Run `mix deps.get` to verify dependencies resolve. Write a trivial test that requires the library and passes.
 
 - [ ] **1.2 — Logging and utility infrastructure**

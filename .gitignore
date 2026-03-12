@@ -22,4 +22,11 @@ erl_crash.dump
 # Ignore package tarball (built via "mix hex.build").
 rns_ex-*.tar
 
+# ElixirLS
+/.elixir_ls/
+
+# Compiled BEAM files
+*.beam
+
+# macOS
 **/.DS_Store

@@ -1,2 +1,5 @@
 # RNS Elixir Port — Progress Log
 # Each entry records one completed task with timestamp.
+
+## 2026-03-13
+- **Task 1.1 — Initialize Elixir Mix project**: Completed project foundation. Created `lib/rns/version.ex` with version constant. Updated `lib/rns.ex` with proper moduledoc and version API (removed placeholder hello/0). Added `.elixir_ls/` and `*.beam` to `.gitignore`. Updated test suite to verify version string and application startup. mix.exs, deps, .formatter.exs, application.ex, and directory structure were already in place from initial commit. All 3 tests pass.
