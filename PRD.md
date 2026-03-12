@@ -291,7 +291,7 @@ This is the largest module (3312 LOC in Python). Split into manageable sub-modul
 - [x] **5.3 — Link module — lifecycle management**
   Complete `lib/rns/link.ex`. `send/3`, `receive/2`, `prove/2`, `prove_packet/1`, `validate_proof/1`. Keepalive via `Process.send_after`: `send_keepalive/1`, response handling. Teardown: `teardown/1`, `teardown_packet/1`. RTT tracking. `inactive_for/1`, `no_inbound_for/1`, `no_outbound_for/1`, `no_data_for/1`. Stale detection and auto-teardown. Wire callbacks. Write tests: keepalive timing, stale detection, teardown, RTT.
 
-- [ ] **5.4 — Resource module**
+- [x] **5.4 — Resource module**
   Port `python/RNS/Resource.py` (1361 LOC) → `lib/rns/resource.ex`. Implement `RNS.Resource` as a GenServer for large data transfers over Links. Constants: `@window 4`, `@window_min 2`, `@window_max 75`, `@window_max_slow 10`, rate constants, `@max_efficient_size 16_777_215`, `@max_retries`, etc. States: `:queued`, `:advertised`, `:transferring`, `:awaiting_proof`, `:complete`, `:failed`, `:corrupt`. Sender: `advertise/1`, `send_part/1`, segmentation, window management, adaptive rate. Receiver: `accept/1`, `reject/1`, `cancel/1`, reassembly, proof generation. `ResourceAdvertisement` struct. Handle `:zlib` compression. Write tests: segmentation/reassembly roundtrip, window growth/shrink, compression, advertisement pack/unpack.
 
 ### Phase 6: High-Level Modules
