@@ -316,7 +316,7 @@ This is the largest module (3312 LOC in Python). Split into manageable sub-modul
 - [x] **7.4 — Local interface**
   Port `python/RNS/Interfaces/LocalInterface.py` (472 LOC) → `lib/rns/interfaces/local_interface.ex`. `RNS.Interfaces.LocalClient` and `RNS.Interfaces.LocalServer` using TCP on localhost (or Unix domain sockets via `:gen_tcp` with `{:local, path}` on supported OTP). Shared instance mode. Write tests: local client/server, multi-client handling.
 
-- [ ] **7.5 — Auto interface (peer discovery)**
+- [x] **7.5 — Auto interface (peer discovery)**
   Port `python/RNS/Interfaces/AutoInterface.py` (663 LOC) → `lib/rns/interfaces/auto_interface.ex`. UDP multicast peer discovery. Multicast group management, peer tracking (`AutoInterfacePeer`), link-local addressing, auto peer connect/disconnect, data scope management. Critical for zero-config networking. Write tests: peer discovery simulation, multicast group handling. **Remember: restrict to loopback in tests.**
 
 - [ ] **7.6 — Serial interface**
