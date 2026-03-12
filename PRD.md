@@ -238,7 +238,7 @@ Read `python/RNS/Cryptography/` for reference. Every crypto module must have tes
 - [x] **2.1 — Hashes: SHA-256 and SHA-512**
   Create `lib/rns/cryptography/hashes.ex`. Wrap `:crypto.hash/2` to provide `RNS.Cryptography.Hashes.sha256(data) :: binary()` and `sha512(data) :: binary()`. Port the truncated hash helper used throughout RNS: `truncated_hash(data)` returning the first 16 bytes of SHA-256. Write tests using NIST test vectors from `python/tests/hashes.py` and property-based tests with StreamData.
 
-- [ ] **2.2 — HMAC and HKDF**
+- [x] **2.2 — HMAC and HKDF**
   Create `lib/rns/cryptography/hmac.ex` wrapping `:crypto.mac(:hmac, algo, key, data)` to provide `RNS.Cryptography.HMAC.digest(key, data, algorithm)`. Create `lib/rns/cryptography/hkdf.ex` implementing HKDF (RFC 5869) using HMAC — implement `extract/3` and `expand/4` steps, provide `RNS.Cryptography.HKDF.derive_key(ikm, length, salt, info)`. Match the Python HKDF interface exactly — read `python/RNS/Cryptography/HKDF.py`. Write tests with RFC 5869 test vectors.
 
 - [ ] **2.3 — PKCS7 padding and AES-256-CBC**
