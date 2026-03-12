@@ -235,7 +235,7 @@ Running `mix test` on this project can cause **severe network degradation on the
 
 Read `python/RNS/Cryptography/` for reference. Every crypto module must have tests with known test vectors.
 
-- [ ] **2.1 — Hashes: SHA-256 and SHA-512**
+- [x] **2.1 — Hashes: SHA-256 and SHA-512**
   Create `lib/rns/cryptography/hashes.ex`. Wrap `:crypto.hash/2` to provide `RNS.Cryptography.Hashes.sha256(data) :: binary()` and `sha512(data) :: binary()`. Port the truncated hash helper used throughout RNS: `truncated_hash(data)` returning the first 16 bytes of SHA-256. Write tests using NIST test vectors from `python/tests/hashes.py` and property-based tests with StreamData.
 
 - [ ] **2.2 — HMAC and HKDF**
