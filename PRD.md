@@ -225,7 +225,7 @@ Running `mix test` on this project can cause **severe network degradation on the
 - [x] **1.1 — Initialize Elixir Mix project**
   Create `mix.exs` (app: `:rns_ex`, module: `RNS`, version: "0.1.0", elixir: "~> 1.15", erlang OTP >= 26). Add all dependencies listed above. Create `lib/rns.ex` entry point with `defmodule RNS` and version constant. Create `lib/rns/version.ex`. Create `test/test_helper.exs` with `ExUnit.start()`. Create `.formatter.exs`. Create `.gitignore` for Elixir (`_build/`, `deps/`, `*.beam`, `.elixir_ls/`). Run `mix deps.get` to verify dependencies resolve. Write a trivial test that requires the library and passes.
 
-- [ ] **1.2 — Logging and utility infrastructure**
+- [x] **1.2 — Logging and utility infrastructure**
   Port `python/RNS/__init__.py` logging system → `lib/rns/log.ex`. Implement log levels: `LOG_CRITICAL` (0), `LOG_ERROR` (1), `LOG_WARNING` (2), `LOG_NOTICE` (3), `LOG_INFO` (4), `LOG_VERBOSE` (5), `LOG_DEBUG` (6), `LOG_EXTREME` (7). Implement `RNS.Log.log(message, level, override_destination)` wrapping Elixir's `Logger` with appropriate level mapping. Port `hexrep/1`, `prettysize/1`, `prettytime/1`, `phyparams/1`, `panic/1` as functions in `RNS` module. Create `lib/rns/vendor/platform_utils.ex` with OS detection (map Python's `platformutils`). Write tests for all utility functions.
 
 - [ ] **1.3 — OTP Application skeleton**
