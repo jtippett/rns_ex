@@ -322,7 +322,7 @@ This is the largest module (3312 LOC in Python). Split into manageable sub-modul
 - [x] **7.6 — Serial interface**
   Port `python/RNS/Interfaces/SerialInterface.py` (227 LOC) → `lib/rns/interfaces/serial_interface.ex`. HDLC framing over serial. Baud rate config, port open/close. Use `circuits_uart` if available, fall back to Port-based implementation. Write tests: HDLC framing roundtrip using IO pipes (no hardware needed).
 
-- [ ] **7.7 — KISS and AX.25 KISS interfaces**
+- [x] **7.7 — KISS and AX.25 KISS interfaces**
   Port `python/RNS/Interfaces/KISSInterface.py` (387 LOC) → `lib/rns/interfaces/kiss_interface.ex`. Port `python/RNS/Interfaces/AX25KISSInterface.py` (400 LOC) → `lib/rns/interfaces/ax25_kiss_interface.ex`. KISS framing: FEND (0xC0), FESC (0xDB), TFEND (0xDC), TFESC (0xDD), commands. AX.25 adds callsign/SSID addressing. Write tests: KISS encode/decode, AX.25 addresses, roundtrip.
 
 - [ ] **7.8 — Backbone interface**

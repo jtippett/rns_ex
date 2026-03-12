@@ -643,19 +643,37 @@ defmodule RNS.Interfaces.Interface do
     Matches `KISS` class in `python/RNS/Interfaces/TCPInterface.py`.
     """
 
+    import Bitwise
+
     @fend 0xC0
     @fesc 0xDB
     @tfend 0xDC
     @tfesc 0xDD
     @cmd_data 0x00
+    @cmd_txdelay 0x01
+    @cmd_p 0x02
+    @cmd_slottime 0x03
+    @cmd_txtail 0x04
+    @cmd_fullduplex 0x05
+    @cmd_sethardware 0x06
+    @cmd_ready 0x0F
     @cmd_unknown 0xFE
+    @cmd_return 0xFF
 
     def fend, do: @fend
     def fesc, do: @fesc
     def tfend, do: @tfend
     def tfesc, do: @tfesc
     def cmd_data, do: @cmd_data
+    def cmd_txdelay, do: @cmd_txdelay
+    def cmd_p, do: @cmd_p
+    def cmd_slottime, do: @cmd_slottime
+    def cmd_txtail, do: @cmd_txtail
+    def cmd_fullduplex, do: @cmd_fullduplex
+    def cmd_sethardware, do: @cmd_sethardware
+    def cmd_ready, do: @cmd_ready
     def cmd_unknown, do: @cmd_unknown
+    def cmd_return, do: @cmd_return
 
     @doc """
     Escapes KISS special bytes in data.
@@ -721,8 +739,20 @@ defmodule RNS.Interfaces.Interface do
       deframe_acc(buffer, [], false, @cmd_unknown, <<>>)
     end
 
-    defp deframe_acc(<<>>, frames, _in_frame, _cmd, _current) do
+    defp deframe_acc(<<>>, frames, false, _cmd, _current) do
       {Enum.reverse(frames), <<>>}
+    end
+
+    defp deframe_acc(<<>>, frames, true, @cmd_unknown, _current) do
+      # In frame but no command yet — return FEND so we restart the frame
+      {Enum.reverse(frames), <<@fend>>}
+    end
+
+    defp deframe_acc(<<>>, frames, true, cmd, current) do
+      # In frame with partial data — reconstruct the remaining buffer
+      # so caller can prepend to the next delivery
+      remaining = <<@fend, cmd>> <> current
+      {Enum.reverse(frames), remaining}
     end
 
     defp deframe_acc(<<@fend, rest::binary>>, frames, true, cmd, current) when byte_size(current) > 0 do
@@ -737,8 +767,9 @@ defmodule RNS.Interfaces.Interface do
     end
 
     defp deframe_acc(<<byte, rest::binary>>, frames, true, @cmd_unknown, <<>>) do
-      # First byte after FEND is the command
-      deframe_acc(rest, frames, true, byte, <<>>)
+      # First byte after FEND is the command (strip port nibble)
+      command = byte &&& 0x0F
+      deframe_acc(rest, frames, true, command, <<>>)
     end
 
     defp deframe_acc(<<byte, rest::binary>>, frames, true, cmd, current) do
