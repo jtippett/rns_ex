@@ -250,7 +250,7 @@ Read `python/RNS/Cryptography/` for reference. Every crypto module must have tes
 - [x] **2.5 — Ed25519 signatures**
   Create `lib/rns/cryptography/ed25519.ex`. Wrap the `eddy` hex package. Implement `Ed25519.generate_keypair/0`, `Ed25519.from_private_bytes/1`, `Ed25519.private_bytes/1`, `Ed25519.public_key/1`, `Ed25519.sign/2`, `Ed25519.verify/3`. Match `python/RNS/Cryptography/Ed25519.py`. Write tests: sign/verify roundtrip, invalid signature rejection, key serialization roundtrip, RFC 8032 test vectors.
 
-- [ ] **2.6 — Token (Fernet-like authenticated encryption)**
+- [x] **2.6 — Token (Fernet-like authenticated encryption)**
   Create `lib/rns/cryptography/token.ex`. Port `python/RNS/Cryptography/Token.py` exactly. Implement `Token` module with `@token_overhead 48`, `generate_key/0`, `encrypt/2`, `decrypt/2`, `verify_hmac/2`. This uses AES-256-CBC + HMAC-SHA256. Write tests: roundtrip encrypt/decrypt, tampering detection, overhead constant verification. Create `lib/rns/cryptography.ex` that re-exports all crypto modules as `RNS.Cryptography`.
 
 ### Phase 3: Core Protocol
