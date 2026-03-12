@@ -1,0 +1,2 @@
+# RNS Elixir Port — Progress Log
+# Each entry records one completed task with timestamp.
