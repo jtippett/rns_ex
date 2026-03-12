@@ -313,7 +313,7 @@ This is the largest module (3312 LOC in Python). Split into manageable sub-modul
 - [x] **7.3 — TCP interface (client and server)**
   Port `python/RNS/Interfaces/TCPInterface.py` (661 LOC) → `lib/rns/interfaces/tcp_interface.ex`. Implement `RNS.Interfaces.TCPClient` and `RNS.Interfaces.TCPServer` as GenServers using `:gen_tcp`. Client: connect, HDLC framing, reconnection via `Process.send_after`, keepalive. Server: `ThousandIsland` / raw `:gen_tcp.listen` + accept loop, manage client list. Connection timeouts, graceful disconnection, HDLC escape sequences. Write tests: client/server over localhost, HDLC framing roundtrip, reconnection.
 
-- [ ] **7.4 — Local interface**
+- [x] **7.4 — Local interface**
   Port `python/RNS/Interfaces/LocalInterface.py` (472 LOC) → `lib/rns/interfaces/local_interface.ex`. `RNS.Interfaces.LocalClient` and `RNS.Interfaces.LocalServer` using TCP on localhost (or Unix domain sockets via `:gen_tcp` with `{:local, path}` on supported OTP). Shared instance mode. Write tests: local client/server, multi-client handling.
 
 - [ ] **7.5 — Auto interface (peer discovery)**
