@@ -228,7 +228,7 @@ Running `mix test` on this project can cause **severe network degradation on the
 - [x] **1.2 — Logging and utility infrastructure**
   Port `python/RNS/__init__.py` logging system → `lib/rns/log.ex`. Implement log levels: `LOG_CRITICAL` (0), `LOG_ERROR` (1), `LOG_WARNING` (2), `LOG_NOTICE` (3), `LOG_INFO` (4), `LOG_VERBOSE` (5), `LOG_DEBUG` (6), `LOG_EXTREME` (7). Implement `RNS.Log.log(message, level, override_destination)` wrapping Elixir's `Logger` with appropriate level mapping. Port `hexrep/1`, `prettysize/1`, `prettytime/1`, `phyparams/1`, `panic/1` as functions in `RNS` module. Create `lib/rns/vendor/platform_utils.ex` with OS detection (map Python's `platformutils`). Write tests for all utility functions.
 
-- [ ] **1.3 — OTP Application skeleton**
+- [x] **1.3 — OTP Application skeleton**
   Create `lib/rns/application.ex` with `use Application`. Define the supervision tree skeleton (supervisors for interfaces, links, resources — children started empty). Register the application in `mix.exs` with `mod: {RNS.Application, []}`. Ensure `mix test` starts the application and passes. This is the OTP foundation everything else plugs into.
 
 ### Phase 2: Cryptography Layer
