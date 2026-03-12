@@ -247,7 +247,7 @@ Read `python/RNS/Cryptography/` for reference. Every crypto module must have tes
 - [x] **2.4 — X25519 key exchange**
   Create `lib/rns/cryptography/x25519.ex`. Use `:crypto.generate_key(:ecdh, :x25519)` and `:crypto.compute_key(:ecdh, peer_pub, own_priv, :x25519)`. Implement `X25519.generate_keypair/0`, `X25519.from_private_bytes/1`, `X25519.private_bytes/1`, `X25519.public_key/1`, `X25519.exchange/2`. Match the API from `python/RNS/Cryptography/X25519.py`. Write tests: key generation, ECDH exchange between two parties produces same shared secret, RFC 7748 test vectors.
 
-- [ ] **2.5 — Ed25519 signatures**
+- [x] **2.5 — Ed25519 signatures**
   Create `lib/rns/cryptography/ed25519.ex`. Wrap the `eddy` hex package. Implement `Ed25519.generate_keypair/0`, `Ed25519.from_private_bytes/1`, `Ed25519.private_bytes/1`, `Ed25519.public_key/1`, `Ed25519.sign/2`, `Ed25519.verify/3`. Match `python/RNS/Cryptography/Ed25519.py`. Write tests: sign/verify roundtrip, invalid signature rejection, key serialization roundtrip, RFC 8032 test vectors.
 
 - [ ] **2.6 — Token (Fernet-like authenticated encryption)**
