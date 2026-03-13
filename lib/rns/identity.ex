@@ -123,7 +123,10 @@ defmodule RNS.Identity do
   Returns `{:ok, updated_identity}` on success, `{:error, reason}` on failure.
   """
   @spec load_private_key(t(), binary()) :: {:ok, t()} | {:error, term()}
-  def load_private_key(%__MODULE__{} = id, <<enc_prv::binary-size(32), sig_prv::binary-size(32), _::binary>>) do
+  def load_private_key(
+        %__MODULE__{} = id,
+        <<enc_prv::binary-size(32), sig_prv::binary-size(32), _::binary>>
+      ) do
     try do
       enc_kp = X25519.from_private_bytes(enc_prv)
       sig_kp = Ed25519.from_private_bytes(sig_prv)
@@ -152,7 +155,10 @@ defmodule RNS.Identity do
   Returns the updated identity.
   """
   @spec load_public_key(t(), binary()) :: t()
-  def load_public_key(%__MODULE__{} = id, <<enc_pub::binary-size(32), sig_pub::binary-size(32), _::binary>>) do
+  def load_public_key(
+        %__MODULE__{} = id,
+        <<enc_pub::binary-size(32), sig_pub::binary-size(32), _::binary>>
+      ) do
     %{id | pub_bytes: enc_pub, sig_pub_bytes: sig_pub}
     |> update_hashes()
   end
@@ -316,53 +322,70 @@ defmodule RNS.Identity do
     if byte_size(ciphertext_token) <= half do
       nil
     else
-      try do
-        <<peer_pub_bytes::binary-size(half), ciphertext::binary>> = ciphertext_token
+      <<peer_pub_bytes::binary-size(half), ciphertext::binary>> = ciphertext_token
 
-        plaintext =
-          if ratchets do
-            try_ratchet_decrypt(id, ratchets, peer_pub_bytes, ciphertext)
-          else
-            nil
-          end
-
-        cond do
-          enforce_ratchets and plaintext == nil ->
-            nil
-
-          plaintext != nil ->
-            plaintext
-
-          true ->
-            # Try standard decryption with identity's private key
-            try_standard_decrypt(id, peer_pub_bytes, ciphertext)
+      plaintext =
+        if ratchets do
+          try_ratchet_decrypt(id, ratchets, peer_pub_bytes, ciphertext)
+        else
+          nil
         end
-      rescue
-        _ -> nil
+
+      cond do
+        enforce_ratchets and plaintext == nil ->
+          nil
+
+        plaintext != nil ->
+          plaintext
+
+        true ->
+          # Try standard decryption with identity's private key
+          try_standard_decrypt(id, peer_pub_bytes, ciphertext)
       end
     end
   end
 
   defp try_ratchet_decrypt(id, ratchets, peer_pub_bytes, ciphertext) do
     Enum.find_value(ratchets, fn ratchet ->
-      try do
-        ratchet_kp = X25519.from_private_bytes(ratchet)
-        shared_key = X25519.exchange(ratchet_kp, peer_pub_bytes)
-        do_decrypt(id, shared_key, ciphertext)
-      rescue
+      with {:ok, ratchet_kp} <- safe_from_private(ratchet),
+           {:ok, shared_key} <- safe_exchange(ratchet_kp, peer_pub_bytes),
+           {:ok, plaintext} <- safe_decrypt(id, shared_key, ciphertext) do
+        plaintext
+      else
         _ -> nil
       end
     end)
   end
 
   defp try_standard_decrypt(id, peer_pub_bytes, ciphertext) do
-    try do
-      enc_kp = X25519.from_private_bytes(id.prv_bytes)
-      shared_key = X25519.exchange(enc_kp, peer_pub_bytes)
-      do_decrypt(id, shared_key, ciphertext)
-    rescue
+    with {:ok, enc_kp} <- safe_from_private(id.prv_bytes),
+         {:ok, shared_key} <- safe_exchange(enc_kp, peer_pub_bytes),
+         {:ok, plaintext} <- safe_decrypt(id, shared_key, ciphertext) do
+      plaintext
+    else
       _ -> nil
     end
+  end
+
+  defp safe_from_private(bytes) do
+    {:ok, X25519.from_private_bytes(bytes)}
+  rescue
+    e -> {:error, {:key_load, e}}
+  end
+
+  defp safe_exchange(kp, pub_bytes) do
+    {:ok, X25519.exchange(kp, pub_bytes)}
+  rescue
+    e -> {:error, {:exchange, e}}
+  end
+
+  defp safe_decrypt(id, shared_key, ciphertext) do
+    case do_decrypt(id, shared_key, ciphertext) do
+      nil -> {:error, :decrypt_failed}
+      plaintext -> {:ok, plaintext}
+    end
+  rescue
+    e -> {:error, {:decrypt, e}}
   end
 
   defp do_decrypt(id, shared_key, ciphertext) do
@@ -403,14 +426,13 @@ defmodule RNS.Identity do
         case Map.get(packet, :context_flag, 0) do
           1 ->
             <<nh::binary-size(name_hash_len), rh::binary-size(10),
-              rt::binary-size(ratchetsize_bytes), sig::binary-size(sig_len),
-              ad::binary>> = rest
+              rt::binary-size(ratchetsize_bytes), sig::binary-size(sig_len), ad::binary>> = rest
 
             {nh, rh, rt, sig, ad}
 
           _ ->
-            <<nh::binary-size(name_hash_len), rh::binary-size(10),
-              sig::binary-size(sig_len), ad::binary>> = rest
+            <<nh::binary-size(name_hash_len), rh::binary-size(10), sig::binary-size(sig_len),
+              ad::binary>> = rest
 
             {nh, rh, <<>>, sig, ad}
         end
@@ -426,6 +448,11 @@ defmodule RNS.Identity do
       _ -> false
     end
   rescue
+    # Broad rescue is intentional: announce validation must never crash the caller.
+    # Binary pattern match failures (MatchError) and crypto errors are both expected
+    # when processing malformed or adversarial announce packets.
+    MatchError -> false
+    ArgumentError -> false
     _ -> false
   end
 

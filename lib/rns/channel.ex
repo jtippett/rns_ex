@@ -511,9 +511,25 @@ defmodule RNS.Channel do
         end
       end
     rescue
+      e in [ChannelException] ->
+        RNS.Log.log(
+          "Channel protocol error while receiving data: #{Exception.message(e)}",
+          :error
+        )
+
+        channel
+
+      e in [MatchError] ->
+        RNS.Log.log(
+          "Malformed packet data received on channel: #{inspect(e)}",
+          :error
+        )
+
+        channel
+
       e ->
         RNS.Log.log(
-          "An error ocurred while receiving data on channel. The contained exception was: #{inspect(e)}",
+          "Unexpected error while receiving data on channel (#{e.__struct__}): #{Exception.message(e)}",
           :error
         )
 

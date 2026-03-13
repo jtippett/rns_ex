@@ -319,11 +319,20 @@ defmodule RNS.Interfaces.Interface do
         {nil, iface}
       end
     rescue
+      e in [Enum.EmptyError] ->
+        require Logger
+
+        Logger.error(
+          "Empty held announces map for #{inspect(iface.name)}: #{Exception.message(e)}"
+        )
+
+        {nil, iface}
+
       e ->
         require Logger
 
         Logger.error(
-          "Error processing held announces for #{inspect(iface.name)}: #{Exception.message(e)}"
+          "Unexpected error processing held announces for #{inspect(iface.name)} (#{e.__struct__}): #{Exception.message(e)}"
         )
 
         {nil, iface}
@@ -469,11 +478,25 @@ defmodule RNS.Interfaces.Interface do
         {selected, wait_time_ms, updated}
       end
     rescue
+      e in [Enum.EmptyError] ->
+        require Logger
+        Logger.error("Empty announce queue on #{inspect(iface.name)}: #{Exception.message(e)}")
+        {nil, 0, Map.put(iface, :announce_queue, [])}
+
+      e in [ArithmeticError] ->
+        require Logger
+
+        Logger.error(
+          "Arithmetic error in announce queue on #{inspect(iface.name)}: #{Exception.message(e)}"
+        )
+
+        {nil, 0, Map.put(iface, :announce_queue, [])}
+
       e ->
         require Logger
 
         Logger.error(
-          "Error processing announce queue on #{inspect(iface.name)}: #{Exception.message(e)}"
+          "Unexpected error processing announce queue on #{inspect(iface.name)} (#{e.__struct__}): #{Exception.message(e)}"
         )
 
         {nil, 0, Map.put(iface, :announce_queue, [])}
@@ -603,7 +626,9 @@ defmodule RNS.Interfaces.Interface do
 
     defp deframe_skip(buffer) do
       case :binary.match(buffer, <<@flag>>) do
-        :nomatch -> :incomplete
+        :nomatch ->
+          :incomplete
+
         {start, 1} ->
           <<_::binary-size(start), from_flag::binary>> = buffer
           find_frame(from_flag)

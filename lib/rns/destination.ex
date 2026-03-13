@@ -104,7 +104,10 @@ defmodule RNS.Destination do
   @spec compute_name_hash(String.t(), [String.t()]) :: binary()
   def compute_name_hash(app_name, aspects) do
     name_len = div(@name_hash_length, 8)
-    <<hash::binary-size(name_len), _::binary>> = Hashes.sha256(expand_name(nil, app_name, aspects))
+
+    <<hash::binary-size(name_len), _::binary>> =
+      Hashes.sha256(expand_name(nil, app_name, aspects))
+
     hash
   end
 
@@ -500,7 +503,11 @@ defmodule RNS.Destination do
               %{dest | ratchets: []}
             end
           rescue
-            _ -> %{dest | ratchets: []}
+            # binary_to_term raises ArgumentError on malformed data.
+            # MatchError occurs if the deserialized term doesn't match {signature, packed}.
+            # Both indicate a corrupt ratchets file — fall back to empty ratchets.
+            ArgumentError -> %{dest | ratchets: []}
+            MatchError -> %{dest | ratchets: []}
           end
 
         {:error, _} ->
@@ -575,11 +582,11 @@ defmodule RNS.Destination do
   end
 
   def decrypt(%__MODULE__{type: @group, prv: prv}, ciphertext) do
-    try do
-      Token.decrypt(prv, ciphertext)
-    rescue
-      _ -> nil
-    end
+    Token.decrypt(prv, ciphertext)
+  rescue
+    # Token.decrypt raises ArgumentError on HMAC failure or decryption errors.
+    # Return nil to signal decryption failure to callers.
+    ArgumentError -> nil
   end
 
   # ── Signing ─────────────────────────────────────────────────────
