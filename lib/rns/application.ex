@@ -19,13 +19,16 @@ defmodule RNS.Application do
 
   @impl true
   def start(_type, _args) do
+    # CLI utilities store Reticulum opts in Application env before starting
+    reticulum_opts = Application.get_env(:rns_ex, :reticulum_opts, [])
+
     children = [
       RNS.IdentityStore,
       RNS.Transport,
       {DynamicSupervisor, strategy: :one_for_one, name: RNS.InterfaceSupervisor},
       {DynamicSupervisor, strategy: :one_for_one, name: RNS.LinkSupervisor},
       {DynamicSupervisor, strategy: :one_for_one, name: RNS.ResourceSupervisor},
-      RNS.Reticulum
+      {RNS.Reticulum, reticulum_opts}
     ]
 
     opts = [strategy: :rest_for_one, name: RNS.Supervisor]

@@ -428,3 +428,52 @@ timer (12h interval via :run_jobs) was already working.
     `stamper: nil` in ctx
 
 **Result:** `mix test` passes with 0 failures (3123 tests, 13 pre-existing skipped fixture tests).
+
+## 2026-03-14 — Task 3.2: Unify CLI startup to use the supervised runtime
+
+**Changes:**
+- `lib/rns/utilities/cli.ex`: New shared CLI startup module with:
+  - `start_for_cli/1`: Sets Reticulum options in Application env (filtering nil
+    values) and calls `Application.ensure_all_started(:rns_ex)` without swallowing
+    errors. On failure, prints the error to stderr and calls `System.halt(1)`.
+  - `ensure_started!/0`: Calls `Application.ensure_all_started(:rns_ex)` with proper
+    error handling (no error swallowing).
+  - `build_reticulum_opts/1`: Builds a keyword list from provided opts, filtering nil
+    values.
+  - `maybe_add_opt/3`: Adds a key-value pair to a keyword list, skipping nil values.
+    Previously duplicated across 6 utilities.
+- `lib/rns/application.ex`: Modified `start/2` to read Reticulum options from
+  `Application.get_env(:rns_ex, :reticulum_opts, [])` and pass them to
+  `{RNS.Reticulum, reticulum_opts}` in the children list. This allows CLIs to
+  configure Reticulum before the supervision tree starts.
+- `lib/rns/utilities/rnsd.ex`: Replaced `ensure_application_started()` +
+  `start_reticulum(reticulum_opts)` with `RNS.Utilities.CLI.start_for_cli/1`.
+  Removed `ensure_application_started/0`, `start_reticulum/1`,
+  `maybe_add_configdir/2`, and `maybe_add_verbosity/2` private helpers.
+- `lib/rns/utilities/rnstatus.ex`: Same replacement pattern. Removed
+  `ensure_application_started/0`, `start_reticulum/1`, `maybe_add_opt/3`.
+- `lib/rns/utilities/rnpath.ex`: Same replacement pattern. Removed same helpers.
+- `lib/rns/utilities/rnprobe.ex`: Same replacement pattern. Removed same helpers.
+- `lib/rns/utilities/rnid.ex`: Same replacement pattern. Removed same helpers.
+- `lib/rns/utilities/rncp.ex`: Replaced 3 identical startup blocks (handle_listen,
+  handle_send, handle_fetch) with `CLI.start_for_cli/1`. Removed same helpers.
+- `lib/rns/utilities/rnx.ex`: Replaced 2 identical startup blocks (handle_listen,
+  handle_execute) with `CLI.start_for_cli/1`. Removed same helpers.
+- `test/rns/utilities/cli_test.exs`: New test file with 17 tests covering:
+  - `build_reticulum_opts/1`: opts with logdest/configdir, nil stripping, verbosity,
+    loglevel, empty opts
+  - `ensure_started!/1`: success when app running, Reticulum/Transport/IdentityStore
+    pids accessible, accepts opts via Application env
+  - `maybe_add_opt/3`: non-nil value, nil skip, existing keyword list
+  - `start_for_cli/1`: sets Application env and starts app, filters nil values
+  - No utility exports old helpers: verifies all 7 utilities no longer export
+    `ensure_application_started/0` or `start_reticulum/1`
+
+**Key improvements:**
+- Errors from `Application.ensure_all_started` are no longer swallowed
+- No more manual `RNS.Reticulum.start_link()` calls outside the supervision tree
+- CLI options flow through Application env → supervision tree → Reticulum.init/1
+- ~120 lines of duplicated boilerplate removed across 7 utilities
+- rnsd enters shared-instance mode via Reticulum's normal init path (unchanged)
+
+**Result:** `mix test` passes with 0 failures (3140 tests, 13 pre-existing skipped fixture tests).

@@ -178,23 +178,11 @@ defmodule RNS.Utilities.RNProbe do
     more_output = opts.verbosity > 0
     loglevel = 3 + opts.verbosity - 1
 
-    ensure_application_started()
-
-    reticulum_opts =
-      [logdest: :stdout, loglevel: max(loglevel, 0)]
-      |> maybe_add_opt(:configdir, opts.configdir)
-
-    case start_reticulum(reticulum_opts) do
-      {:ok, _pid} ->
-        :ok
-
-      {:error, {:already_started, _pid}} ->
-        :ok
-
-      {:error, reason} ->
-        IO.puts(:stderr, "Could not start Reticulum: #{inspect(reason)}")
-        System.halt(1)
-    end
+    RNS.Utilities.CLI.start_for_cli(
+      logdest: :stdout,
+      loglevel: max(loglevel, 0),
+      configdir: opts.configdir
+    )
 
     # Request path if not known
     if not RNS.Transport.has_path(destination_hash) do
@@ -428,22 +416,6 @@ defmodule RNS.Utilities.RNProbe do
     end
   end
 
-  defp ensure_application_started do
-    case Application.ensure_all_started(:rns_ex) do
-      {:ok, _} -> :ok
-      {:error, _} -> :ok
-    end
-  end
-
-  defp start_reticulum(opts) do
-    case GenServer.whereis(RNS.Reticulum) do
-      nil -> RNS.Reticulum.start_link(opts)
-      pid when is_pid(pid) -> {:error, {:already_started, pid}}
-    end
-  end
-
-  defp maybe_add_opt(opts, _key, nil), do: opts
-  defp maybe_add_opt(opts, key, value), do: Keyword.put(opts, key, value)
 
   defp print_usage do
     IO.puts("""

@@ -115,27 +115,12 @@ defmodule RNS.Utilities.RNSD do
         {:stdout, target_verbosity}
       end
 
-    # Ensure the application is started (needed for escript mode)
-    ensure_application_started()
-
-    # Build Reticulum options
-    reticulum_opts =
-      [logdest: log_dest]
-      |> maybe_add_configdir(opts.configdir)
-      |> maybe_add_verbosity(effective_verbosity)
-
-    # Start Reticulum (it may already be running from application start)
-    case start_reticulum(reticulum_opts) do
-      {:ok, _pid} ->
-        :ok
-
-      {:error, {:already_started, _pid}} ->
-        :ok
-
-      {:error, reason} ->
-        IO.puts(:stderr, "Fatal: could not start Reticulum: #{inspect(reason)}")
-        System.halt(1)
-    end
+    # Start the supervised runtime with CLI options
+    RNS.Utilities.CLI.start_for_cli(
+      logdest: log_dest,
+      configdir: opts.configdir,
+      verbosity: effective_verbosity
+    )
 
     # Check if connected to another shared instance
     is_connected =
@@ -183,30 +168,6 @@ defmodule RNS.Utilities.RNSD do
   end
 
   # ── Private Helpers ────────────────────────────────────────────────────
-
-  defp ensure_application_started do
-    case Application.ensure_all_started(:rns_ex) do
-      {:ok, _} -> :ok
-      {:error, _} -> :ok
-    end
-  end
-
-  defp start_reticulum(opts) do
-    # Try to start Reticulum if it's not already running
-    case GenServer.whereis(RNS.Reticulum) do
-      nil ->
-        RNS.Reticulum.start_link(opts)
-
-      pid when is_pid(pid) ->
-        {:error, {:already_started, pid}}
-    end
-  end
-
-  defp maybe_add_configdir(opts, nil), do: opts
-  defp maybe_add_configdir(opts, configdir), do: Keyword.put(opts, :configdir, configdir)
-
-  defp maybe_add_verbosity(opts, nil), do: opts
-  defp maybe_add_verbosity(opts, verbosity), do: Keyword.put(opts, :verbosity, verbosity)
 
   defp print_usage do
     IO.puts("""

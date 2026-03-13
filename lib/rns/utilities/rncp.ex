@@ -307,23 +307,11 @@ defmodule RNS.Utilities.RNCP do
   def handle_listen(opts) do
     targetloglevel = 3 + opts.verbosity - opts.quietness
 
-    ensure_application_started()
-
-    reticulum_opts =
-      [logdest: :stdout, loglevel: max(targetloglevel, 0)]
-      |> maybe_add_opt(:configdir, opts.configdir)
-
-    case start_reticulum(reticulum_opts) do
-      {:ok, _pid} ->
-        :ok
-
-      {:error, {:already_started, _pid}} ->
-        :ok
-
-      {:error, reason} ->
-        IO.puts(:stderr, "Could not start Reticulum: #{inspect(reason)}")
-        System.halt(1)
-    end
+    RNS.Utilities.CLI.start_for_cli(
+      logdest: :stdout,
+      loglevel: max(targetloglevel, 0),
+      configdir: opts.configdir
+    )
 
     identity = prepare_identity(opts.identity_path)
 
@@ -432,23 +420,11 @@ defmodule RNS.Utilities.RNCP do
 
     targetloglevel = 3 + opts.verbosity - opts.quietness
 
-    ensure_application_started()
-
-    reticulum_opts =
-      [logdest: :stdout, loglevel: max(targetloglevel, 0)]
-      |> maybe_add_opt(:configdir, opts.configdir)
-
-    case start_reticulum(reticulum_opts) do
-      {:ok, _pid} ->
-        :ok
-
-      {:error, {:already_started, _pid}} ->
-        :ok
-
-      {:error, reason} ->
-        IO.puts(:stderr, "Could not start Reticulum: #{inspect(reason)}")
-        System.halt(1)
-    end
+    RNS.Utilities.CLI.start_for_cli(
+      logdest: :stdout,
+      loglevel: max(targetloglevel, 0),
+      configdir: opts.configdir
+    )
 
     identity = prepare_identity(opts.identity_path)
 
@@ -570,23 +546,11 @@ defmodule RNS.Utilities.RNCP do
 
     targetloglevel = 3 + opts.verbosity - opts.quietness
 
-    ensure_application_started()
-
-    reticulum_opts =
-      [logdest: :stdout, loglevel: max(targetloglevel, 0)]
-      |> maybe_add_opt(:configdir, opts.configdir)
-
-    case start_reticulum(reticulum_opts) do
-      {:ok, _pid} ->
-        :ok
-
-      {:error, {:already_started, _pid}} ->
-        :ok
-
-      {:error, reason} ->
-        IO.puts(:stderr, "Could not start Reticulum: #{inspect(reason)}")
-        System.halt(1)
-    end
+    RNS.Utilities.CLI.start_for_cli(
+      logdest: :stdout,
+      loglevel: max(targetloglevel, 0),
+      configdir: opts.configdir
+    )
 
     identity = prepare_identity(opts.identity_path)
 
@@ -1077,23 +1041,6 @@ defmodule RNS.Utilities.RNCP do
       do_spin(condition_fn, syms, i + 1, timeout_at)
     end
   end
-
-  defp ensure_application_started do
-    case Application.ensure_all_started(:rns_ex) do
-      {:ok, _} -> :ok
-      {:error, _} -> :ok
-    end
-  end
-
-  defp start_reticulum(opts) do
-    case GenServer.whereis(RNS.Reticulum) do
-      nil -> RNS.Reticulum.start_link(opts)
-      pid when is_pid(pid) -> {:error, {:already_started, pid}}
-    end
-  end
-
-  defp maybe_add_opt(opts, _key, nil), do: opts
-  defp maybe_add_opt(opts, key, value), do: Keyword.put(opts, key, value)
 
   defp print_usage do
     IO.puts("""
