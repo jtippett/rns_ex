@@ -191,50 +191,7 @@ defmodule RNS.Channel do
 
   alias RNS.Channel.{Envelope, Outlet, ChannelException}
 
-  # ── System message types ─────────────────────────────────────
-
-  @smt_stream_data 0xFF00
-
-  # ── Window constants ─────────────────────────────────────────
-
-  @window 2
-  @window_min 2
-  @window_min_limit_slow 2
-  @window_min_limit_medium 5
-  @window_min_limit_fast 16
-  @window_max_slow 5
-  @window_max_medium 12
-  @window_max_fast 48
-  @window_max @window_max_fast
-  @window_flexibility 4
-  @fast_rate_threshold 10
-  @rtt_fast 0.18
-  @rtt_medium 0.75
-  @rtt_slow 1.45
-
-  # ── Sequence constants ───────────────────────────────────────
-
-  @seq_max 0xFFFF
-  @seq_modulus @seq_max + 1
-
-  # ── Message state constants ──────────────────────────────────
-
-  @msgstate_new 0
-  @msgstate_sent 1
-  @msgstate_delivered 2
-  @msgstate_failed 3
-
-  # ── Channel exception type codes ─────────────────────────────
-
-  @me_no_msg_type 0
-  @me_invalid_msg_type 1
-  @me_not_registered 2
-  @me_link_not_ready 3
-  @me_already_sent 4
-  @me_too_big 5
-
-  @max_tries 5
-  @envelope_header_size 6
+  use RNS.Constants.Channel
 
   defstruct [
     :outlet,
@@ -274,116 +231,33 @@ defmodule RNS.Channel do
 
   # ── Constant accessors ──────────────────────────────────────
 
-  @doc "System message type: STREAM_DATA (0xFF00)"
-  @spec smt_stream_data() :: non_neg_integer()
   def smt_stream_data, do: @smt_stream_data
-
-  @doc "Default initial window size"
-  @spec window_const() :: non_neg_integer()
   def window_const, do: @window
-
-  @doc "Minimum window size"
-  @spec window_min_const() :: non_neg_integer()
   def window_min_const, do: @window_min
-
-  @doc "Minimum window size limit for slow links"
-  @spec window_min_limit_slow() :: non_neg_integer()
   def window_min_limit_slow, do: @window_min_limit_slow
-
-  @doc "Minimum window size limit for medium links"
-  @spec window_min_limit_medium() :: non_neg_integer()
   def window_min_limit_medium, do: @window_min_limit_medium
-
-  @doc "Minimum window size limit for fast links"
-  @spec window_min_limit_fast() :: non_neg_integer()
   def window_min_limit_fast, do: @window_min_limit_fast
-
-  @doc "Maximum window size for slow links"
-  @spec window_max_slow() :: non_neg_integer()
   def window_max_slow, do: @window_max_slow
-
-  @doc "Maximum window size for medium links"
-  @spec window_max_medium() :: non_neg_integer()
   def window_max_medium, do: @window_max_medium
-
-  @doc "Maximum window size for fast links"
-  @spec window_max_fast() :: non_neg_integer()
   def window_max_fast, do: @window_max_fast
-
-  @doc "Global maximum window size"
-  @spec window_max_const() :: non_neg_integer()
   def window_max_const, do: @window_max
-
-  @doc "Minimum window flexibility"
-  @spec window_flexibility_const() :: non_neg_integer()
   def window_flexibility_const, do: @window_flexibility
-
-  @doc "Rounds of sustained fast rate before window upgrade"
-  @spec fast_rate_threshold() :: non_neg_integer()
   def fast_rate_threshold, do: @fast_rate_threshold
-
-  @doc "RTT threshold for fast links (seconds)"
-  @spec rtt_fast() :: float()
   def rtt_fast, do: @rtt_fast
-
-  @doc "RTT threshold for medium links (seconds)"
-  @spec rtt_medium() :: float()
   def rtt_medium, do: @rtt_medium
-
-  @doc "RTT threshold for slow links (seconds)"
-  @spec rtt_slow() :: float()
   def rtt_slow, do: @rtt_slow
-
-  @doc "Maximum sequence number"
-  @spec seq_max() :: non_neg_integer()
   def seq_max, do: @seq_max
-
-  @doc "Sequence modulus (SEQ_MAX + 1)"
-  @spec seq_modulus() :: non_neg_integer()
   def seq_modulus, do: @seq_modulus
-
-  @doc "Message state: NEW (0)"
-  @spec msgstate_new() :: non_neg_integer()
   def msgstate_new, do: @msgstate_new
-
-  @doc "Message state: SENT (1)"
-  @spec msgstate_sent() :: non_neg_integer()
   def msgstate_sent, do: @msgstate_sent
-
-  @doc "Message state: DELIVERED (2)"
-  @spec msgstate_delivered() :: non_neg_integer()
   def msgstate_delivered, do: @msgstate_delivered
-
-  @doc "Message state: FAILED (3)"
-  @spec msgstate_failed() :: non_neg_integer()
   def msgstate_failed, do: @msgstate_failed
-
-  @doc "Channel exception type: no message type (0)"
-  @spec me_no_msg_type() :: non_neg_integer()
   def me_no_msg_type, do: @me_no_msg_type
-
-  @doc "Channel exception type: invalid message type (1)"
-  @spec me_invalid_msg_type() :: non_neg_integer()
   def me_invalid_msg_type, do: @me_invalid_msg_type
-
-  @doc "Channel exception type: not registered (2)"
-  @spec me_not_registered() :: non_neg_integer()
   def me_not_registered, do: @me_not_registered
-
-  @doc "Channel exception type: link not ready (3)"
-  @spec me_link_not_ready() :: non_neg_integer()
   def me_link_not_ready, do: @me_link_not_ready
-
-  @doc "Channel exception type: already sent (4)"
-  @spec me_already_sent() :: non_neg_integer()
   def me_already_sent, do: @me_already_sent
-
-  @doc "Channel exception type: too big (5)"
-  @spec me_too_big() :: non_neg_integer()
   def me_too_big, do: @me_too_big
-
-  @doc "Envelope header size in bytes (6)"
-  @spec envelope_header_size() :: non_neg_integer()
   def envelope_header_size, do: @envelope_header_size
 
   # ── Construction ─────────────────────────────────────────────
@@ -1011,9 +885,13 @@ defmodule RNS.Channel.LinkChannelOutlet do
 end
 
 defimpl RNS.Channel.Outlet, for: RNS.Channel.LinkChannelOutlet do
+  use RNS.Constants.Packet
+  use RNS.Constants.Channel
+  use RNS.Constants.PacketReceipt
+
   def send_raw(%{link: link}, raw) do
     if link != nil do
-      packet = RNS.Packet.new(link, raw, context: RNS.Packet.context_channel())
+      packet = RNS.Packet.new(link, raw, context: @context_channel)
 
       status = Map.get(link, :status)
       # Link.ACTIVE = 0x00 (will be defined in Task 5.2)
@@ -1048,19 +926,19 @@ defimpl RNS.Channel.Outlet, for: RNS.Channel.LinkChannelOutlet do
   def get_packet_state(_outlet, packet) do
     cond do
       packet == nil ->
-        RNS.Channel.msgstate_failed()
+        @msgstate_failed
 
       Map.get(packet, :receipt) == nil ->
-        RNS.Channel.msgstate_failed()
+        @msgstate_failed
 
       true ->
         status = RNS.PacketReceipt.get_status(packet.receipt)
 
         cond do
-          status == RNS.PacketReceipt.sent() -> RNS.Channel.msgstate_sent()
-          status == RNS.PacketReceipt.delivered() -> RNS.Channel.msgstate_delivered()
-          status == RNS.PacketReceipt.failed() -> RNS.Channel.msgstate_failed()
-          true -> RNS.Channel.msgstate_failed()
+          status == @sent -> @msgstate_sent
+          status == @delivered -> @msgstate_delivered
+          status == @failed -> @msgstate_failed
+          true -> @msgstate_failed
         end
     end
   end

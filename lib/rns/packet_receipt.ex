@@ -9,19 +9,7 @@ defmodule RNS.PacketReceipt do
   Matches `python/RNS/Packet.py` PacketReceipt class.
   """
 
-  # ── Status constants ─────────────────────────────────────────────
-
-  @failed 0x00
-  @sent 0x01
-  @delivered 0x02
-  @culled 0xFF
-
-  # Identity constants for proof lengths
-  @hashlength 256
-  @siglength 512
-
-  @expl_length div(@hashlength, 8) + div(@siglength, 8)
-  @impl_length div(@siglength, 8)
+  use RNS.Constants.PacketReceipt
 
   defmodule Callbacks do
     @moduledoc false
@@ -63,28 +51,11 @@ defmodule RNS.PacketReceipt do
 
   # ── Constant accessors ──────────────────────────────────────────
 
-  @doc "Receipt status: FAILED (0x00)"
-  @spec failed() :: non_neg_integer()
   def failed, do: @failed
-
-  @doc "Receipt status: SENT (0x01)"
-  @spec sent() :: non_neg_integer()
   def sent, do: @sent
-
-  @doc "Receipt status: DELIVERED (0x02)"
-  @spec delivered() :: non_neg_integer()
   def delivered, do: @delivered
-
-  @doc "Receipt status: CULLED (0xFF)"
-  @spec culled() :: non_neg_integer()
   def culled, do: @culled
-
-  @doc "Explicit proof length in bytes (hash + signature = 96)."
-  @spec expl_length() :: non_neg_integer()
   def expl_length, do: @expl_length
-
-  @doc "Implicit proof length in bytes (signature only = 64)."
-  @spec impl_length() :: non_neg_integer()
   def impl_length, do: @impl_length
 
   # ── Creation ─────────────────────────────────────────────────────

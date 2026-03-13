@@ -9,31 +9,7 @@ defmodule RNS.Interfaces.Interface do
   Matches `python/RNS/Interfaces/Interface.py`.
   """
 
-  # ── Interface mode constants ───────────────────────────────────────
-
-  @mode_full 0x01
-  @mode_point_to_point 0x02
-  @mode_access_point 0x03
-  @mode_roaming 0x04
-  @mode_boundary 0x05
-  @mode_gateway 0x06
-
-  @discover_paths_for [@mode_access_point, @mode_gateway, @mode_roaming]
-
-  # Announce frequency sample sizes
-  @ia_freq_samples 6
-  @oa_freq_samples 6
-
-  # Maximum held announces
-  @max_held_announces 256
-
-  # Ingress control timing
-  @ic_new_time 2 * 60 * 60
-  @ic_burst_freq_new 3.5
-  @ic_burst_freq 12
-  @ic_burst_hold 1 * 60
-  @ic_burst_penalty 5 * 60
-  @ic_held_release_interval 30
+  use RNS.Constants.Interface
 
   # Expose constants as functions
   def mode_full, do: @mode_full

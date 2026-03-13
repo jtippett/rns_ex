@@ -258,6 +258,8 @@ defmodule RNS.Buffer.RawChannelWriter do
   alias RNS.Buffer.StreamDataMessage
   alias RNS.Channel
 
+  use RNS.Constants.Channel
+
   @max_chunk_len 1024 * 16
   @compression_tries 4
 
@@ -333,7 +335,7 @@ defmodule RNS.Buffer.RawChannelWriter do
       {processed_length, channel}
     rescue
       e in Channel.ChannelException ->
-        if e.type != Channel.me_link_not_ready() do
+        if e.type != @me_link_not_ready do
           reraise e, __STACKTRACE__
         end
 

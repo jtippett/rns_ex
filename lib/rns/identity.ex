@@ -18,16 +18,9 @@ defmodule RNS.Identity do
   alias RNS.Cryptography.HKDF
   alias RNS.Cryptography.Hashes
 
-  @curve "Curve25519"
-  @keysize 512
-  @ratchetsize 256
-  @ratchet_expiry 60 * 60 * 24 * 30
+  use RNS.Constants.Identity
+
   @token_overhead Token.token_overhead()
-  @hashlength 256
-  @siglength @keysize
-  @name_hash_length 80
-  @truncated_hashlength 128
-  @derived_key_length div(512, 8)
   defstruct [
     :prv_bytes,
     :sig_prv_bytes,
@@ -50,44 +43,15 @@ defmodule RNS.Identity do
 
   # --- Constants accessors ---
 
-  @doc "The curve used for ECDH key exchanges."
-  @spec curve() :: String.t()
   def curve, do: @curve
-
-  @doc "Key size in bits (256 encryption + 256 signing)."
-  @spec keysize() :: non_neg_integer()
   def keysize, do: @keysize
-
-  @doc "Hash length in bits."
-  @spec hashlength() :: non_neg_integer()
   def hashlength, do: @hashlength
-
-  @doc "Name hash length in bits."
-  @spec name_hash_length() :: non_neg_integer()
   def name_hash_length, do: @name_hash_length
-
-  @doc "Truncated hash length in bits."
-  @spec truncated_hashlength() :: non_neg_integer()
   def truncated_hashlength, do: @truncated_hashlength
-
-  @doc "Ratchet size in bits."
-  @spec ratchetsize() :: non_neg_integer()
   def ratchetsize, do: @ratchetsize
-
-  @doc "Ratchet expiry in seconds (30 days)."
-  @spec ratchet_expiry() :: non_neg_integer()
   def ratchet_expiry, do: @ratchet_expiry
-
-  @doc "Signature length in bits (equals KEYSIZE)."
-  @spec siglength() :: non_neg_integer()
   def siglength, do: @siglength
-
-  @doc "Token overhead in bytes."
-  @spec token_overhead() :: non_neg_integer()
   def token_overhead, do: @token_overhead
-
-  @doc "Derived key length in bytes."
-  @spec derived_key_length() :: non_neg_integer()
   def derived_key_length, do: @derived_key_length
 
   # --- Identity creation ---

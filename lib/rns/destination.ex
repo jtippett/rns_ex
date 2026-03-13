@@ -13,44 +13,13 @@ defmodule RNS.Destination do
   alias RNS.Cryptography.Hashes
   alias RNS.Cryptography.Token
 
-  # ── Destination types ───────────────────────────────────────────
+  use RNS.Constants.Packet
+  use RNS.Constants.Destination
 
-  @single 0x00
-  @group 0x01
-  @plain 0x02
-  @link 0x03
   @types [@single, @group, @plain, @link]
-
-  # ── Proof strategies ────────────────────────────────────────────
-
-  @prove_none 0x21
-  @prove_app 0x22
-  @prove_all 0x23
   @proof_strategies [@prove_none, @prove_app, @prove_all]
-
-  # ── Request policies ────────────────────────────────────────────
-
-  @allow_none 0x00
-  @allow_all 0x01
-  @allow_list 0x02
   @request_policies [@allow_none, @allow_all, @allow_list]
-
-  # ── Directions ──────────────────────────────────────────────────
-
-  @in_direction 0x11
-  @out_direction 0x12
   @directions [@in_direction, @out_direction]
-
-  # ── Other constants ─────────────────────────────────────────────
-
-  @pr_tag_window 30
-  @ratchet_count 512
-  @ratchet_interval 30 * 60
-
-  # ── Hash length constants (bits) ────────────────────────────────
-
-  @name_hash_length 80
-  @truncated_hashlength 128
 
   # ── Struct ──────────────────────────────────────────────────────
 
@@ -84,81 +53,26 @@ defmodule RNS.Destination do
   @type t :: %__MODULE__{}
 
   # ── Constant accessors ──────────────────────────────────────────
+  # For cross-module use, prefer `use RNS.Constants.Destination`.
 
-  @doc "Destination type: SINGLE (0x00)"
-  @spec single() :: non_neg_integer()
   def single, do: @single
-
-  @doc "Destination type: GROUP (0x01)"
-  @spec group() :: non_neg_integer()
   def group, do: @group
-
-  @doc "Destination type: PLAIN (0x02)"
-  @spec plain() :: non_neg_integer()
   def plain, do: @plain
-
-  @doc "Destination type: LINK (0x03)"
-  @spec link() :: non_neg_integer()
   def link, do: @link
-
-  @doc "List of all destination types."
-  @spec types() :: [non_neg_integer()]
   def types, do: @types
-
-  @doc "Proof strategy: PROVE_NONE (0x21)"
-  @spec prove_none() :: non_neg_integer()
   def prove_none, do: @prove_none
-
-  @doc "Proof strategy: PROVE_APP (0x22)"
-  @spec prove_app() :: non_neg_integer()
   def prove_app, do: @prove_app
-
-  @doc "Proof strategy: PROVE_ALL (0x23)"
-  @spec prove_all() :: non_neg_integer()
   def prove_all, do: @prove_all
-
-  @doc "List of all proof strategies."
-  @spec proof_strategies() :: [non_neg_integer()]
   def proof_strategies, do: @proof_strategies
-
-  @doc "Request policy: ALLOW_NONE (0x00)"
-  @spec allow_none() :: non_neg_integer()
   def allow_none, do: @allow_none
-
-  @doc "Request policy: ALLOW_ALL (0x01)"
-  @spec allow_all() :: non_neg_integer()
   def allow_all, do: @allow_all
-
-  @doc "Request policy: ALLOW_LIST (0x02)"
-  @spec allow_list() :: non_neg_integer()
   def allow_list, do: @allow_list
-
-  @doc "List of all request policies."
-  @spec request_policies() :: [non_neg_integer()]
   def request_policies, do: @request_policies
-
-  @doc "Direction: IN (0x11)"
-  @spec direction_in() :: non_neg_integer()
   def direction_in, do: @in_direction
-
-  @doc "Direction: OUT (0x12)"
-  @spec direction_out() :: non_neg_integer()
   def direction_out, do: @out_direction
-
-  @doc "List of all directions."
-  @spec directions() :: [non_neg_integer()]
   def directions, do: @directions
-
-  @doc "Path response tag window in seconds (30)."
-  @spec pr_tag_window() :: non_neg_integer()
   def pr_tag_window, do: @pr_tag_window
-
-  @doc "Default number of retained ratchet keys (512)."
-  @spec ratchet_count() :: non_neg_integer()
   def ratchet_count, do: @ratchet_count
-
-  @doc "Default minimum ratchet rotation interval in seconds (1800)."
-  @spec default_ratchet_interval() :: non_neg_integer()
   def default_ratchet_interval, do: @ratchet_interval
 
   # ── Static hash computation ─────────────────────────────────────
@@ -393,18 +307,14 @@ defmodule RNS.Destination do
       end
 
     context =
-      if path_response,
-        do: RNS.Packet.context_path_response(),
-        else: RNS.Packet.context_none()
+      if path_response, do: @context_path_response, else: @context_none
 
     context_flag =
-      if byte_size(ratchet_used) > 0,
-        do: RNS.Packet.flag_set(),
-        else: RNS.Packet.flag_unset()
+      if byte_size(ratchet_used) > 0, do: @flag_set, else: @flag_unset
 
     announce_packet =
       RNS.Packet.new(dest, announce_data,
-        packet_type: RNS.Packet.announce(),
+        packet_type: @announce,
         context: context,
         attached_interface: attached_interface,
         context_flag: context_flag
@@ -886,7 +796,7 @@ defmodule RNS.Destination do
   """
   @spec receive_packet(t(), RNS.Packet.t()) :: {boolean(), t()}
   def receive_packet(%__MODULE__{} = dest, packet) do
-    if packet.packet_type == RNS.Packet.linkrequest() do
+    if packet.packet_type == @linkrequest do
       incoming_link_request(dest, packet.data, packet)
     else
       plaintext = decrypt(dest, packet.data)
@@ -894,7 +804,7 @@ defmodule RNS.Destination do
       if plaintext == nil do
         {false, dest}
       else
-        if packet.packet_type == RNS.Packet.data() and dest.callbacks.packet != nil do
+        if packet.packet_type == @data and dest.callbacks.packet != nil do
           try do
             dest.callbacks.packet.(plaintext, packet)
           rescue

@@ -48,89 +48,10 @@ defmodule RNS.Link do
   alias RNS.Cryptography.HKDF
   alias RNS.Identity
 
-  # ── Size constants ──────────────────────────────────────────────
+  use RNS.Constants.Link
+  use RNS.Constants.Destination
 
-  @ecpubsize 32 + 32
-  @keysize 32
-  @link_mtu_size 3
-
-  # ── Status constants ────────────────────────────────────────────
-
-  @status_pending 0x00
-  @status_handshake 0x01
-  @status_active 0x02
-  @status_stale 0x03
-  @status_closed 0x04
-
-  # ── Teardown reason constants ───────────────────────────────────
-
-  @timeout 0x01
-  @initiator_closed 0x02
-  @destination_closed 0x03
-
-  # ── Resource strategy constants ─────────────────────────────────
-
-  @accept_none 0x00
-  @accept_app 0x01
-  @accept_all 0x02
-
-  # ── Encryption mode constants ───────────────────────────────────
-
-  @mode_aes128_cbc 0x00
-  @mode_aes256_cbc 0x01
-  @mode_aes256_gcm 0x02
-  @mode_otp_reserved 0x03
-  @mode_pq_reserved_1 0x04
-  @mode_pq_reserved_2 0x05
-  @mode_pq_reserved_3 0x06
-  @mode_pq_reserved_4 0x07
-  @enabled_modes [@mode_aes256_cbc]
-  @mode_default @mode_aes256_cbc
-  @mode_descriptions %{
-    @mode_aes128_cbc => "AES_128_CBC",
-    @mode_aes256_cbc => "AES_256_CBC",
-    @mode_aes256_gcm => "MODE_AES256_GCM",
-    @mode_otp_reserved => "MODE_OTP_RESERVED",
-    @mode_pq_reserved_1 => "MODE_PQ_RESERVED_1",
-    @mode_pq_reserved_2 => "MODE_PQ_RESERVED_2",
-    @mode_pq_reserved_3 => "MODE_PQ_RESERVED_3",
-    @mode_pq_reserved_4 => "MODE_PQ_RESERVED_4"
-  }
-
-  # ── MTU/mode byte masks ─────────────────────────────────────────
-
-  @mtu_bytemask 0x1FFFFF
-  @mode_bytemask 0xE0
-
-  # ── Keepalive / timing constants ────────────────────────────────
-
-  @keepalive_max 360
-  @keepalive_min 5
-  @keepalive @keepalive_max
-  @stale_factor 2
-  @stale_time @stale_factor * @keepalive
-  @keepalive_max_rtt 1.75
-  @keepalive_timeout_factor 4
-  @stale_grace 5
-  @traffic_timeout_factor 6
-  @traffic_timeout_min_ms 5
-  @watchdog_max_sleep 5
-
-  @establishment_timeout_per_hop RNS.Packet.timeout_per_hop()
-
-  # ── MDU calculation ─────────────────────────────────────────────
-
-  @mtu 500
-  @ifac_min_size 1
-  @header_minsize 2 + 1 + div(128, 8)
-  @token_overhead 48
-  @aes128_blocksize 16
-
-  @link_mdu div(@mtu - @ifac_min_size - @header_minsize - @token_overhead, @aes128_blocksize) *
-              @aes128_blocksize - 1
-
-  # ── Response grace time (from Resource, placeholder until Task 5.4) ─
-  @response_max_grace_time 10
+  @establishment_timeout_per_hop 6
 
   # ── Struct ──────────────────────────────────────────────────────
 
@@ -194,92 +115,36 @@ defmodule RNS.Link do
   @type t :: %__MODULE__{}
 
   # ── Constant accessors ─────────────────────────────────────────
+  # For cross-module use, prefer `use RNS.Constants.Link`.
 
-  @spec ecpubsize() :: non_neg_integer()
   def ecpubsize, do: @ecpubsize
-
-  @spec keysize() :: non_neg_integer()
   def keysize, do: @keysize
-
-  @spec link_mtu_size() :: non_neg_integer()
   def link_mtu_size, do: @link_mtu_size
-
-  @spec pending() :: non_neg_integer()
   def pending, do: @status_pending
-
-  @spec handshake() :: non_neg_integer()
   def handshake, do: @status_handshake
-
-  @spec active() :: non_neg_integer()
   def active, do: @status_active
-
-  @spec stale() :: non_neg_integer()
   def stale, do: @status_stale
-
-  @spec closed() :: non_neg_integer()
   def closed, do: @status_closed
-
-  @spec timeout() :: non_neg_integer()
   def timeout, do: @timeout
-
-  @spec initiator_closed() :: non_neg_integer()
   def initiator_closed, do: @initiator_closed
-
-  @spec destination_closed() :: non_neg_integer()
   def destination_closed, do: @destination_closed
-
-  @spec accept_none() :: non_neg_integer()
   def accept_none, do: @accept_none
-
-  @spec accept_app() :: non_neg_integer()
   def accept_app, do: @accept_app
-
-  @spec accept_all() :: non_neg_integer()
   def accept_all, do: @accept_all
-
-  @spec mode_aes128_cbc() :: non_neg_integer()
   def mode_aes128_cbc, do: @mode_aes128_cbc
-
-  @spec mode_aes256_cbc() :: non_neg_integer()
   def mode_aes256_cbc, do: @mode_aes256_cbc
-
-  @spec mode_default() :: non_neg_integer()
   def mode_default, do: @mode_default
-
-  @spec keepalive_max() :: non_neg_integer()
   def keepalive_max, do: @keepalive_max
-
-  @spec keepalive_min() :: non_neg_integer()
   def keepalive_min, do: @keepalive_min
-
-  @spec stale_factor() :: non_neg_integer()
   def stale_factor, do: @stale_factor
-
-  @spec keepalive_max_rtt() :: float()
   def keepalive_max_rtt, do: @keepalive_max_rtt
-
-  @spec traffic_timeout_factor() :: non_neg_integer()
   def traffic_timeout_factor, do: @traffic_timeout_factor
-
-  @spec keepalive_timeout_factor() :: non_neg_integer()
   def keepalive_timeout_factor, do: @keepalive_timeout_factor
-
-  @spec stale_grace() :: non_neg_integer()
   def stale_grace, do: @stale_grace
-
-  @spec establishment_timeout_per_hop() :: non_neg_integer()
   def establishment_timeout_per_hop, do: @establishment_timeout_per_hop
-
-  @spec mtu_bytemask() :: non_neg_integer()
   def mtu_bytemask, do: @mtu_bytemask
-
-  @spec mode_bytemask() :: non_neg_integer()
   def mode_bytemask, do: @mode_bytemask
-
-  @spec mdu() :: non_neg_integer()
   def mdu, do: @link_mdu
-
-  @spec mode_description(non_neg_integer()) :: String.t()
   def mode_description(mode), do: Map.get(@mode_descriptions, mode, "UNKNOWN")
 
   # ── Constructor ─────────────────────────────────────────────────
@@ -1357,11 +1222,11 @@ defmodule RNS.Link do
 
     actions =
       cond do
-        dest && Map.get(dest, :proof_strategy) == RNS.Destination.prove_all() ->
+        dest && Map.get(dest, :proof_strategy) == @prove_all ->
           packet_hash = Map.get(packet, :packet_hash, <<>>)
           [{:send_proof, packet_hash} | actions]
 
-        dest && Map.get(dest, :proof_strategy) == RNS.Destination.prove_app() &&
+        dest && Map.get(dest, :proof_strategy) == @prove_app &&
           dest.callbacks && dest.callbacks.proof_requested ->
           try do
             if dest.callbacks.proof_requested.(packet) do
@@ -1395,9 +1260,9 @@ defmodule RNS.Link do
 
     dest = link.destination
 
-    allow_none = RNS.Destination.allow_none()
-    allow_all = RNS.Destination.allow_all()
-    allow_list = RNS.Destination.allow_list()
+    allow_none = @allow_none
+    allow_all = @allow_all
+    allow_list = @allow_list
 
     if dest && Map.has_key?(dest, :request_handlers) &&
          Map.has_key?(dest.request_handlers, path_hash) do

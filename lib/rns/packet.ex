@@ -10,68 +10,10 @@ defmodule RNS.Packet do
 
   import Bitwise
 
-  # ── Packet types ─────────────────────────────────────────────────
+  use RNS.Constants.Packet
 
-  @data 0x00
-  @announce 0x01
-  @linkrequest 0x02
-  @proof 0x03
   @types [@data, @announce, @linkrequest, @proof]
-
-  # ── Header types ─────────────────────────────────────────────────
-
-  @header_1 0x00
-  @header_2 0x01
   @header_types [@header_1, @header_2]
-
-  # ── Context types ────────────────────────────────────────────────
-
-  @context_none 0x00
-  @context_resource 0x01
-  @context_resource_adv 0x02
-  @context_resource_req 0x03
-  @context_resource_hmu 0x04
-  @context_resource_prf 0x05
-  @context_resource_icl 0x06
-  @context_resource_rcl 0x07
-  @context_cache_request 0x08
-  @context_request 0x09
-  @context_response 0x0A
-  @context_path_response 0x0B
-  @context_command 0x0C
-  @context_command_status 0x0D
-  @context_channel 0x0E
-  @context_keepalive 0xFA
-  @context_linkidentify 0xFB
-  @context_linkclose 0xFC
-  @context_linkproof 0xFD
-  @context_lrrtt 0xFE
-  @context_lrproof 0xFF
-
-  # ── Flag constants ───────────────────────────────────────────────
-
-  @flag_set 0x01
-  @flag_unset 0x00
-
-  # ── Size constants ───────────────────────────────────────────────
-
-  @truncated_hashlength 128
-  @dst_len div(@truncated_hashlength, 8)
-  @mtu 500
-  @header_maxsize 2 + 1 + @dst_len * 2
-  @ifac_min_size 1
-  @mdu @mtu - @header_maxsize - @ifac_min_size
-
-  # Identity constants needed for ENCRYPTED_MDU calculation
-  @token_overhead 48
-  @identity_keysize 512
-  @aes128_blocksize 16
-
-  @encrypted_mdu div(@mdu - @token_overhead - div(@identity_keysize, 16), @aes128_blocksize) *
-                   @aes128_blocksize - 1
-  @plain_mdu @mdu
-
-  @timeout_per_hop 6
 
   # ── Destination type constants (from Destination module) ─────────
 
@@ -122,153 +64,46 @@ defmodule RNS.Packet do
   @type t :: %__MODULE__{}
 
   # ── Constant accessors ──────────────────────────────────────────
+  # For cross-module use, prefer `use RNS.Constants.Packet` which
+  # injects compile-time module attributes. These functions are
+  # retained for backward compatibility and public API usage.
 
-  @doc "Packet type: DATA (0x00)"
-  @spec data() :: non_neg_integer()
   def data, do: @data
-
-  @doc "Packet type: ANNOUNCE (0x01)"
-  @spec announce() :: non_neg_integer()
   def announce, do: @announce
-
-  @doc "Packet type: LINKREQUEST (0x02)"
-  @spec linkrequest() :: non_neg_integer()
   def linkrequest, do: @linkrequest
-
-  @doc "Packet type: PROOF (0x03)"
-  @spec proof() :: non_neg_integer()
   def proof, do: @proof
-
-  @doc "List of all packet types."
-  @spec types() :: [non_neg_integer()]
   def types, do: @types
-
-  @doc "Header type: HEADER_1 (0x00) — normal header."
-  @spec header_1() :: non_neg_integer()
   def header_1, do: @header_1
-
-  @doc "Header type: HEADER_2 (0x01) — transport header."
-  @spec header_2() :: non_neg_integer()
   def header_2, do: @header_2
-
-  @doc "List of all header types."
-  @spec header_types() :: [non_neg_integer()]
   def header_types, do: @header_types
-
-  @doc "Context: NONE (0x00)"
-  @spec context_none() :: non_neg_integer()
   def context_none, do: @context_none
-
-  @doc "Context: RESOURCE (0x01)"
-  @spec context_resource() :: non_neg_integer()
   def context_resource, do: @context_resource
-
-  @doc "Context: RESOURCE_ADV (0x02)"
-  @spec context_resource_adv() :: non_neg_integer()
   def context_resource_adv, do: @context_resource_adv
-
-  @doc "Context: RESOURCE_REQ (0x03)"
-  @spec context_resource_req() :: non_neg_integer()
   def context_resource_req, do: @context_resource_req
-
-  @doc "Context: RESOURCE_HMU (0x04)"
-  @spec context_resource_hmu() :: non_neg_integer()
   def context_resource_hmu, do: @context_resource_hmu
-
-  @doc "Context: RESOURCE_PRF (0x05)"
-  @spec context_resource_prf() :: non_neg_integer()
   def context_resource_prf, do: @context_resource_prf
-
-  @doc "Context: RESOURCE_ICL (0x06)"
-  @spec context_resource_icl() :: non_neg_integer()
   def context_resource_icl, do: @context_resource_icl
-
-  @doc "Context: RESOURCE_RCL (0x07)"
-  @spec context_resource_rcl() :: non_neg_integer()
   def context_resource_rcl, do: @context_resource_rcl
-
-  @doc "Context: CACHE_REQUEST (0x08)"
-  @spec context_cache_request() :: non_neg_integer()
   def context_cache_request, do: @context_cache_request
-
-  @doc "Context: REQUEST (0x09)"
-  @spec context_request() :: non_neg_integer()
   def context_request, do: @context_request
-
-  @doc "Context: RESPONSE (0x0A)"
-  @spec context_response() :: non_neg_integer()
   def context_response, do: @context_response
-
-  @doc "Context: PATH_RESPONSE (0x0B)"
-  @spec context_path_response() :: non_neg_integer()
   def context_path_response, do: @context_path_response
-
-  @doc "Context: COMMAND (0x0C)"
-  @spec context_command() :: non_neg_integer()
   def context_command, do: @context_command
-
-  @doc "Context: COMMAND_STATUS (0x0D)"
-  @spec context_command_status() :: non_neg_integer()
   def context_command_status, do: @context_command_status
-
-  @doc "Context: CHANNEL (0x0E)"
-  @spec context_channel() :: non_neg_integer()
   def context_channel, do: @context_channel
-
-  @doc "Context: KEEPALIVE (0xFA)"
-  @spec context_keepalive() :: non_neg_integer()
   def context_keepalive, do: @context_keepalive
-
-  @doc "Context: LINKIDENTIFY (0xFB)"
-  @spec context_linkidentify() :: non_neg_integer()
   def context_linkidentify, do: @context_linkidentify
-
-  @doc "Context: LINKCLOSE (0xFC)"
-  @spec context_linkclose() :: non_neg_integer()
   def context_linkclose, do: @context_linkclose
-
-  @doc "Context: LINKPROOF (0xFD)"
-  @spec context_linkproof() :: non_neg_integer()
   def context_linkproof, do: @context_linkproof
-
-  @doc "Context: LRRTT (0xFE)"
-  @spec context_lrrtt() :: non_neg_integer()
   def context_lrrtt, do: @context_lrrtt
-
-  @doc "Context: LRPROOF (0xFF)"
-  @spec context_lrproof() :: non_neg_integer()
   def context_lrproof, do: @context_lrproof
-
-  @doc "Flag value: SET (0x01)"
-  @spec flag_set() :: non_neg_integer()
   def flag_set, do: @flag_set
-
-  @doc "Flag value: UNSET (0x00)"
-  @spec flag_unset() :: non_neg_integer()
   def flag_unset, do: @flag_unset
-
-  @doc "Maximum header size in bytes (35)."
-  @spec header_maxsize() :: non_neg_integer()
   def header_maxsize, do: @header_maxsize
-
-  @doc "Maximum Transmission Unit in bytes (500)."
-  @spec mtu() :: non_neg_integer()
   def mtu, do: @mtu
-
-  @doc "Maximum Data Unit in bytes (464)."
-  @spec mdu() :: non_neg_integer()
   def mdu, do: @mdu
-
-  @doc "Maximum encrypted payload size in bytes (383)."
-  @spec encrypted_mdu() :: non_neg_integer()
   def encrypted_mdu, do: @encrypted_mdu
-
-  @doc "Maximum unencrypted payload size in bytes (equals MDU)."
-  @spec plain_mdu() :: non_neg_integer()
   def plain_mdu, do: @plain_mdu
-
-  @doc "Timeout per hop in seconds (6)."
-  @spec timeout_per_hop() :: non_neg_integer()
   def timeout_per_hop, do: @timeout_per_hop
 
   # ── Construction ─────────────────────────────────────────────────
@@ -698,17 +533,4 @@ defmodule RNS.Packet do
     RNS.ProofDestination.new(packet)
   end
 
-  # ── Signal accessors ─────────────────────────────────────────────
-
-  @doc "Returns the RSSI value if available."
-  @spec get_rssi(t()) :: number() | nil
-  def get_rssi(%__MODULE__{rssi: rssi}), do: rssi
-
-  @doc "Returns the SNR value if available."
-  @spec get_snr(t()) :: number() | nil
-  def get_snr(%__MODULE__{snr: snr}), do: snr
-
-  @doc "Returns the link quality value if available."
-  @spec get_q(t()) :: number() | nil
-  def get_q(%__MODULE__{q: q}), do: q
 end
