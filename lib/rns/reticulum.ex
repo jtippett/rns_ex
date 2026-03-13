@@ -654,10 +654,13 @@ defmodule RNS.Reticulum do
             state
           end
 
-        # Start periodic jobs
+        # Start periodic jobs (Reticulum's own persist/clean cycle)
         schedule_job()
 
-        {:ok, state}
+        # Start Transport's periodic maintenance jobs (link checks, receipts, etc.)
+        RNS.Transport.start_jobs()
+
+        {:ok, %{state | jobs_started: true}}
       end
     end
   end

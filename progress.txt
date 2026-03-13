@@ -251,3 +251,41 @@ is I2P tunnel state, not link status.
   configured after boot and persists to disk.
 
 **Result:** `mix test` passes with 0 failures (3052 tests, 13 pre-existing skipped fixture tests).
+
+## 2026-03-14 — Task 2.2: Load and save packet hashlist, path table, and tunnel table
+
+**Changes:**
+- `lib/rns/reticulum.ex`:
+  - After starting periodic jobs and configured interfaces, Reticulum now calls
+    `RNS.Transport.start_jobs()` to start Transport's periodic maintenance jobs
+    (link checks, receipt checks, announce checks, table culling, cache cleaning).
+    Previously, `Transport.start_jobs()` was never called from anywhere, leaving
+    Transport's periodic maintenance completely unwired.
+  - Set `jobs_started: true` in Reticulum state after scheduling periodic jobs,
+    so the flag accurately reflects runtime state.
+- `test/rns/transport_persistence_test.exs`: New test file with 15 tests covering:
+  - Packet hashlist save/load round-trip (data survives clear and reload)
+  - Missing hashlist file returns `{:error, :enoent}`, no crash
+  - Corrupt hashlist file (invalid msgpack) returns error, no crash
+  - Path table save/load round-trip with registered interface
+  - Expired path entries are not restored on load
+  - Path entries with missing (deregistered) interface are not restored on load
+  - Missing path table file returns error, no crash
+  - Tunnel table save/load round-trip (tunnel_id, paths, hops preserved)
+  - Missing tunnel file returns error, no crash
+  - Packet hashlist loaded via `Transport.configure/1` (full integration path)
+  - Configure with no persistence files doesn't crash (first boot scenario)
+  - Reticulum periodic job timer is running after boot (`jobs_started == true`)
+  - Reticulum persist interval constants match Python (12h persist, 5m gracious)
+  - Transport periodic jobs are started after boot (`jobs_started == true`)
+  - Transport terminate saves state files to disk
+
+**Verification:** The persistence infrastructure (save/load functions in CacheManagement
+and PathManagement, loading in Transport.configure, saving in Transport.terminate and
+Reticulum.terminate, periodic persistence in Reticulum.handle_info(:run_jobs)) was already
+fully implemented from the porting phase. The key gap was that Transport.start_jobs() was
+never called, leaving Transport's periodic maintenance (link timeout checks, receipt checks,
+announce processing, table culling) completely unwired. Reticulum's own periodic persistence
+timer (12h interval via :run_jobs) was already working.
+
+**Result:** `mix test` passes with 0 failures (3067 tests, 13 pre-existing skipped fixture tests).
