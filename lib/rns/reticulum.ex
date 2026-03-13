@@ -640,6 +640,16 @@ defmodule RNS.Reticulum do
       # Start local interface (shared/client/standalone mode)
       state = start_local_interface(state)
 
+      # Create Transport control & management destinations (after shared-instance
+      # detection so conditional flags are known)
+      RNS.Transport.create_destinations(
+        probe_enabled: state.allow_probes,
+        remote_management_enabled: state.remote_management_enabled,
+        publish_blackhole: state.publish_blackhole,
+        is_connected_to_shared_instance: state.is_connected_to_shared_instance,
+        network_identity: state.network_identity
+      )
+
       # If a shared instance was required but none was available, abort
       if state.require_shared_instance and not state.is_connected_to_shared_instance do
         {:stop,

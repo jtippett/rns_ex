@@ -239,6 +239,60 @@ defmodule RNS.Destination do
   end
 
   @doc """
+  Builds a Destination struct without auto-registering with Transport.
+
+  Same as `new/5` but skips the `register/1` call. Used internally by
+  Transport when creating control/management destinations from within
+  a GenServer callback (where calling back into the same GenServer
+  would deadlock).
+  """
+  @spec build(Identity.t() | nil, non_neg_integer(), non_neg_integer(), String.t(), [String.t()]) :: t()
+  def build(identity, direction, type, app_name, aspects \\ []) do
+    if String.contains?(app_name, ".") do
+      raise ArgumentError, "Dots are not allowed in app names"
+    end
+
+    unless type in @types do
+      raise ArgumentError, "Unknown destination type"
+    end
+
+    unless direction in @directions do
+      raise ArgumentError, "Unknown destination direction"
+    end
+
+    if Enum.any?(aspects, &String.contains?(&1, ".")) do
+      raise ArgumentError, "Dots are not allowed in aspects"
+    end
+
+    {identity, aspects} = resolve_identity(identity, direction, type, aspects)
+
+    name = expand_name(identity, app_name, aspects)
+    name_hash_bytes = compute_name_hash(app_name, aspects)
+    dest_hash = compute_hash(identity, app_name, aspects)
+    hexhash = Base.encode16(dest_hash, case: :lower)
+
+    %__MODULE__{
+      type: type,
+      direction: direction,
+      identity: identity,
+      name: name,
+      hash: dest_hash,
+      name_hash: name_hash_bytes,
+      hexhash: hexhash,
+      mtu: 0,
+      ratchet_interval: @ratchet_interval,
+      retained_ratchets: @ratchet_count,
+      proof_strategy: @prove_none,
+      accept_link_requests: true,
+      callbacks: %{link_established: nil, packet: nil, proof_requested: nil},
+      request_handlers: %{},
+      path_responses: %{},
+      links: [],
+      enforce_ratchets: false
+    }
+  end
+
+  @doc """
   Registers a destination with the Transport system.
 
   In Python, destinations are automatically registered in `__init__`.

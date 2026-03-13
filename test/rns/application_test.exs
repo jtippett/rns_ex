@@ -148,5 +148,26 @@ defmodule RNS.ApplicationTest do
       loaded = RNS.Identity.from_file(identity_path)
       assert loaded.hash == identity.hash
     end
+
+    test "Transport has control destinations after boot (Task 2.3)" do
+      # Control destinations are always created
+      assert RNS.Transport.path_request_destination() != nil
+      assert RNS.Transport.tunnel_synthesize_destination() != nil
+
+      # Control hashes list is populated
+      hashes = RNS.Transport.control_hashes()
+      assert length(hashes) == 2
+    end
+
+    test "Control destinations are stored in Transport state after boot (Task 2.3)" do
+      path_req = RNS.Transport.path_request_destination()
+      tunnel_synth = RNS.Transport.tunnel_synthesize_destination()
+
+      # Verify destinations have correct types and aspects
+      assert path_req.type == RNS.Destination.plain()
+      assert path_req.name =~ "path"
+      assert tunnel_synth.type == RNS.Destination.plain()
+      assert tunnel_synth.name =~ "tunnel"
+    end
   end
 end

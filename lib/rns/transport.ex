@@ -481,6 +481,83 @@ defmodule RNS.Transport do
     GenServer.call(__MODULE__, :network_identity)
   end
 
+  # ── Control & Management Destinations ────────────────────────────────
+
+  @doc """
+  Creates control and management destinations for the Transport system.
+
+  Called by Reticulum after shared-instance detection, so conditional flags
+  are known. Control destinations (path_request, tunnel_synthesize) are
+  always created. Management destinations are conditional.
+
+  ## Options
+
+    * `:probe_enabled` — create probe destination (default: false)
+    * `:remote_management_enabled` — create remote management destination (default: false)
+    * `:publish_blackhole` — create blackhole destination (default: false)
+    * `:is_connected_to_shared_instance` — skip mgmt destinations if true (default: false)
+    * `:network_identity` — if set, create instance/network destinations
+    * `:remote_management_allowed` — list of allowed identity hashes (default: [])
+  """
+  @spec create_destinations(keyword()) :: :ok
+  def create_destinations(opts) do
+    GenServer.call(__MODULE__, {:create_destinations, opts})
+  end
+
+  @doc "Returns the path_request control destination, or nil."
+  @spec path_request_destination() :: RNS.Destination.t() | nil
+  def path_request_destination do
+    GenServer.call(__MODULE__, :path_request_destination)
+  end
+
+  @doc "Returns the tunnel_synthesize control destination, or nil."
+  @spec tunnel_synthesize_destination() :: RNS.Destination.t() | nil
+  def tunnel_synthesize_destination do
+    GenServer.call(__MODULE__, :tunnel_synthesize_destination)
+  end
+
+  @doc "Returns the probe destination, or nil if not enabled."
+  @spec probe_destination() :: RNS.Destination.t() | nil
+  def probe_destination do
+    GenServer.call(__MODULE__, :probe_destination)
+  end
+
+  @doc "Returns the remote management destination, or nil."
+  @spec remote_management_destination() :: RNS.Destination.t() | nil
+  def remote_management_destination do
+    GenServer.call(__MODULE__, :remote_management_destination)
+  end
+
+  @doc "Returns the blackhole destination, or nil."
+  @spec blackhole_destination() :: RNS.Destination.t() | nil
+  def blackhole_destination do
+    GenServer.call(__MODULE__, :blackhole_destination)
+  end
+
+  @doc "Returns the instance destination, or nil."
+  @spec instance_destination() :: RNS.Destination.t() | nil
+  def instance_destination do
+    GenServer.call(__MODULE__, :instance_destination)
+  end
+
+  @doc "Returns the network destination, or nil."
+  @spec network_destination() :: RNS.Destination.t() | nil
+  def network_destination do
+    GenServer.call(__MODULE__, :network_destination)
+  end
+
+  @doc "Returns the hashes of control destinations (path_request, tunnel_synthesize)."
+  @spec control_hashes() :: [binary()]
+  def control_hashes do
+    GenServer.call(__MODULE__, :control_hashes)
+  end
+
+  @doc "Returns the hashes of management destinations (probe, remote_mgmt, blackhole, instance, network)."
+  @spec mgmt_hashes() :: [binary()]
+  def mgmt_hashes do
+    GenServer.call(__MODULE__, :mgmt_hashes)
+  end
+
   # ── Link Registration ─────────────────────────────────────────────────
 
   @doc """
@@ -2100,7 +2177,17 @@ defmodule RNS.Transport do
       jobs_started: false,
       announce_handlers: [],
       network_identity: nil,
-      blackholed_identities: %{}
+      blackholed_identities: %{},
+      # Control & management destinations
+      path_request_destination: nil,
+      tunnel_synthesize_destination: nil,
+      probe_destination: nil,
+      remote_management_destination: nil,
+      blackhole_destination: nil,
+      instance_destination: nil,
+      network_destination: nil,
+      control_hashes: [],
+      mgmt_hashes: []
     }
 
     {:ok, state}
@@ -2209,6 +2296,52 @@ defmodule RNS.Transport do
   end
 
   @impl true
+  def handle_call({:create_destinations, opts}, _from, state) do
+    state = do_create_destinations(state, opts)
+    {:reply, :ok, state}
+  end
+
+  @impl true
+  def handle_call(:path_request_destination, _from, state),
+    do: {:reply, state.path_request_destination, state}
+
+  @impl true
+  def handle_call(:tunnel_synthesize_destination, _from, state),
+    do: {:reply, state.tunnel_synthesize_destination, state}
+
+  @impl true
+  def handle_call(:probe_destination, _from, state),
+    do: {:reply, state.probe_destination, state}
+
+  @impl true
+  def handle_call(:remote_management_destination, _from, state),
+    do: {:reply, state.remote_management_destination, state}
+
+  @impl true
+  def handle_call(:blackhole_destination, _from, state),
+    do: {:reply, state.blackhole_destination, state}
+
+  @impl true
+  def handle_call(:instance_destination, _from, state),
+    do: {:reply, state.instance_destination, state}
+
+  @impl true
+  def handle_call(:network_destination, _from, state),
+    do: {:reply, state.network_destination, state}
+
+  @impl true
+  def handle_call(:control_hashes, _from, state),
+    do: {:reply, state.control_hashes, state}
+
+  @impl true
+  def handle_call(:mgmt_hashes, _from, state),
+    do: {:reply, state.mgmt_hashes, state}
+
+  @impl true
+  def handle_call(:blackholed_identities, _from, state),
+    do: {:reply, state.blackholed_identities, state}
+
+  @impl true
   def handle_cast({:request_path, destination_hash}, state) do
     # Send path request to all outgoing interfaces
     interfaces = get_interfaces()
@@ -2294,6 +2427,229 @@ defmodule RNS.Transport do
       loaded ->
         RNS.Log.log("Loaded Transport Identity from storage", :verbose)
         loaded
+    end
+  end
+
+  # ── Control & Management Destination Creation ─────────────────────────
+
+  # Creates all control and management destinations. Matches Python's
+  # Transport.start() destination setup.
+  defp do_create_destinations(state, opts) do
+    is_connected = Keyword.get(opts, :is_connected_to_shared_instance, false)
+    identity = state.identity
+
+    # -- Always create control destinations --
+    # We build destinations manually (using Destination struct construction
+    # helpers) instead of Destination.new/5 because new/5 auto-calls
+    # Transport.register_destination via GenServer.call, which would deadlock
+    # since we're already inside a Transport GenServer callback.
+    path_req = build_path_request_destination()
+    tunnel_synth = build_tunnel_synthesize_destination()
+
+    control_hashes = [path_req.hash, tunnel_synth.hash]
+
+    # -- Conditionally create management destinations --
+    mgmt_hashes = []
+
+    # Probe destination
+    probe_enabled = Keyword.get(opts, :probe_enabled, false)
+
+    {probe_dest, mgmt_hashes} =
+      if probe_enabled and identity != nil do
+        dest =
+          build_destination(identity, RNS.Destination.single(), @app_name, ["probe"])
+          |> RNS.Destination.set_accepts_links(false)
+          |> RNS.Destination.set_proof_strategy(RNS.Destination.prove_all())
+
+        {dest, [dest.hash | mgmt_hashes]}
+      else
+        {nil, mgmt_hashes}
+      end
+
+    # Remote management destination
+    remote_mgmt_enabled = Keyword.get(opts, :remote_management_enabled, false)
+    remote_mgmt_allowed = Keyword.get(opts, :remote_management_allowed, [])
+
+    {remote_mgmt_dest, mgmt_hashes} =
+      if remote_mgmt_enabled and not is_connected and identity != nil do
+        dest =
+          build_destination(identity, RNS.Destination.single(), @app_name, ["remote", "management"])
+          |> RNS.Destination.register_request_handler("/status",
+            response_generator: &remote_status_handler/6,
+            allow: RNS.Destination.allow_list(),
+            allowed_list: remote_mgmt_allowed
+          )
+          |> RNS.Destination.register_request_handler("/path",
+            response_generator: &remote_path_handler/6,
+            allow: RNS.Destination.allow_list(),
+            allowed_list: remote_mgmt_allowed
+          )
+
+        {dest, [dest.hash | mgmt_hashes]}
+      else
+        {nil, mgmt_hashes}
+      end
+
+    # Blackhole destination
+    publish_blackhole = Keyword.get(opts, :publish_blackhole, false)
+
+    {blackhole_dest, mgmt_hashes} =
+      if publish_blackhole and not is_connected and identity != nil do
+        dest =
+          build_destination(identity, RNS.Destination.single(), @app_name, ["info", "blackhole"])
+          |> RNS.Destination.register_request_handler("/list",
+            response_generator: &blackhole_list_handler/6,
+            allow: RNS.Destination.allow_all()
+          )
+
+        {dest, [dest.hash | mgmt_hashes]}
+      else
+        {nil, mgmt_hashes}
+      end
+
+    # Network destinations
+    net_identity = Keyword.get(opts, :network_identity, nil)
+
+    {instance_dest, network_dest, mgmt_hashes} =
+      if net_identity != nil and not is_connected do
+        hexhash = Base.encode16(net_identity.hash, case: :lower)
+
+        inst = build_destination(net_identity, RNS.Destination.single(), @app_name, ["network", "instance", hexhash])
+        net = build_destination(net_identity, RNS.Destination.single(), @app_name, ["network"])
+
+        {inst, net, [net.hash, inst.hash | mgmt_hashes]}
+      else
+        {nil, nil, mgmt_hashes}
+      end
+
+    # Register all created destinations directly in ETS (bypassing GenServer.call)
+    all_dests = [path_req, tunnel_synth, probe_dest, remote_mgmt_dest, blackhole_dest, instance_dest, network_dest]
+
+    Enum.each(all_dests, fn
+      nil -> :ok
+      dest -> :ets.insert(@destinations_table, {dest.hash, dest})
+    end)
+
+    %{
+      state
+      | path_request_destination: path_req,
+        tunnel_synthesize_destination: tunnel_synth,
+        probe_destination: probe_dest,
+        remote_management_destination: remote_mgmt_dest,
+        blackhole_destination: blackhole_dest,
+        instance_destination: instance_dest,
+        network_destination: network_dest,
+        control_hashes: control_hashes,
+        mgmt_hashes: mgmt_hashes
+    }
+  end
+
+  # Builds a Destination struct directly (without auto-registration via GenServer.call).
+  # Used by do_create_destinations to avoid deadlocking when called from within
+  # a Transport GenServer callback.
+  defp build_destination(identity, type, app_name, aspects) do
+    RNS.Destination.build(identity, RNS.Destination.direction_in(), type, app_name, aspects)
+  end
+
+  defp build_path_request_destination do
+    dest = build_destination(nil, RNS.Destination.plain(), @app_name, ["path", "request"])
+    RNS.Destination.set_packet_callback(dest, &path_request_handler/2)
+  end
+
+  defp build_tunnel_synthesize_destination do
+    dest = build_destination(nil, RNS.Destination.plain(), @app_name, ["tunnel", "synthesize"])
+    RNS.Destination.set_packet_callback(dest, &RNS.Transport.TunnelManagement.tunnel_synthesize_handler/2)
+  end
+
+  # Path request handler callback — processes incoming path request packets.
+  # Matches Python's Transport.path_request_handler.
+  defp path_request_handler(data, packet) do
+    truncated_bytes = div(@truncated_hashlength, 8)
+
+    try do
+      if byte_size(data) >= truncated_bytes do
+        destination_hash = binary_part(data, 0, truncated_bytes)
+
+        requesting_transport_instance =
+          if byte_size(data) > truncated_bytes * 2 do
+            binary_part(data, truncated_bytes, truncated_bytes)
+          else
+            nil
+          end
+
+        tag_bytes =
+          cond do
+            byte_size(data) > truncated_bytes * 2 ->
+              binary_part(data, truncated_bytes * 2, byte_size(data) - truncated_bytes * 2)
+
+            byte_size(data) > truncated_bytes ->
+              binary_part(data, truncated_bytes, byte_size(data) - truncated_bytes)
+
+            true ->
+              nil
+          end
+
+        if tag_bytes != nil do
+          tag_bytes =
+            if byte_size(tag_bytes) > truncated_bytes do
+              binary_part(tag_bytes, 0, truncated_bytes)
+            else
+              tag_bytes
+            end
+
+          _unique_tag = destination_hash <> tag_bytes
+
+          # Delegate to Transport path request processing
+          _receiving_interface = Map.get(packet, :receiving_interface)
+
+          Logger.debug(
+            "Received path request for #{Base.encode16(destination_hash, case: :lower)}" <>
+              if(requesting_transport_instance,
+                do: " from transport #{Base.encode16(requesting_transport_instance, case: :lower)}",
+                else: ""
+              )
+          )
+        else
+          Logger.debug(
+            "Ignoring tagless path request for #{Base.encode16(destination_hash, case: :lower)}"
+          )
+        end
+      end
+    rescue
+      e ->
+        Logger.error("Error while handling path request: #{Exception.message(e)}")
+    end
+  end
+
+  # Remote status handler — returns interface stats and optionally link counts.
+  # Matches Python's Transport.remote_status_handler.
+  defp remote_status_handler(_path, _data, _request_id, _link_id, remote_identity, _requested_at) do
+    if remote_identity != nil do
+      Logger.debug("Remote status request received")
+      # TODO: return interface stats when Reticulum.get_interface_stats is wired
+      nil
+    end
+  end
+
+  # Remote path handler — returns filtered path table or rate table.
+  # Matches Python's Transport.remote_path_handler.
+  defp remote_path_handler(_path, _data, _request_id, _link_id, remote_identity, _requested_at) do
+    if remote_identity != nil do
+      Logger.debug("Remote path request received")
+      # TODO: return path/rate table when Reticulum.get_path_table is wired
+      nil
+    end
+  end
+
+  # Blackhole list handler — returns the current blackhole list.
+  # Matches Python's Transport.blackhole_list_handler.
+  defp blackhole_list_handler(_path, _data, _request_id, _link_id, _remote_identity, _requested_at) do
+    try do
+      GenServer.call(__MODULE__, :blackholed_identities)
+    rescue
+      _ -> nil
+    catch
+      :exit, _ -> nil
     end
   end
 

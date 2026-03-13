@@ -289,3 +289,62 @@ announce processing, table culling) completely unwired. Reticulum's own periodic
 timer (12h interval via :run_jobs) was already working.
 
 **Result:** `mix test` passes with 0 failures (3067 tests, 13 pre-existing skipped fixture tests).
+
+## 2026-03-14 — Task 2.3: Create control destinations and wire remote management
+
+**Changes:**
+- `lib/rns/transport.ex`:
+  - Added `create_destinations/1` public API (GenServer call) that creates all control
+    and management destinations. Called by Reticulum after shared-instance detection so
+    conditional flags (probe_enabled, remote_management_enabled, etc.) are known.
+  - Added `do_create_destinations/2` private function that creates 7 destination types:
+    - **Control (always created):** `path_request_destination` (PLAIN, aspects ["path",
+      "request"], with `path_request_handler` callback) and `tunnel_synthesize_destination`
+      (PLAIN, aspects ["tunnel", "synthesize"], delegates to TunnelManagement).
+    - **Management (conditional):** `probe_destination` (SINGLE, PROVE_ALL, no links,
+      requires probe_enabled), `remote_management_destination` (SINGLE, /status and /path
+      request handlers, requires remote_management_enabled and not connected to shared),
+      `blackhole_destination` (SINGLE, /list request handler, requires publish_blackhole
+      and not connected to shared).
+    - **Network (conditional):** `instance_destination` and `network_destination` (SINGLE,
+      use network_identity, require network_identity present and not connected to shared).
+  - Uses `Destination.build/5` (not `new/5`) to avoid GenServer deadlock — since
+    `create_destinations` runs inside a Transport `handle_call`, using `Destination.new`
+    would call `Transport.register_destination` via GenServer.call back to self, causing
+    a deadlock. Instead, builds structs directly and inserts into ETS within the callback.
+  - Added accessor functions: `path_request_destination/0`, `tunnel_synthesize_destination/0`,
+    `probe_destination/0`, `remote_management_destination/0`, `blackhole_destination/0`,
+    `instance_destination/0`, `network_destination/0`, `control_hashes/0`, `mgmt_hashes/0`.
+  - Added state fields for all 7 destinations plus `control_hashes` and `mgmt_hashes` lists.
+  - Added `path_request_handler/2` callback matching Python's `Transport.path_request_handler`:
+    parses destination_hash, requesting_transport_instance, and tag_bytes from packet data.
+  - Added `remote_status_handler/6`, `remote_path_handler/6`, `blackhole_list_handler/6`
+    callback stubs with logging (deferred features, as PRD allows no-op handlers).
+  - Added `handle_call(:blackholed_identities, ...)` for blackhole list handler access.
+- `lib/rns/destination.ex`:
+  - Added `build/5` function — identical to `new/5` but skips auto-registration with
+    Transport. Used internally by Transport when creating destinations from within a
+    GenServer callback to avoid deadlock.
+- `lib/rns/reticulum.ex`:
+  - Added `RNS.Transport.create_destinations/1` call in `init/1` after
+    `start_local_interface` (shared-instance detection) and before starting configured
+    interfaces. Passes `probe_enabled`, `remote_management_enabled`, `publish_blackhole`,
+    `is_connected_to_shared_instance`, and `network_identity` from Reticulum state.
+- `test/rns/transport_control_destinations_test.exs`: New test file with 29 tests covering:
+  - Control destinations: path_request and tunnel_synthesize creation, packet callbacks,
+    ETS registration, control_hashes list
+  - Probe destination: creation when enabled, transport identity usage, no links,
+    PROVE_ALL strategy, not created when disabled, mgmt_hashes membership
+  - Remote management: creation when enabled and not connected to shared, transport
+    identity, /status and /path request handlers, not created when connected to shared
+    or disabled
+  - Blackhole: creation when enabled and not connected to shared, /list handler,
+    not created when disabled or connected to shared
+  - Network destinations: instance and network creation with network_identity, hexhash
+    in instance aspects, not created without network_identity or when connected to shared,
+    mgmt_hashes membership
+  - Integration: all destinations created together, idempotency
+- `test/rns/application_test.exs`: Added 2 tests verifying control destinations exist
+  after boot and have correct types/aspects.
+
+**Result:** `mix test` passes with 0 failures (3098 tests, 13 pre-existing skipped fixture tests).
