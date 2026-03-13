@@ -218,23 +218,26 @@ defmodule RNS.Buffer.RawChannelReader do
             end
 
           eof = if message.eof, do: true, else: state.eof
-          new_state = %{state | buffer: buffer, eof: eof}
+          %{state | buffer: buffer, eof: eof}
+        end)
 
-          # Notify listeners
-          Enum.each(new_state.listeners, fn listener ->
-            try do
-              Task.start(fn -> listener.(byte_size(buffer)) end)
-            rescue
-              e ->
-                RNS.Log.log(
-                  "Error calling RawChannelReader(#{stream_id}) callback: #{inspect(e)}",
-                  :error
-                )
-            end
+        # Notify listeners outside the Agent callback
+        {buffer_size, listeners} =
+          Agent.get(agent, fn state ->
+            {byte_size(state.buffer), state.listeners}
           end)
 
-          new_state
-        end)
+        for listener <- listeners do
+          try do
+            Task.start(fn -> listener.(buffer_size) end)
+          rescue
+            e ->
+              RNS.Log.log(
+                "Error calling RawChannelReader(#{stream_id}) callback: #{inspect(e)}",
+                :error
+              )
+          end
+        end
 
         true
       else

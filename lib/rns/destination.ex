@@ -205,11 +205,9 @@ defmodule RNS.Destination do
       raise ArgumentError, "Unknown destination direction"
     end
 
-    Enum.each(aspects, fn aspect ->
-      if String.contains?(aspect, ".") do
-        raise ArgumentError, "Dots are not allowed in aspects"
-      end
-    end)
+    if Enum.any?(aspects, &String.contains?(&1, ".")) do
+      raise ArgumentError, "Dots are not allowed in aspects"
+    end
 
     {identity, aspects} = resolve_identity(identity, direction, type, aspects)
 
