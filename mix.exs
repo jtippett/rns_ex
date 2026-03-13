@@ -41,7 +41,8 @@ defmodule RNS.MixProject do
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:stream_data, "~> 1.0", only: :test},
-      {:jason, "~> 1.4", only: [:dev, :test]}
+      {:jason, "~> 1.4", only: [:dev, :test]},
+      {:benchee, "~> 1.3", only: :dev}
     ]
   end
 end
