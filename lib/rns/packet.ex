@@ -459,14 +459,12 @@ defmodule RNS.Packet do
   end
 
   defp transport_opts do
-    try do
-      [
-        transport_identity: RNS.Transport.identity(),
-        is_shared_instance: RNS.Reticulum.is_connected_to_shared_instance?()
-      ]
-    catch
-      :exit, _ -> []
-    end
+    [
+      transport_identity: RNS.Transport.identity(),
+      is_shared_instance: RNS.Reticulum.is_connected_to_shared_instance?()
+    ]
+  catch
+    :exit, _ -> []
   end
 
   @doc """

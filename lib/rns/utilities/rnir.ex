@@ -26,12 +26,10 @@ defmodule RNS.Utilities.RNIR do
   def main(args) do
     case parse_args(args) do
       {:ok, opts} ->
-        cond do
-          opts.version ->
-            IO.puts("rnir #{RNS.Version.version()}")
-
-          true ->
-            program_setup(opts)
+        if opts.version do
+          IO.puts("rnir #{RNS.Version.version()}")
+        else
+          program_setup(opts)
         end
 
       {:error, message} ->

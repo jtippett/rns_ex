@@ -7,8 +7,8 @@ defmodule RNS.Reticulum.ConfigTest do
   """
   use ExUnit.Case, async: true
 
-  alias RNS.Reticulum.Config
   alias RNS.Interfaces.Interface
+  alias RNS.Reticulum.Config
   alias RNS.Vendor.ConfigObj
   alias RNS.Vendor.ConfigObj.Section
 

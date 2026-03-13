@@ -805,7 +805,6 @@ defmodule RNS.Utilities.RNPath do
     IO.puts(inspect(json_table))
   end
 
-
   defp print_usage do
     IO.puts("""
     Reticulum Path Management Utility

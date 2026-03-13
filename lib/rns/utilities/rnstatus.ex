@@ -688,7 +688,6 @@ defmodule RNS.Utilities.RNStatus do
     _ -> 0
   end
 
-
   defp print_usage do
     IO.puts("""
     Reticulum Network Stack Status

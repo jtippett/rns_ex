@@ -1,9 +1,9 @@
 defmodule RNS.TransportControlDestinationsTest do
   use ExUnit.Case, async: false
 
-  alias RNS.Transport
   alias RNS.Destination
   alias RNS.Identity
+  alias RNS.Transport
 
   setup do
     RNS.Test.SupervisedHelpers.clear_transport_tables()

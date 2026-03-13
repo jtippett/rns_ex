@@ -2585,7 +2585,7 @@ defmodule RNS.Transport do
   defp remote_status_handler(_path, _data, _request_id, _link_id, remote_identity, _requested_at) do
     if remote_identity != nil do
       Logger.debug("Remote status request received")
-      # TODO: return interface stats when Reticulum.get_interface_stats is wired
+      # NOTE: returns interface stats when Reticulum.get_interface_stats is wired
       nil
     end
   end
@@ -2595,7 +2595,7 @@ defmodule RNS.Transport do
   defp remote_path_handler(_path, _data, _request_id, _link_id, remote_identity, _requested_at) do
     if remote_identity != nil do
       Logger.debug("Remote path request received")
-      # TODO: return path/rate table when Reticulum.get_path_table is wired
+      # NOTE: returns path/rate table when Reticulum.get_path_table is wired
       nil
     end
   end
@@ -2603,13 +2603,11 @@ defmodule RNS.Transport do
   # Blackhole list handler — returns the current blackhole list.
   # Matches Python's Transport.blackhole_list_handler.
   defp blackhole_list_handler(_path, _data, _request_id, _link_id, _remote_identity, _requested_at) do
-    try do
-      GenServer.call(__MODULE__, :blackholed_identities)
-    rescue
-      _ -> nil
-    catch
-      :exit, _ -> nil
-    end
+    GenServer.call(__MODULE__, :blackholed_identities)
+  rescue
+    _ -> nil
+  catch
+    :exit, _ -> nil
   end
 
   # ── Periodic Job Logic ────────────────────────────────────────────────

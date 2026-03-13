@@ -15,7 +15,6 @@ defmodule RNS.Integration.FileTransferTest do
   alias RNS.Cryptography.Token
   alias RNS.Link
   alias RNS.Resource
-  alias RNS.Transport
 
   # ── Setup ─────────────────────────────────────────────────────────
 

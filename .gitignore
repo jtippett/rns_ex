@@ -22,6 +22,9 @@ erl_crash.dump
 # Ignore package tarball (built via "mix hex.build").
 rns_ex-*.tar
 
+# Dialyzer PLTs
+/priv/plts/
+
 # ElixirLS
 /.elixir_ls/
 
@@ -35,3 +38,4 @@ rns_ex-*.tar
 ralph-once.sh
 afk-ralph.sh
 PRD.md
+.private-journal/

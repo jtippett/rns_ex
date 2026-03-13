@@ -115,7 +115,7 @@ defmodule RNS.TransportPersistenceTest do
         timestamp: now,
         next_hop: :crypto.strong_rand_bytes(16),
         hops: 2,
-        expires: now + 86400,
+        expires: now + 86_400,
         random_blobs: [:crypto.strong_rand_bytes(16)],
         interface: mock_interface,
         packet_hash: :crypto.strong_rand_bytes(32)
@@ -125,7 +125,7 @@ defmodule RNS.TransportPersistenceTest do
         timestamp: now,
         next_hop: :crypto.strong_rand_bytes(16),
         hops: 1,
-        expires: now + 86400,
+        expires: now + 86_400,
         random_blobs: [],
         interface: mock_interface,
         packet_hash: :crypto.strong_rand_bytes(32)
@@ -215,7 +215,7 @@ defmodule RNS.TransportPersistenceTest do
         timestamp: now,
         next_hop: :crypto.strong_rand_bytes(16),
         hops: 1,
-        expires: now + 86400,
+        expires: now + 86_400,
         random_blobs: [],
         interface: mock_interface,
         packet_hash: :crypto.strong_rand_bytes(32)
@@ -254,7 +254,7 @@ defmodule RNS.TransportPersistenceTest do
         timestamp: now,
         next_hop: :crypto.strong_rand_bytes(16),
         hops: 1,
-        expires: now + 86400,
+        expires: now + 86_400,
         random_blobs: [:crypto.strong_rand_bytes(16), :crypto.strong_rand_bytes(16)],
         interface: %{hash: interface_hash, name: "TunnelIface"},
         packet_hash: :crypto.strong_rand_bytes(32)
@@ -264,7 +264,7 @@ defmodule RNS.TransportPersistenceTest do
         tunnel_id: tunnel_id,
         interface: %{hash: interface_hash},
         paths: %{dest_hash => path_entry},
-        expires: now + 86400
+        expires: now + 86_400
       }
 
       Transport.put_tunnel_entry(tunnel_id, tunnel_entry)

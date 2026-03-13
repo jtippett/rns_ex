@@ -13,7 +13,10 @@ defmodule RNS.MixProject do
       consolidate_protocols: Mix.env() != :test,
       deps: deps(),
       package: package(),
-      dialyzer: [plt_add_apps: [:crypto]],
+      dialyzer: [
+        plt_add_apps: [:crypto],
+        plt_file: {:no_warn, "priv/plts/dialyzer.plt"}
+      ],
       name: "RNS",
       description: description(),
       source_url: @source_url,

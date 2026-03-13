@@ -915,11 +915,9 @@ defmodule RNS.Reticulum do
   defp detach_interface(nil), do: :ok
 
   defp detach_interface(pid) when is_pid(pid) do
-    try do
-      if Process.alive?(pid), do: GenServer.call(pid, :detach)
-    catch
-      _, _ -> :ok
-    end
+    if Process.alive?(pid), do: GenServer.call(pid, :detach)
+  catch
+    _, _ -> :ok
   end
 
   defp start_shared_server(state) do

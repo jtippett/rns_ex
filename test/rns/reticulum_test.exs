@@ -1888,7 +1888,7 @@ defmodule RNS.ReticulumTest do
 
       # The shared server interface should be registered with Transport
       interfaces = RNS.Transport.get_interfaces()
-      assert length(interfaces) >= 1
+      assert interfaces != []
 
       registered = Enum.find(interfaces, &(&1.name == "Shared Instance"))
       assert registered != nil
@@ -1940,7 +1940,7 @@ defmodule RNS.ReticulumTest do
 
       # The client interface should be registered with Transport
       interfaces = RNS.Transport.get_interfaces()
-      assert length(interfaces) >= 1
+      assert interfaces != []
 
       registered = Enum.find(interfaces, &(&1.name == "Local shared instance"))
       assert registered != nil
@@ -1983,7 +1983,7 @@ defmodule RNS.ReticulumTest do
 
       # Verify at least one interface is registered
       interfaces_before = RNS.Transport.get_interfaces()
-      assert length(interfaces_before) >= 1
+      assert interfaces_before != []
 
       # Update Reticulum state with the started interfaces so terminate can deregister them
       :sys.replace_state(pid, fn _state -> result end)
@@ -2029,7 +2029,7 @@ defmodule RNS.ReticulumTest do
       state = %{state | is_standalone_instance: true}
       new_state = Reticulum.start_configured_interfaces(state)
 
-      assert length(new_state.started_interfaces) > 0
+      assert new_state.started_interfaces != []
 
       # The configured interface should be registered with Transport
       interfaces = RNS.Transport.get_interfaces()
@@ -2047,7 +2047,7 @@ defmodule RNS.ReticulumTest do
     end
 
     test "process_outgoing message is handled by LocalClientInterface" do
-      test_pid = self()
+      _test_pid = self()
 
       # Start a local server that captures client data
       {:ok, server} =

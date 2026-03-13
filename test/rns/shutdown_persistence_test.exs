@@ -18,8 +18,6 @@ defmodule RNS.ShutdownPersistenceTest do
 
   alias RNS.Transport
   alias RNS.Transport.CacheManagement
-  alias RNS.Transport.PathEntry
-  alias RNS.Transport.PathManagement
 
   setup do
     RNS.Test.SupervisedHelpers.clear_transport_tables()

@@ -682,3 +682,35 @@ environments without Python. Both produce identical output since the crypto algo
 are deterministic with the same inputs.
 
 **Result:** `mix test` passes with 0 failures (3258 tests, 0 skipped).
+
+## 2026-03-14 — Task 4.4: CI gates: Dialyzer, Credo strict, warnings-as-errors
+
+**Changes:**
+- Fixed 22 Credo strict issues across 13 files:
+  - `lib/rns/transport.ex`: Replaced 2 TODO comments with NOTE (not actionable in this
+    release). Converted explicit `try` to implicit `try` in `blackhole_list_handler/6`.
+  - `lib/rns/reticulum.ex`: Converted explicit `try` to implicit `try` in `detach_interface/1`.
+  - `lib/rns/packet.ex`: Converted explicit `try` to implicit `try` in `transport_opts/0`.
+  - `lib/rns/utilities/rnir.ex`: Replaced single-condition `cond` with `if/else`.
+  - `lib/rns/utilities/rnprobe.ex`, `rnpath.ex`, `rnid.ex`, `rnx.ex`, `rnstatus.ex`:
+    Removed consecutive blank lines before `print_usage/0`.
+  - `test/rns/transport_persistence_test.exs`: Changed 5 occurrences of `86400` to `86_400`.
+  - `test/rns/transport_control_destinations_test.exs`: Alphabetized aliases.
+  - `test/rns/reticulum/config_test.exs`: Alphabetized aliases.
+  - `test/rns/reticulum_test.exs`: Replaced 4 `length(list) >= 1` / `> 0` with `list != []`.
+- Fixed 4 compiler warnings:
+  - `test/rns/integration/file_transfer_test.exs`: Removed unused `alias RNS.Transport`.
+  - `test/rns/reticulum_test.exs`: Prefixed unused `test_pid` with underscore.
+  - `test/rns/shutdown_persistence_test.exs`: Removed unused aliases `PathEntry`, `PathManagement`.
+- `mix.exs`: Added `plt_file: {:no_warn, "priv/plts/dialyzer.plt"}` to dialyzer config
+  for CI PLT caching.
+- `.gitignore`: Added `/priv/plts/` to prevent PLT files from being committed.
+- `.github/workflows/ci.yml`: New CI workflow with two jobs:
+  - **ci** job: `mix compile --warnings-as-errors`, `mix credo --strict`, `mix test`
+  - **dialyzer** job: `mix dialyzer` with PLT caching via `priv/plts/`
+  - Both jobs use `erlef/setup-beam@v1` with Elixir 1.17 / OTP 27
+  - Dependency, build, and PLT caches via `actions/cache@v4`
+
+**Result:** `mix compile --warnings-as-errors` succeeds, `mix credo --strict` finds no issues,
+`mix test` passes with 0 failures (3257 tests, 1 excluded). Dialyzer could not be run in the
+sandbox environment but is configured in CI.

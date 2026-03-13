@@ -1050,7 +1050,6 @@ defmodule RNS.Utilities.RNX do
     end
   end
 
-
   defp print_usage do
     IO.puts("""
     Reticulum Remote Execution Utility

@@ -416,7 +416,6 @@ defmodule RNS.Utilities.RNProbe do
     end
   end
 
-
   defp print_usage do
     IO.puts("""
     Reticulum Probe Utility

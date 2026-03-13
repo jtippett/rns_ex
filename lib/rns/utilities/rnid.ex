@@ -1031,7 +1031,6 @@ defmodule RNS.Utilities.RNID do
     e -> {:error, Exception.message(e)}
   end
 
-
   defp print_usage do
     IO.puts("""
     Reticulum Identity & Encryption Utility
