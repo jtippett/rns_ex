@@ -346,7 +346,7 @@ This is the largest module (3312 LOC in Python). Split into manageable sub-modul
 - [x] **8.1 — Configuration parser**
   Create `lib/rns/vendor/config_obj.ex`. Port INI-like config parsing that `python/RNS/Reticulum.py` uses. RNS configs use `configobj` format (INI with nested sections, type coercion). Implement: `parse/1`, `parse_file/1`, `to_string/1`. Handle nested `[[section]]` blocks, key=value parsing, comments, type coercion (booleans, integers, lists). Write tests with sample RNS config files (see `python/tests/rnsconfig/config`).
 
-- [ ] **8.2 — Reticulum main class — initialization and configuration**
+- [x] **8.2 — Reticulum main class — initialization and configuration**
   Port `python/RNS/Reticulum.py` (1716 LOC, part 1) → `lib/rns/reticulum.ex`. Implement `RNS.Reticulum` as a GenServer (effectively singleton per node). Config dir detection (`~/.reticulum/` or custom), config parsing, storage/cache/resource path management. `init/1`: load config, set up paths, init Identity store, start Transport. `create_default_config/0`. Write tests: initialization, path management, default config.
 
 - [ ] **8.3 — Reticulum main class — interface instantiation and lifecycle**
