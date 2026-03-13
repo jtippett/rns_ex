@@ -196,3 +196,28 @@ packets correctly bypass the path table via `should_use_path_table?` returning f
   - `test/rns/integration/link_establishment_test.exs`: Same pattern.
 
 **Result:** `mix test` passes with 0 failures (3044 tests, 13 pre-existing skipped fixture tests).
+
+## 2026-03-14 — Task 1.8: Normalize link status to numeric constants
+
+**Changes:**
+- `lib/rns/transport.ex`:
+  - Line ~507: Changed `Map.get(link, :status) != :active` to `!= RNS.Link.active()` in
+    `activate_link/1`. Previously, this comparison would never match a Link struct (which
+    uses numeric `0x02`), so `activate_link` would always return `{:error, :invalid_status}`
+    for real Link structs.
+  - Line ~2273: Changed `Map.get(link, :status) == :closed` to `== RNS.Link.closed()` in
+    `maybe_check_links/2` pending link cleanup. Without this fix, closed pending links would
+    never be removed from the pending table.
+  - Line ~2287: Same fix for active link cleanup — closed active links would never be removed.
+- `test/rns/transport_test.exs`:
+  - Updated 11 occurrences of atom-based link status (`:pending`, `:active`) in mock link
+    data to use `RNS.Link.pending()` and `RNS.Link.active()` numeric constants.
+- `test/rns/integration/link_establishment_test.exs`:
+  - Updated 1 occurrence: `status: :active` → `status: RNS.Link.active()` in the
+    activate_link test. Updated comment to reflect numeric constants instead of atoms.
+
+**Verification:** Grepped entire codebase for atom-based link status patterns — zero results
+in link-status contexts. One unrelated match (`I2PController.tunnel_state_active() == :active`)
+is I2P tunnel state, not link status.
+
+**Result:** `mix test` passes with 0 failures (3044 tests, 13 pre-existing skipped fixture tests).

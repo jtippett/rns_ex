@@ -547,23 +547,23 @@ defmodule RNS.TransportTest do
 
   describe "link registration" do
     test "register_link adds initiator link to pending table" do
-      link = %{link_id: :crypto.strong_rand_bytes(16), initiator: true, status: :pending}
+      link = %{link_id: :crypto.strong_rand_bytes(16), initiator: true, status: RNS.Link.pending()}
       assert :ok == Transport.register_link(link)
       assert Transport.get_pending_links() |> Enum.any?(fn l -> l.link_id == link.link_id end)
     end
 
     test "register_link adds non-initiator link to active table" do
-      link = %{link_id: :crypto.strong_rand_bytes(16), initiator: false, status: :active}
+      link = %{link_id: :crypto.strong_rand_bytes(16), initiator: false, status: RNS.Link.active()}
       assert :ok == Transport.register_link(link)
       assert Transport.get_active_links() |> Enum.any?(fn l -> l.link_id == link.link_id end)
     end
 
     test "activate_link moves pending link to active" do
       link_id = :crypto.strong_rand_bytes(16)
-      link = %{link_id: link_id, initiator: true, status: :pending}
+      link = %{link_id: link_id, initiator: true, status: RNS.Link.pending()}
       Transport.register_link(link)
 
-      activated_link = %{link | status: :active}
+      activated_link = %{link | status: RNS.Link.active()}
       assert :ok == Transport.activate_link(activated_link)
 
       assert Transport.get_pending_links() == []
@@ -571,13 +571,13 @@ defmodule RNS.TransportTest do
     end
 
     test "activate_link returns error for non-pending link" do
-      link = %{link_id: :crypto.strong_rand_bytes(16), status: :active}
+      link = %{link_id: :crypto.strong_rand_bytes(16), status: RNS.Link.active()}
       assert {:error, :not_pending} == Transport.activate_link(link)
     end
 
     test "activate_link returns error for non-active status" do
       link_id = :crypto.strong_rand_bytes(16)
-      link = %{link_id: link_id, initiator: true, status: :pending}
+      link = %{link_id: link_id, initiator: true, status: RNS.Link.pending()}
       Transport.register_link(link)
 
       assert {:error, :invalid_status} == Transport.activate_link(link)
@@ -585,7 +585,7 @@ defmodule RNS.TransportTest do
 
     test "find_link_for_request_packet finds pending link" do
       link_id = :crypto.strong_rand_bytes(16)
-      link = %{link_id: link_id, initiator: true, status: :pending}
+      link = %{link_id: link_id, initiator: true, status: RNS.Link.pending()}
       Transport.register_link(link)
 
       packet = %{destination_hash: link_id}
@@ -599,7 +599,7 @@ defmodule RNS.TransportTest do
 
     test "find_best_link finds active link by destination hash" do
       link_id = :crypto.strong_rand_bytes(16)
-      link = %{link_id: link_id, initiator: false, status: :active}
+      link = %{link_id: link_id, initiator: false, status: RNS.Link.active()}
       Transport.register_link(link)
 
       assert Transport.find_best_link(link_id) == link
@@ -611,14 +611,14 @@ defmodule RNS.TransportTest do
 
     test "remove_pending_link deletes from pending table" do
       link_id = :crypto.strong_rand_bytes(16)
-      Transport.register_link(%{link_id: link_id, initiator: true, status: :pending})
+      Transport.register_link(%{link_id: link_id, initiator: true, status: RNS.Link.pending()})
       Transport.remove_pending_link(link_id)
       assert Transport.get_pending_links() == []
     end
 
     test "remove_active_link deletes from active table" do
       link_id = :crypto.strong_rand_bytes(16)
-      Transport.register_link(%{link_id: link_id, initiator: false, status: :active})
+      Transport.register_link(%{link_id: link_id, initiator: false, status: RNS.Link.active()})
       Transport.remove_active_link(link_id)
       assert Transport.get_active_links() == []
     end
@@ -1430,7 +1430,7 @@ defmodule RNS.TransportTest do
       link = %{
         link_id: link_id,
         initiator: false,
-        status: :active,
+        status: RNS.Link.active(),
         attached_interface: nil,
         receive: fn packet ->
           send(test_pid, {:link_received, packet.destination_hash})

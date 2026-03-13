@@ -249,8 +249,8 @@ defmodule RNS.Integration.LinkEstablishmentTest do
       pending_links = Transport.get_pending_links()
       assert Enum.any?(pending_links, fn l -> l.link_id == pending.link_id end)
 
-      # activate_link expects :active atom status (matches Python behavior)
-      activated = %{pending | status: :active}
+      # activate_link expects numeric status constant from RNS.Link
+      activated = %{pending | status: RNS.Link.active()}
       result = Transport.activate_link(activated)
       assert result == :ok
 

@@ -504,7 +504,7 @@ defmodule RNS.Transport do
   def activate_link(link) do
     case :ets.lookup(@pending_links_table, link.link_id) do
       [{_, _pending}] ->
-        if Map.get(link, :status) != :active do
+        if Map.get(link, :status) != RNS.Link.active() do
           {:error, :invalid_status}
         else
           :ets.delete(@pending_links_table, link.link_id)
@@ -2270,7 +2270,7 @@ defmodule RNS.Transport do
       pending = :ets.tab2list(@pending_links_table)
 
       Enum.each(pending, fn {link_id, link} ->
-        if Map.get(link, :status) == :closed do
+        if Map.get(link, :status) == RNS.Link.closed() do
           :ets.delete(@pending_links_table, link_id)
 
           # Expire path and potentially rediscover
@@ -2284,7 +2284,7 @@ defmodule RNS.Transport do
       active = :ets.tab2list(@active_links_table)
 
       Enum.each(active, fn {link_id, link} ->
-        if Map.get(link, :status) == :closed do
+        if Map.get(link, :status) == RNS.Link.closed() do
           :ets.delete(@active_links_table, link_id)
         end
       end)
