@@ -364,6 +364,19 @@ defmodule RNS.Transport do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
 
+  @doc """
+  Configures Transport with runtime settings from Reticulum.
+
+  Called by Reticulum after config is loaded. Accepts a keyword list with:
+  - `:storage_path` — path for persisting path table, hashlist, tunnel table
+  - `:cachepath` — path for packet cache
+  - `:transport_enabled` — whether transport mode is active
+  """
+  @spec configure(keyword()) :: :ok
+  def configure(opts) do
+    GenServer.call(__MODULE__, {:configure, opts})
+  end
+
   # ── Destination Registration ──────────────────────────────────────────
 
   @doc "Registers a destination with the Transport system."
@@ -2003,6 +2016,27 @@ defmodule RNS.Transport do
   end
 
   @impl true
+  def handle_call({:configure, opts}, _from, state) do
+    storage_path = Keyword.get(opts, :storage_path, state.storage_path)
+    cachepath = Keyword.get(opts, :cachepath, state.cachepath)
+    transport_enabled = Keyword.get(opts, :transport_enabled, state.transport_enabled)
+
+    state = %{
+      state
+      | storage_path: storage_path,
+        cachepath: cachepath,
+        transport_enabled: transport_enabled
+    }
+
+    # Load persisted data from disk if storage path is available
+    if storage_path do
+      load_persisted_data(storage_path)
+    end
+
+    {:reply, :ok, state}
+  end
+
+  @impl true
   def handle_call({:register_destination, destination}, _from, state) do
     direction_in = 0x11
 
@@ -2121,6 +2155,15 @@ defmodule RNS.Transport do
       CacheManagement.persist_data(state.storage_path)
     end
 
+    :ok
+  end
+
+  # ── Persisted Data Loading ──────────────────────────────────────────
+
+  defp load_persisted_data(storage_path) do
+    CacheManagement.load_packet_hashlist(Path.join(storage_path, "packet_hashlist"))
+    PathManagement.load_path_table(Path.join(storage_path, "destination_table"))
+    CacheManagement.load_tunnel_table(Path.join(storage_path, "tunnels"))
     :ok
   end
 

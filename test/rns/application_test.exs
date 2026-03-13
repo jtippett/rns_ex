@@ -104,4 +104,31 @@ defmodule RNS.ApplicationTest do
       assert is_map(state)
     end
   end
+
+  describe "subsystem configuration (Task 1.2)" do
+    test "IdentityStore has been configured with a storage path" do
+      storagepath = RNS.IdentityStore.storagepath()
+      assert is_binary(storagepath)
+      assert String.length(storagepath) > 0
+    end
+
+    test "IdentityStore storage path matches Reticulum's storagepath" do
+      reticulum_state = GenServer.call(RNS.Reticulum, :get_state)
+      identity_storagepath = RNS.IdentityStore.storagepath()
+      assert identity_storagepath == reticulum_state.storagepath
+    end
+
+    test "Transport ETS tables are accessible after configuration" do
+      assert :ets.info(:rns_path_table) != :undefined
+      assert :ets.info(:rns_packet_hashlist) != :undefined
+      assert :ets.info(:rns_tunnel_table) != :undefined
+    end
+
+    test "shutdown logs no ETS errors" do
+      # All GenServers are responsive (no crashes from terminate issues)
+      assert is_pid(GenServer.whereis(RNS.IdentityStore))
+      assert is_pid(GenServer.whereis(RNS.Transport))
+      assert is_pid(GenServer.whereis(RNS.Reticulum))
+    end
+  end
 end

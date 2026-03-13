@@ -621,6 +621,9 @@ defmodule RNS.Reticulum do
     if skip_start do
       {:ok, state}
     else
+      # Configure the already-running IdentityStore and Transport with paths/config
+      configure_subsystems(state)
+
       # Start local interface (shared/client/standalone mode)
       state = start_local_interface(state)
 
@@ -830,31 +833,43 @@ defmodule RNS.Reticulum do
 
   # ── Private ────────────────────────────────────────────────────────────
 
+  defp configure_subsystems(state) do
+    # Tell IdentityStore the storage path so it can load known destinations
+    RNS.IdentityStore.configure(state.storagepath)
+
+    # Tell Transport its storage path, cache path, and transport mode
+    RNS.Transport.configure(
+      storage_path: state.storagepath,
+      cachepath: state.cachepath,
+      transport_enabled: state.transport_enabled
+    )
+  end
+
   defp schedule_job do
     Process.send_after(self(), :run_jobs, @job_interval * 1000)
   end
 
   defp persist_data(state) do
     try do
-      # Save Transport path table
-      path_table_path = Path.join(state.storagepath, "path_table")
-      RNS.Transport.save_path_table(path_table_path)
+      RNS.IdentityStore.save_known_destinations()
     rescue
-      e -> Logger.debug("Could not save path table: #{Exception.message(e)}")
+      e -> Logger.debug("Could not save known destinations: #{Exception.message(e)}")
     end
 
     try do
-      # Save packet hashlist
-      hashlist_path = Path.join(state.storagepath, "packet_hashlist")
-      RNS.Transport.save_packet_hashlist(hashlist_path)
+      RNS.Transport.save_packet_hashlist(Path.join(state.storagepath, "packet_hashlist"))
     rescue
       e -> Logger.debug("Could not save packet hashlist: #{Exception.message(e)}")
     end
 
     try do
-      # Save tunnel table
-      tunnel_path = Path.join(state.storagepath, "tunnel_table")
-      RNS.Transport.save_tunnel_table(tunnel_path)
+      RNS.Transport.save_path_table(Path.join(state.storagepath, "destination_table"))
+    rescue
+      e -> Logger.debug("Could not save path table: #{Exception.message(e)}")
+    end
+
+    try do
+      RNS.Transport.save_tunnel_table(Path.join(state.storagepath, "tunnels"))
     rescue
       e -> Logger.debug("Could not save tunnel table: #{Exception.message(e)}")
     end

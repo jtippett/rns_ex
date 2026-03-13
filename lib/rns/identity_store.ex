@@ -7,15 +7,43 @@ defmodule RNS.IdentityStore do
   """
 
   use GenServer
+  require Logger
 
   @destinations_table :rns_known_destinations
   @ratchets_table :rns_known_ratchets
+
+  @truncated_hashlength_bytes div(128, 8)
 
   # --- Client API ---
 
   @doc "Starts the IdentityStore GenServer."
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, opts, name: Keyword.get(opts, :name, __MODULE__))
+  end
+
+  @doc """
+  Configures the IdentityStore with a storage path and loads known
+  destinations from disk. Called by Reticulum after config is loaded.
+  """
+  @spec configure(String.t()) :: :ok
+  def configure(storagepath) do
+    GenServer.call(__MODULE__, {:configure, storagepath})
+  end
+
+  @doc """
+  Saves known destinations to disk at the configured storage path.
+  """
+  @spec save_known_destinations() :: :ok | {:error, term()}
+  def save_known_destinations do
+    GenServer.call(__MODULE__, :save_known_destinations)
+  end
+
+  @doc """
+  Returns the configured storage path, or nil if not yet configured.
+  """
+  @spec storagepath() :: String.t() | nil
+  def storagepath do
+    GenServer.call(__MODULE__, :storagepath)
   end
 
   @doc """
@@ -89,7 +117,24 @@ defmodule RNS.IdentityStore do
     ets_opts = [:set, :public, :named_table, read_concurrency: true]
     safe_create_table(@destinations_table, ets_opts)
     safe_create_table(@ratchets_table, ets_opts)
-    {:ok, %{}}
+    {:ok, %{storagepath: nil}}
+  end
+
+  @impl true
+  def handle_call({:configure, storagepath}, _from, state) do
+    load_known_destinations(storagepath)
+    {:reply, :ok, %{state | storagepath: storagepath}}
+  end
+
+  @impl true
+  def handle_call(:save_known_destinations, _from, state) do
+    result = do_save_known_destinations(state.storagepath)
+    {:reply, result, state}
+  end
+
+  @impl true
+  def handle_call(:storagepath, _from, state) do
+    {:reply, state.storagepath, state}
   end
 
   defp safe_create_table(name, opts) do
@@ -100,6 +145,68 @@ defmodule RNS.IdentityStore do
       _ ->
         :ets.delete_all_objects(name)
         name
+    end
+  end
+
+  # --- Persistence ---
+
+  defp load_known_destinations(storagepath) do
+    file_path = Path.join(storagepath, "known_destinations")
+
+    if File.exists?(file_path) do
+      try do
+        data = File.read!(file_path)
+        loaded = Msgpax.unpack!(data)
+
+        count =
+          Enum.reduce(loaded, 0, fn
+            {dest_hash, [ts, pkt_hash, pub_key, app_data]}, acc
+            when is_binary(dest_hash) and byte_size(dest_hash) == @truncated_hashlength_bytes ->
+              entry = {ts, pkt_hash, pub_key, app_data}
+              :ets.insert(@destinations_table, {dest_hash, entry})
+              acc + 1
+
+            _, acc ->
+              acc
+          end)
+
+        Logger.info("Loaded #{count} known destinations from storage")
+      rescue
+        e ->
+          Logger.error(
+            "Error loading known destinations from disk, " <>
+              "file will be recreated on exit: #{Exception.message(e)}"
+          )
+      end
+    else
+      Logger.debug("Destinations file does not exist, no known destinations loaded")
+    end
+  end
+
+  defp do_save_known_destinations(nil) do
+    Logger.debug("No storage path configured, skipping known destinations save")
+    {:error, :no_storagepath}
+  end
+
+  defp do_save_known_destinations(storagepath) do
+    file_path = Path.join(storagepath, "known_destinations")
+
+    try do
+      destinations =
+        :ets.tab2list(@destinations_table)
+        |> Map.new(fn {dest_hash, {ts, pkt_hash, pub_key, app_data}} ->
+          {dest_hash, [ts, pkt_hash, pub_key, app_data]}
+        end)
+
+      packed = Msgpax.pack!(destinations, iodata: false)
+      File.write!(file_path, packed)
+
+      Logger.debug("Saved #{map_size(destinations)} known destinations to storage")
+      :ok
+    rescue
+      e ->
+        Logger.error("Error saving known destinations to disk: #{Exception.message(e)}")
+        {:error, Exception.message(e)}
     end
   end
 

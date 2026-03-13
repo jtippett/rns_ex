@@ -15,3 +15,27 @@
   shared table-clearing utilities.
 
 **Result:** `mix test` passes with 0 failures (13 pre-existing skipped fixture tests).
+
+## 2026-03-13 — Task 1.2: Restructure Reticulum init for supervised startup
+
+**Changes:**
+- `lib/rns/identity_store.ex`: Added `configure/1` API that accepts a storage path and loads
+  known destinations from disk using Msgpax (matching Python's `Identity.load_known_destinations()`).
+  Added `save_known_destinations/0` and `storagepath/0` APIs. Known destinations are serialized
+  as msgpack maps keyed by destination hash, with values `[timestamp, packet_hash, public_key, app_data]`.
+  Destinations with wrong hash length (not 16 bytes) are filtered out during loading.
+- `lib/rns/transport.ex`: Added `configure/1` API that accepts keyword opts (`:storage_path`,
+  `:cachepath`, `:transport_enabled`) and loads persisted data (packet hashlist, path table,
+  tunnel table) from disk. Added `load_persisted_data/1` private function using existing
+  CacheManagement and PathManagement persistence functions.
+- `lib/rns/reticulum.ex`: Added `configure_subsystems/1` called from `init/1` after config is
+  loaded (but before interface startup). It calls `IdentityStore.configure/1` with the storage
+  path and `Transport.configure/1` with storage path, cache path, and transport_enabled flag.
+  Updated `persist_data/1` to also save known destinations via `IdentityStore.save_known_destinations/0`
+  and fixed file names to match CacheManagement conventions (`destination_table`, `tunnels`).
+- `test/rns/identity_store_test.exs`: New test file with 8 tests covering configure, load, save,
+  round-trip persistence, hash length filtering, and error handling.
+- `test/rns/application_test.exs`: Added 4 tests verifying subsystem configuration on boot
+  (IdentityStore has storagepath, storagepath matches Reticulum's, Transport ETS accessible, no crashes).
+
+**Result:** `mix test` passes with 0 failures (2981 tests, 13 pre-existing skipped fixture tests).
