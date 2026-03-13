@@ -248,16 +248,16 @@ defmodule RNS.PacketTest do
     end
   end
 
-  # ── get_packed_flags ───────────────────────────────────────────────
+  # ── packed_flags ───────────────────────────────────────────────
 
-  describe "get_packed_flags/1" do
+  describe "packed_flags/1" do
     test "packs flags for default DATA packet" do
       # header_type=0, context_flag=0, transport_type=0, dest_type=0 (SINGLE), packet_type=0 (DATA)
       # flags = (0 << 6) | (0 << 5) | (0 << 4) | (0 << 2) | 0 = 0x00
       dest = make_destination(type: 0x00)
       packet = Packet.new(dest, "test")
 
-      assert Packet.get_packed_flags(packet) == 0x00
+      assert Packet.packed_flags(packet) == 0x00
     end
 
     test "packs flags for ANNOUNCE over transport" do
@@ -272,7 +272,7 @@ defmodule RNS.PacketTest do
           packet_type: Packet.announce()
         )
 
-      assert Packet.get_packed_flags(packet) == 0x51
+      assert Packet.packed_flags(packet) == 0x51
     end
 
     test "packs flags for GROUP DATA packet" do
@@ -281,7 +281,7 @@ defmodule RNS.PacketTest do
       dest = make_destination(type: 0x01)
       packet = Packet.new(dest, "test")
 
-      assert Packet.get_packed_flags(packet) == 0x04
+      assert Packet.packed_flags(packet) == 0x04
     end
 
     test "LRPROOF context uses LINK destination type" do
@@ -296,7 +296,7 @@ defmodule RNS.PacketTest do
           context: Packet.context_lrproof()
         )
 
-      assert Packet.get_packed_flags(packet) == 0x0F
+      assert Packet.packed_flags(packet) == 0x0F
     end
 
     test "packs flags with context_flag set" do
@@ -305,7 +305,7 @@ defmodule RNS.PacketTest do
       dest = make_destination(type: 0x00)
       packet = Packet.new(dest, "test", context_flag: Packet.flag_set())
 
-      assert Packet.get_packed_flags(packet) == 0x20
+      assert Packet.packed_flags(packet) == 0x20
     end
   end
 
@@ -575,13 +575,13 @@ defmodule RNS.PacketTest do
 
   # ── Hash computation ───────────────────────────────────────────────
 
-  describe "get_hash/1" do
+  describe "hash/1" do
     test "returns SHA-256 hash of hashable part" do
       dest_hash = :crypto.strong_rand_bytes(16)
       dest = make_destination(hash: dest_hash, type: 0x00)
       packet = Packet.new(dest, "test data", packet_type: Packet.announce()) |> Packet.pack()
 
-      hash = Packet.get_hash(packet)
+      hash = Packet.hash(packet)
 
       assert byte_size(hash) == 32
       assert is_binary(hash)
@@ -595,7 +595,7 @@ defmodule RNS.PacketTest do
       p1 = Packet.new(dest, data, packet_type: Packet.announce()) |> Packet.pack()
       p2 = Packet.new(dest, data, packet_type: Packet.announce()) |> Packet.pack()
 
-      assert Packet.get_hash(p1) == Packet.get_hash(p2)
+      assert Packet.hash(p1) == Packet.hash(p2)
     end
 
     test "different data produces different hash" do
@@ -605,28 +605,28 @@ defmodule RNS.PacketTest do
       p1 = Packet.new(dest, "data1", packet_type: Packet.announce()) |> Packet.pack()
       p2 = Packet.new(dest, "data2", packet_type: Packet.announce()) |> Packet.pack()
 
-      assert Packet.get_hash(p1) != Packet.get_hash(p2)
+      assert Packet.hash(p1) != Packet.hash(p2)
     end
   end
 
-  describe "get_truncated_hash/1" do
+  describe "truncated_hash/1" do
     test "returns 16-byte truncated hash" do
       dest = make_destination()
       packet = Packet.new(dest, "test", packet_type: Packet.announce()) |> Packet.pack()
 
-      truncated = Packet.get_truncated_hash(packet)
+      truncated = Packet.truncated_hash(packet)
 
       assert byte_size(truncated) == 16
     end
   end
 
-  describe "get_hashable_part/1" do
+  describe "hashable_part/1" do
     test "HEADER_1: masks upper nibble of flags and includes from byte 2 onward" do
       dest_hash = :crypto.strong_rand_bytes(16)
       dest = make_destination(hash: dest_hash, type: 0x00)
       packet = Packet.new(dest, "test", packet_type: Packet.announce()) |> Packet.pack()
 
-      hashable = Packet.get_hashable_part(packet)
+      hashable = Packet.hashable_part(packet)
 
       # First byte is flags & 0x0F (lower nibble only)
       <<masked_flags::8, rest::binary>> = hashable
@@ -649,7 +649,7 @@ defmodule RNS.PacketTest do
         )
         |> Packet.pack()
 
-      hashable = Packet.get_hashable_part(packet)
+      hashable = Packet.hashable_part(packet)
 
       # First byte is flags & 0x0F
       <<masked_flags::8, rest::binary>> = hashable
@@ -668,7 +668,7 @@ defmodule RNS.PacketTest do
 
       assert updated.packet_hash != nil
       assert byte_size(updated.packet_hash) == 32
-      assert updated.packet_hash == Packet.get_hash(packet)
+      assert updated.packet_hash == Packet.hash(packet)
     end
   end
 
@@ -709,8 +709,8 @@ defmodule RNS.PacketTest do
 
       receipt = PacketReceipt.new(packet)
 
-      assert receipt.hash == Packet.get_hash(packet)
-      assert receipt.truncated_hash == Packet.get_truncated_hash(packet)
+      assert receipt.hash == Packet.hash(packet)
+      assert receipt.truncated_hash == Packet.truncated_hash(packet)
       assert receipt.sent == true
       assert receipt.status == PacketReceipt.sent()
       assert receipt.proved == false
@@ -721,12 +721,12 @@ defmodule RNS.PacketTest do
   end
 
   describe "PacketReceipt status" do
-    test "get_status returns current status" do
+    test "status returns current status" do
       dest = make_destination()
       packet = Packet.new(dest, "test", packet_type: Packet.announce()) |> Packet.pack()
       receipt = PacketReceipt.new(packet)
 
-      assert PacketReceipt.get_status(receipt) == PacketReceipt.sent()
+      assert PacketReceipt.status(receipt) == PacketReceipt.sent()
     end
   end
 
@@ -836,7 +836,7 @@ defmodule RNS.PacketTest do
     end
   end
 
-  describe "PacketReceipt get_rtt" do
+  describe "PacketReceipt rtt" do
     test "returns round-trip time" do
       dest = make_destination()
       packet = Packet.new(dest, "test", packet_type: Packet.announce()) |> Packet.pack()
@@ -844,7 +844,7 @@ defmodule RNS.PacketTest do
       now = System.system_time(:second)
       receipt = %{receipt | sent_at: now - 5, concluded_at: now}
 
-      assert PacketReceipt.get_rtt(receipt) == 5
+      assert PacketReceipt.rtt(receipt) == 5
     end
   end
 
@@ -867,7 +867,7 @@ defmodule RNS.PacketTest do
       packet = Packet.new(dest, "test", packet_type: Packet.announce()) |> Packet.pack()
 
       proof_dest = ProofDestination.new(packet)
-      expected_hash = binary_part(Packet.get_hash(packet), 0, 16)
+      expected_hash = binary_part(Packet.hash(packet), 0, 16)
 
       assert proof_dest.hash == expected_hash
     end

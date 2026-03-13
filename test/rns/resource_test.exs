@@ -332,15 +332,15 @@ defmodule RNS.ResourceTest do
   end
 
   # ══════════════════════════════════════════════════════════════
-  # get_map_hash
+  # map_hash
   # ══════════════════════════════════════════════════════════════
 
-  describe "get_map_hash/2" do
+  describe "map_hash/2" do
     test "returns MAPHASH_LEN bytes" do
       data = :crypto.strong_rand_bytes(100)
       random_hash = :crypto.strong_rand_bytes(4)
 
-      hash = Resource.get_map_hash(data, random_hash)
+      hash = Resource.map_hash(data, random_hash)
 
       assert byte_size(hash) == Resource.maphash_len()
     end
@@ -349,8 +349,8 @@ defmodule RNS.ResourceTest do
       data = :crypto.strong_rand_bytes(100)
       random_hash = :crypto.strong_rand_bytes(4)
 
-      hash1 = Resource.get_map_hash(data, random_hash)
-      hash2 = Resource.get_map_hash(data, random_hash)
+      hash1 = Resource.map_hash(data, random_hash)
+      hash2 = Resource.map_hash(data, random_hash)
 
       assert hash1 == hash2
     end
@@ -360,8 +360,8 @@ defmodule RNS.ResourceTest do
       data1 = :crypto.strong_rand_bytes(100)
       data2 = :crypto.strong_rand_bytes(100)
 
-      hash1 = Resource.get_map_hash(data1, random_hash)
-      hash2 = Resource.get_map_hash(data2, random_hash)
+      hash1 = Resource.map_hash(data1, random_hash)
+      hash2 = Resource.map_hash(data2, random_hash)
 
       assert hash1 != hash2
     end
@@ -371,8 +371,8 @@ defmodule RNS.ResourceTest do
       rh1 = :crypto.strong_rand_bytes(4)
       rh2 = :crypto.strong_rand_bytes(4)
 
-      hash1 = Resource.get_map_hash(data, rh1)
-      hash2 = Resource.get_map_hash(data, rh2)
+      hash1 = Resource.map_hash(data, rh1)
+      hash2 = Resource.map_hash(data, rh2)
 
       assert hash1 != hash2
     end
@@ -471,11 +471,11 @@ defmodule RNS.ResourceTest do
 
       adv = Advertisement.new(resource)
 
-      assert Advertisement.get_transfer_size(adv) == resource.size
-      assert Advertisement.get_data_size(adv) == resource.total_size
-      assert Advertisement.get_parts(adv) == length(resource.parts)
-      assert Advertisement.get_segments(adv) == resource.total_segments
-      assert Advertisement.get_hash(adv) == resource.hash
+      assert Advertisement.transfer_size(adv) == resource.size
+      assert Advertisement.data_size(adv) == resource.total_size
+      assert Advertisement.parts(adv) == length(resource.parts)
+      assert Advertisement.segments(adv) == resource.total_segments
+      assert Advertisement.hash(adv) == resource.hash
     end
 
     test "advertisement with metadata flag" do
@@ -1227,14 +1227,14 @@ defmodule RNS.ResourceTest do
   # Progress
   # ══════════════════════════════════════════════════════════════
 
-  describe "get_progress/1" do
+  describe "progress/1" do
     test "returns 1.0 for complete final segment" do
       link = plain_link()
       data = :crypto.strong_rand_bytes(200)
       resource = Resource.new(data, link)
       resource = %{resource | status: Resource.status_complete()}
 
-      assert Resource.get_progress(resource) == 1.0
+      assert Resource.progress(resource) == 1.0
     end
 
     test "returns 0.0 for no parts sent (initiator)" do
@@ -1242,7 +1242,7 @@ defmodule RNS.ResourceTest do
       data = :crypto.strong_rand_bytes(200)
       resource = Resource.new(data, link)
 
-      assert Resource.get_progress(resource) == 0.0
+      assert Resource.progress(resource) == 0.0
     end
 
     test "returns partial progress for initiator" do
@@ -1251,7 +1251,7 @@ defmodule RNS.ResourceTest do
       resource = Resource.new(data, link)
       resource = %{resource | sent_parts: 1}
 
-      progress = Resource.get_progress(resource)
+      progress = Resource.progress(resource)
 
       assert progress > 0.0
       assert progress <= 1.0
@@ -1262,7 +1262,7 @@ defmodule RNS.ResourceTest do
       resource = Resource.new(nil, link)
       resource = %{resource | total_parts: 10}
 
-      assert Resource.get_progress(resource) == 0.0
+      assert Resource.progress(resource) == 0.0
     end
 
     test "returns partial progress for receiver" do
@@ -1270,20 +1270,20 @@ defmodule RNS.ResourceTest do
       resource = Resource.new(nil, link)
       resource = %{resource | total_parts: 10, received_count: 5}
 
-      progress = Resource.get_progress(resource)
+      progress = Resource.progress(resource)
 
       assert progress == 0.5
     end
   end
 
-  describe "get_segment_progress/1" do
+  describe "segment_progress/1" do
     test "returns 1.0 for complete final segment" do
       link = plain_link()
       data = :crypto.strong_rand_bytes(200)
       resource = Resource.new(data, link)
       resource = %{resource | status: Resource.status_complete()}
 
-      assert Resource.get_segment_progress(resource) == 1.0
+      assert Resource.segment_progress(resource) == 1.0
     end
 
     test "returns partial progress for initiator" do
@@ -1293,7 +1293,7 @@ defmodule RNS.ResourceTest do
       total = resource.total_parts
       resource = %{resource | sent_parts: 1}
 
-      progress = Resource.get_segment_progress(resource)
+      progress = Resource.segment_progress(resource)
 
       assert_in_delta progress, 1 / total, 0.01
     end
@@ -1303,7 +1303,7 @@ defmodule RNS.ResourceTest do
       resource = Resource.new(nil, link)
       resource = %{resource | total_parts: 10, received_count: 3}
 
-      assert Resource.get_segment_progress(resource) == 0.3
+      assert Resource.segment_progress(resource) == 0.3
     end
   end
 
@@ -1312,44 +1312,44 @@ defmodule RNS.ResourceTest do
   # ══════════════════════════════════════════════════════════════
 
   describe "getters" do
-    test "get_transfer_size returns size" do
+    test "transfer_size returns size" do
       link = plain_link()
       data = :crypto.strong_rand_bytes(200)
       resource = Resource.new(data, link)
 
-      assert Resource.get_transfer_size(resource) == resource.size
+      assert Resource.transfer_size(resource) == resource.size
     end
 
-    test "get_data_size returns total_size" do
+    test "data_size returns total_size" do
       link = plain_link()
       data = :crypto.strong_rand_bytes(200)
       resource = Resource.new(data, link)
 
-      assert Resource.get_data_size(resource) == resource.total_size
+      assert Resource.data_size(resource) == resource.total_size
     end
 
-    test "get_parts returns total_parts" do
+    test "parts returns total_parts" do
       link = plain_link()
       data = :crypto.strong_rand_bytes(200)
       resource = Resource.new(data, link)
 
-      assert Resource.get_parts(resource) == resource.total_parts
+      assert Resource.parts(resource) == resource.total_parts
     end
 
-    test "get_segments returns total_segments" do
+    test "segments returns total_segments" do
       link = plain_link()
       data = :crypto.strong_rand_bytes(200)
       resource = Resource.new(data, link)
 
-      assert Resource.get_segments(resource) == 1
+      assert Resource.segments(resource) == 1
     end
 
-    test "get_hash returns hash" do
+    test "hash returns hash" do
       link = plain_link()
       data = :crypto.strong_rand_bytes(200)
       resource = Resource.new(data, link)
 
-      assert Resource.get_hash(resource) == resource.hash
+      assert Resource.hash(resource) == resource.hash
     end
 
     test "is_compressed returns compressed flag" do

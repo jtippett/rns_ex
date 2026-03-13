@@ -217,7 +217,7 @@ defmodule RNS.Interfaces.I2PInterface do
     # Start local TCP listener for incoming I2P connections
     case start_listener(state) do
       {:ok, state} ->
-        state = %{state | hash: RNS.Interfaces.Interface.get_hash(state)}
+        state = %{state | hash: RNS.Interfaces.Interface.hash(state)}
 
         # Start peer connections
         if peers do
@@ -758,7 +758,7 @@ defmodule RNS.Interfaces.I2PInterfacePeer do
           state
       end
 
-    state = %{state | hash: RNS.Interfaces.Interface.get_hash(state)}
+    state = %{state | hash: RNS.Interfaces.Interface.hash(state)}
 
     # Start watchdog for connected sockets
     if state.online do

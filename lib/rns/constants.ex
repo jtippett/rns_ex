@@ -65,7 +65,7 @@ defmodule RNS.Constants do
         @aes128_blocksize 16
 
         @encrypted_mdu div(@mdu - @token_overhead - div(@identity_keysize, 16), @aes128_blocksize) *
-                          @aes128_blocksize - 1
+                         @aes128_blocksize - 1
         @plain_mdu @mdu
 
         @timeout_per_hop 6
@@ -169,7 +169,10 @@ defmodule RNS.Constants do
         @token_overhead 48
         @aes128_blocksize 16
 
-        @link_mdu div(@mtu - @ifac_min_size - @header_minsize - @token_overhead, @aes128_blocksize) *
+        @link_mdu div(
+                    @mtu - @ifac_min_size - @header_minsize - @token_overhead,
+                    @aes128_blocksize
+                  ) *
                     @aes128_blocksize - 1
 
         @response_max_grace_time 10

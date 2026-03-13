@@ -1071,13 +1071,13 @@ defmodule RNS.ChannelTest do
 
   # ── Packet timeout calculation ──────────────────────────────
 
-  describe "get_packet_timeout_time/2" do
+  describe "packet_timeout_time/2" do
     test "increases with tries" do
       {channel, _outlet} = make_channel()
 
-      t1 = Channel.get_packet_timeout_time(channel, 1)
-      t2 = Channel.get_packet_timeout_time(channel, 2)
-      t3 = Channel.get_packet_timeout_time(channel, 3)
+      t1 = Channel.packet_timeout_time(channel, 1)
+      t2 = Channel.packet_timeout_time(channel, 2)
+      t3 = Channel.packet_timeout_time(channel, 3)
 
       assert t2 > t1
       assert t3 > t2
@@ -1086,12 +1086,12 @@ defmodule RNS.ChannelTest do
     test "increases with tx_ring length" do
       {channel, _outlet} = make_channel()
 
-      t_empty = Channel.get_packet_timeout_time(channel, 1)
+      t_empty = Channel.packet_timeout_time(channel, 1)
 
       msg = %TestMessage{data: "x"}
       {:ok, channel, _} = Channel.send(channel, msg)
 
-      t_one = Channel.get_packet_timeout_time(channel, 1)
+      t_one = Channel.packet_timeout_time(channel, 1)
 
       assert t_one > t_empty
     end
@@ -1103,8 +1103,8 @@ defmodule RNS.ChannelTest do
       outlet_slow = TestOutlet.new(rtt: 1.0)
       channel_slow = Channel.new(outlet_slow, owner: self())
 
-      t_fast = Channel.get_packet_timeout_time(channel_fast, 1)
-      t_slow = Channel.get_packet_timeout_time(channel_slow, 1)
+      t_fast = Channel.packet_timeout_time(channel_fast, 1)
+      t_slow = Channel.packet_timeout_time(channel_slow, 1)
 
       assert t_slow > t_fast
     end

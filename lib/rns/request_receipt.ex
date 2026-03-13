@@ -134,25 +134,25 @@ defmodule RNS.RequestReceipt do
   # ── Status queries ─────────────────────────────────────────────
 
   @doc "Returns the request ID as bytes."
-  @spec get_request_id(t()) :: binary() | nil
-  def get_request_id(%__MODULE__{request_id: id}), do: id
+  @spec request_id(t()) :: binary() | nil
+  def request_id(%__MODULE__{request_id: id}), do: id
 
   @doc "Returns the current status of the request."
-  @spec get_status(t()) :: non_neg_integer()
-  def get_status(%__MODULE__{status: status}), do: status
+  @spec status(t()) :: non_neg_integer()
+  def status(%__MODULE__{status: status}), do: status
 
   @doc "Returns the progress as a float between 0.0 and 1.0."
-  @spec get_progress(t()) :: float()
-  def get_progress(%__MODULE__{progress: progress}), do: progress
+  @spec progress(t()) :: float()
+  def progress(%__MODULE__{progress: progress}), do: progress
 
   @doc "Returns the response if ready, otherwise nil."
-  @spec get_response(t()) :: term() | nil
-  def get_response(%__MODULE__{status: @ready, response: response}), do: response
-  def get_response(%__MODULE__{}), do: nil
+  @spec response(t()) :: term() | nil
+  def response(%__MODULE__{status: @ready, response: response}), do: response
+  def response(%__MODULE__{}), do: nil
 
   @doc "Returns the response time in seconds, or nil if not ready."
-  @spec get_response_time(t()) :: number() | nil
-  def get_response_time(%__MODULE__{
+  @spec response_time(t()) :: number() | nil
+  def response_time(%__MODULE__{
         status: @ready,
         response_concluded_at: concluded,
         started_at: started
@@ -161,7 +161,7 @@ defmodule RNS.RequestReceipt do
     concluded - started
   end
 
-  def get_response_time(%__MODULE__{}), do: nil
+  def response_time(%__MODULE__{}), do: nil
 
   @doc "Returns true if the request has concluded (successfully or with failure)."
   @spec concluded?(t()) :: boolean()

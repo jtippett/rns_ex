@@ -75,8 +75,8 @@ defmodule RNS.Integration.LinkEstablishmentTest do
         )
 
       link_request_packet = Packet.pack(link_request_packet)
-      hashable_part = Packet.get_hashable_part(link_request_packet)
-      link_request_packet = Map.put(link_request_packet, :get_hashable_part, hashable_part)
+      hashable_part = Packet.hashable_part(link_request_packet)
+      link_request_packet = Map.put(link_request_packet, :hashable_part, hashable_part)
 
       # === Step 2: Responder validates and creates proof ===
       {:ok, responder_link} =
@@ -435,8 +435,8 @@ defmodule RNS.Integration.LinkEstablishmentTest do
     link_request_packet = Packet.pack(link_request_packet)
 
     # Compute hashable part and attach it to the packet
-    hashable_part = Packet.get_hashable_part(link_request_packet)
-    link_request_packet = Map.put(link_request_packet, :get_hashable_part, hashable_part)
+    hashable_part = Packet.hashable_part(link_request_packet)
+    link_request_packet = Map.put(link_request_packet, :hashable_part, hashable_part)
 
     # Responder validates
     {:ok, responder_link} =

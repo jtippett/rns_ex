@@ -1099,7 +1099,7 @@ defmodule RNS.TransportTest do
 
       # Verify a reverse entry was created (for proof routing)
       # The truncated hash is based on the packet's hashable part
-      truncated = RNS.Packet.get_truncated_hash(packet)
+      truncated = RNS.Packet.truncated_hash(packet)
       rev = Transport.get_reverse_entry(truncated)
       assert rev != nil
       assert rev.received_on_interface == recv_iface
@@ -1573,7 +1573,7 @@ defmodule RNS.TransportTest do
 
     test "tunnel_synthesize_handler validates and creates tunnel with valid data" do
       identity = RNS.Identity.new()
-      public_key = RNS.Identity.get_public_key(identity)
+      public_key = RNS.Identity.public_key(identity)
       interface_hash = :crypto.strong_rand_bytes(32)
       random_hash = :crypto.strong_rand_bytes(16)
 
@@ -1596,7 +1596,7 @@ defmodule RNS.TransportTest do
 
     test "tunnel_synthesize_handler rejects invalid signature" do
       identity = RNS.Identity.new()
-      public_key = RNS.Identity.get_public_key(identity)
+      public_key = RNS.Identity.public_key(identity)
       interface_hash = :crypto.strong_rand_bytes(32)
       random_hash = :crypto.strong_rand_bytes(16)
 
@@ -1613,7 +1613,7 @@ defmodule RNS.TransportTest do
   describe "Identity.validate_announce/1" do
     test "validates a properly signed announce" do
       identity = RNS.Identity.new()
-      public_key = RNS.Identity.get_public_key(identity)
+      public_key = RNS.Identity.public_key(identity)
       name_hash = :crypto.strong_rand_bytes(10)
       random_blob = :crypto.strong_rand_bytes(10)
       destination_hash = RNS.Identity.truncated_hash(name_hash <> identity.hash)
@@ -1629,7 +1629,7 @@ defmodule RNS.TransportTest do
 
     test "rejects announce with invalid signature" do
       identity = RNS.Identity.new()
-      public_key = RNS.Identity.get_public_key(identity)
+      public_key = RNS.Identity.public_key(identity)
       name_hash = :crypto.strong_rand_bytes(10)
       random_blob = :crypto.strong_rand_bytes(10)
       destination_hash = :crypto.strong_rand_bytes(16)

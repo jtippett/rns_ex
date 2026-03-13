@@ -156,7 +156,7 @@ defmodule RNS.LinkTest do
       # link_id should be 16 bytes (truncated hash)
       packet = %{
         data: :crypto.strong_rand_bytes(64),
-        get_hashable_part: :crypto.strong_rand_bytes(40)
+        hashable_part: :crypto.strong_rand_bytes(40)
       }
 
       link_id = Link.link_id_from_lr_packet(packet)
@@ -171,7 +171,7 @@ defmodule RNS.LinkTest do
 
       packet = %{
         data: data,
-        get_hashable_part: hashable
+        hashable_part: hashable
       }
 
       link_id = Link.link_id_from_lr_packet(packet)
@@ -489,16 +489,16 @@ defmodule RNS.LinkTest do
 
   # ── Get salt / Get context ─────────────────────────────────────
 
-  describe "get_salt/1 and get_context/1" do
-    test "get_salt returns link_id" do
+  describe "salt/1 and context/1" do
+    test "salt returns link_id" do
       link_id = :crypto.strong_rand_bytes(16)
       link = %Link{Link.new() | link_id: link_id}
-      assert Link.get_salt(link) == link_id
+      assert Link.salt(link) == link_id
     end
 
-    test "get_context returns nil" do
+    test "context returns nil" do
       link = Link.new()
-      assert Link.get_context(link) == nil
+      assert Link.context(link) == nil
     end
   end
 
@@ -553,7 +553,7 @@ defmodule RNS.LinkTest do
       }
 
       {:ok, proof_data} = Link.build_identify_data(link, identity)
-      pub_key = Identity.get_public_key(identity)
+      pub_key = Identity.public_key(identity)
 
       # proof_data = public_key (64 bytes) + signature (64 bytes)
       assert byte_size(proof_data) == 64 + 64
@@ -713,80 +713,80 @@ defmodule RNS.LinkTest do
       assert updated.track_phy_stats == true
     end
 
-    test "get_rssi returns nil when not tracking" do
+    test "rssi returns nil when not tracking" do
       link = %Link{Link.new() | rssi: -50}
-      assert Link.get_rssi(link) == nil
+      assert Link.rssi(link) == nil
     end
 
-    test "get_rssi returns value when tracking" do
+    test "rssi returns value when tracking" do
       link = %Link{Link.new() | track_phy_stats: true, rssi: -50}
-      assert Link.get_rssi(link) == -50
+      assert Link.rssi(link) == -50
     end
 
-    test "get_snr returns nil when not tracking" do
+    test "snr returns nil when not tracking" do
       link = %Link{Link.new() | snr: 10.0}
-      assert Link.get_snr(link) == nil
+      assert Link.snr(link) == nil
     end
 
-    test "get_snr returns value when tracking" do
+    test "snr returns value when tracking" do
       link = %Link{Link.new() | track_phy_stats: true, snr: 10.0}
-      assert Link.get_snr(link) == 10.0
+      assert Link.snr(link) == 10.0
     end
 
-    test "get_q returns nil when not tracking" do
+    test "q returns nil when not tracking" do
       link = %Link{Link.new() | q: 0.9}
-      assert Link.get_q(link) == nil
+      assert Link.q(link) == nil
     end
 
-    test "get_q returns value when tracking" do
+    test "q returns value when tracking" do
       link = %Link{Link.new() | track_phy_stats: true, q: 0.9}
-      assert Link.get_q(link) == 0.9
+      assert Link.q(link) == 0.9
     end
   end
 
   # ── Establishment rate ─────────────────────────────────────────
 
-  describe "get_establishment_rate/1" do
+  describe "establishment_rate/1" do
     test "returns rate in bits per second" do
       link = %Link{Link.new() | establishment_rate: 100.0}
-      assert Link.get_establishment_rate(link) == 800.0
+      assert Link.establishment_rate(link) == 800.0
     end
 
     test "returns nil when no rate available" do
       link = Link.new()
-      assert Link.get_establishment_rate(link) == nil
+      assert Link.establishment_rate(link) == nil
     end
   end
 
   # ── Remote identity ────────────────────────────────────────────
 
-  describe "get_remote_identity/1" do
+  describe "remote_identity/1" do
     test "returns nil by default" do
       link = Link.new()
-      assert Link.get_remote_identity(link) == nil
+      assert Link.remote_identity(link) == nil
     end
 
     test "returns identity when set" do
       identity = Identity.new()
       link = %Link{Link.new() | remote_identity: identity}
-      assert Link.get_remote_identity(link) == identity
+      assert Link.remote_identity(link) == identity
     end
   end
 
   # ── Channel ────────────────────────────────────────────────────
 
-  describe "get_channel/1" do
+  describe "channel/1" do
     test "creates channel on first access" do
       link = Link.new()
-      {channel, updated_link} = Link.get_channel(link)
+      {channel, updated_link} = Link.channel(link)
       assert %RNS.Channel{} = channel
       assert updated_link.channel != nil
     end
 
     test "returns same channel on subsequent access" do
       link = Link.new()
-      {channel1, link2} = Link.get_channel(link)
-      {channel2, _link3} = Link.get_channel(link2)
+      {channel1, link2} = Link.channel(link)
+      {channel2, _link3} = Link.channel(link2)
       # Should be the same channel struct
       assert channel1 == channel2
     end
@@ -838,7 +838,7 @@ defmodule RNS.LinkTest do
         destination: %{hash: :crypto.strong_rand_bytes(16)},
         receiving_interface: nil,
         raw: request_data,
-        get_hashable_part: :crypto.strong_rand_bytes(40)
+        hashable_part: :crypto.strong_rand_bytes(40)
       }
 
       result = Link.validate_request(owner, request_data, packet)
@@ -858,7 +858,7 @@ defmodule RNS.LinkTest do
         destination: %{hash: :crypto.strong_rand_bytes(16)},
         receiving_interface: nil,
         raw: bad_data,
-        get_hashable_part: :crypto.strong_rand_bytes(40)
+        hashable_part: :crypto.strong_rand_bytes(40)
       }
 
       assert {:error, :invalid_payload_size} = Link.validate_request(owner, bad_data, packet)
@@ -884,7 +884,7 @@ defmodule RNS.LinkTest do
         destination: %{hash: :crypto.strong_rand_bytes(16)},
         receiving_interface: nil,
         raw: request_data,
-        get_hashable_part: :crypto.strong_rand_bytes(50)
+        hashable_part: :crypto.strong_rand_bytes(50)
       }
 
       result = Link.validate_request(owner, request_data, packet)
@@ -937,7 +937,7 @@ defmodule RNS.LinkTest do
       resp_pub_bytes = X25519.public_key(responder_x25519)
 
       resp_sig_pub_bytes =
-        Identity.get_public_key(responder_identity)
+        Identity.public_key(responder_identity)
         |> binary_part(32, 32)
 
       signed_data = link_id <> resp_pub_bytes <> resp_sig_pub_bytes <> signalling
@@ -999,7 +999,7 @@ defmodule RNS.LinkTest do
       resp_pub_bytes = X25519.public_key(responder_x25519)
 
       resp_sig_pub_bytes =
-        Identity.get_public_key(responder_identity)
+        Identity.public_key(responder_identity)
         |> binary_part(32, 32)
 
       signed_data = link_id <> resp_pub_bytes <> resp_sig_pub_bytes <> signalling

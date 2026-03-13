@@ -184,7 +184,7 @@ defmodule RNS.Channel do
   structure for exchanging several types of messages over a `Link`.
 
   `Channel` is not instantiated directly, but rather obtained from a `Link`
-  with `get_channel/1`.
+  with `Link.channel/1`.
 
   Matches `python/RNS/Channel.py`.
   """
@@ -463,7 +463,7 @@ defmodule RNS.Channel do
     )
 
     # Set timeout callback
-    timeout = get_packet_timeout_time(channel, envelope.tries)
+    timeout = packet_timeout_time(channel, envelope.tries)
 
     Outlet.set_packet_timeout_callback(
       channel.outlet,
@@ -710,7 +710,7 @@ defmodule RNS.Channel do
               fn pkt -> Kernel.send(owner, {:channel_delivered, pkt}) end
             )
 
-            timeout = get_packet_timeout_time(channel, envelope.tries)
+            timeout = packet_timeout_time(channel, envelope.tries)
 
             Outlet.set_packet_timeout_callback(
               outlet,
@@ -747,8 +747,8 @@ defmodule RNS.Channel do
   # ── Packet timeout calculation ───────────────────────────────
 
   @doc false
-  @spec get_packet_timeout_time(t(), non_neg_integer()) :: float()
-  def get_packet_timeout_time(%__MODULE__{} = channel, tries) do
+  @spec packet_timeout_time(t(), non_neg_integer()) :: float()
+  def packet_timeout_time(%__MODULE__{} = channel, tries) do
     rtt = Outlet.rtt(channel.outlet)
     :math.pow(1.5, tries - 1) * max(rtt * 2.5, 0.025) * (length(channel.tx_ring) + 1.5)
   end
@@ -932,7 +932,7 @@ defimpl RNS.Channel.Outlet, for: RNS.Channel.LinkChannelOutlet do
         @msgstate_failed
 
       true ->
-        status = RNS.PacketReceipt.get_status(packet.receipt)
+        status = RNS.PacketReceipt.status(packet.receipt)
 
         cond do
           status == @sent -> @msgstate_sent
@@ -991,7 +991,7 @@ defimpl RNS.Channel.Outlet, for: RNS.Channel.LinkChannelOutlet do
   def get_packet_id(_outlet, packet) do
     if packet != nil and is_map(packet) do
       cond do
-        is_struct(packet, RNS.Packet) -> RNS.Packet.get_hash(packet)
+        is_struct(packet, RNS.Packet) -> RNS.Packet.hash(packet)
         Map.has_key?(packet, :packet_hash) -> Map.get(packet, :packet_hash)
         true -> nil
       end

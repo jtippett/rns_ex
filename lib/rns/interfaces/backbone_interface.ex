@@ -333,7 +333,7 @@ defmodule RNS.Interfaces.BackboneInterface do
           created: System.system_time(:second)
         }
 
-        state = %{state | hash: RNS.Interfaces.Interface.get_hash(state)}
+        state = %{state | hash: RNS.Interfaces.Interface.hash(state)}
         {:ok, state}
 
       {:error, reason} ->
@@ -718,7 +718,7 @@ defmodule RNS.Interfaces.BackboneClientInterface do
           state
       end
 
-    state = %{state | hash: RNS.Interfaces.Interface.get_hash(state)}
+    state = %{state | hash: RNS.Interfaces.Interface.hash(state)}
     {:ok, state}
   end
 

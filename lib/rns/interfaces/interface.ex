@@ -153,13 +153,13 @@ defmodule RNS.Interfaces.Interface do
 
   Returns the full SHA-256 hash of the interface's string name.
   """
-  @spec get_hash(map()) :: binary()
-  def get_hash(%{name: name}) when is_binary(name) do
+  @spec hash(map()) :: binary()
+  def hash(%{name: name}) when is_binary(name) do
     RNS.Identity.full_hash(name)
   end
 
-  def get_hash(%{name: nil}), do: RNS.Identity.full_hash("")
-  def get_hash(iface), do: RNS.Identity.full_hash(to_string(iface))
+  def hash(%{name: nil}), do: RNS.Identity.full_hash("")
+  def hash(iface), do: RNS.Identity.full_hash(to_string(iface))
 
   @doc """
   Returns the age of the interface in seconds since creation.

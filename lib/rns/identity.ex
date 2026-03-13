@@ -104,14 +104,14 @@ defmodule RNS.Identity do
   # --- Key accessors ---
 
   @doc "Returns the full private key (64 bytes: encryption + signing)."
-  @spec get_private_key(t()) :: binary()
-  def get_private_key(%__MODULE__{prv_bytes: prv, sig_prv_bytes: sig_prv}) do
+  @spec private_key(t()) :: binary()
+  def private_key(%__MODULE__{prv_bytes: prv, sig_prv_bytes: sig_prv}) do
     prv <> sig_prv
   end
 
   @doc "Returns the full public key (64 bytes: encryption + signing)."
-  @spec get_public_key(t()) :: binary()
-  def get_public_key(%__MODULE__{pub_bytes: pub, sig_pub_bytes: sig_pub}) do
+  @spec public_key(t()) :: binary()
+  def public_key(%__MODULE__{pub_bytes: pub, sig_pub_bytes: sig_pub}) do
     pub <> sig_pub
   end
 
@@ -206,7 +206,7 @@ defmodule RNS.Identity do
   """
   @spec to_file(t(), String.t()) :: boolean()
   def to_file(%__MODULE__{} = id, path) do
-    case File.write(path, get_private_key(id)) do
+    case File.write(path, private_key(id)) do
       :ok -> true
       {:error, _} -> false
     end
@@ -290,8 +290,8 @@ defmodule RNS.Identity do
       HKDF.derive_key(
         shared_key,
         @derived_key_length,
-        get_salt(id),
-        get_context(id)
+        salt(id),
+        context(id)
       )
 
     token = Token.new(derived_key)
@@ -382,8 +382,8 @@ defmodule RNS.Identity do
       HKDF.derive_key(
         shared_key,
         @derived_key_length,
-        get_salt(id),
-        get_context(id)
+        salt(id),
+        context(id)
       )
 
     token = Token.new(derived_key)
@@ -482,20 +482,20 @@ defmodule RNS.Identity do
   def truncated_hash(data), do: Hashes.truncated_hash(data)
 
   @doc "Returns a random 16-byte truncated hash."
-  @spec get_random_hash() :: binary()
-  def get_random_hash do
+  @spec random_hash() :: binary()
+  def random_hash do
     truncated_hash(:crypto.strong_rand_bytes(div(@truncated_hashlength, 8)))
   end
 
   # --- Salt / Context ---
 
   @doc "Returns the identity hash, used as HKDF salt."
-  @spec get_salt(t()) :: binary() | nil
-  def get_salt(%__MODULE__{hash: hash}), do: hash
+  @spec salt(t()) :: binary() | nil
+  def salt(%__MODULE__{hash: hash}), do: hash
 
   @doc "Returns nil (no context used)."
-  @spec get_context(t()) :: nil
-  def get_context(%__MODULE__{}), do: nil
+  @spec context(t()) :: nil
+  def context(%__MODULE__{}), do: nil
 
   # --- Store delegates ---
 
@@ -538,8 +538,8 @@ defmodule RNS.Identity do
   end
 
   @doc "Returns the ratchet ID (first NAME_HASH_LENGTH//8 bytes of SHA-256 hash of public key)."
-  @spec get_ratchet_id(binary()) :: binary()
-  def get_ratchet_id(ratchet_pub_bytes) do
+  @spec ratchet_id(binary()) :: binary()
+  def ratchet_id(ratchet_pub_bytes) do
     <<id::binary-size(div(@name_hash_length, 8)), _::binary>> = full_hash(ratchet_pub_bytes)
     id
   end
@@ -549,15 +549,15 @@ defmodule RNS.Identity do
   defdelegate remember_ratchet(destination_hash, ratchet_pub_bytes), to: RNS.IdentityStore
 
   @doc "Retrieves the stored ratchet public key for a destination hash."
-  @spec get_ratchet(binary()) :: binary() | nil
-  defdelegate get_ratchet(destination_hash), to: RNS.IdentityStore
+  @spec ratchet(binary()) :: binary() | nil
+  defdelegate ratchet(destination_hash), to: RNS.IdentityStore, as: :get_ratchet
 
   @doc "Returns the current ratchet ID for a destination, or nil."
   @spec current_ratchet_id(binary()) :: binary() | nil
   def current_ratchet_id(destination_hash) do
-    case get_ratchet(destination_hash) do
+    case ratchet(destination_hash) do
       nil -> nil
-      ratchet -> get_ratchet_id(ratchet)
+      ratchet_val -> ratchet_id(ratchet_val)
     end
   end
 
@@ -566,7 +566,7 @@ defmodule RNS.Identity do
   defp update_hashes(%__MODULE__{pub_bytes: nil} = id), do: id
 
   defp update_hashes(%__MODULE__{} = id) do
-    pub = get_public_key(id)
+    pub = public_key(id)
     hash = truncated_hash(pub)
     %{id | hash: hash, hexhash: Base.encode16(hash, case: :lower)}
   end

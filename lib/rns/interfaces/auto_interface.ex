@@ -484,7 +484,7 @@ defmodule RNS.Interfaces.AutoInterface do
     }
 
     # spawned_interfaces defaults to nil from default_fields, override to map
-    state = %{state | hash: RNS.Interfaces.Interface.get_hash(state), spawned_interfaces: %{}}
+    state = %{state | hash: RNS.Interfaces.Interface.hash(state), spawned_interfaces: %{}}
 
     if not skip_network do
       state = setup_network(state)

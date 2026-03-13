@@ -137,29 +137,29 @@ defmodule RNS.Interfaces.InterfaceTest do
     end
   end
 
-  # ── get_hash/1 ─────────────────────────────────────────────────────
+  # ── hash/1 ─────────────────────────────────────────────────────
 
-  describe "get_hash/1" do
+  describe "hash/1" do
     test "returns 32-byte SHA-256 hash for named interface" do
       iface = new_interface(%{name: "TestInterface[test]"})
-      hash = Interface.get_hash(iface)
+      hash = Interface.hash(iface)
       assert byte_size(hash) == 32
     end
 
     test "different names produce different hashes" do
-      h1 = Interface.get_hash(new_interface(%{name: "InterfaceA"}))
-      h2 = Interface.get_hash(new_interface(%{name: "InterfaceB"}))
+      h1 = Interface.hash(new_interface(%{name: "InterfaceA"}))
+      h2 = Interface.hash(new_interface(%{name: "InterfaceB"}))
       assert h1 != h2
     end
 
     test "same name produces same hash" do
-      h1 = Interface.get_hash(new_interface(%{name: "TestInterface"}))
-      h2 = Interface.get_hash(new_interface(%{name: "TestInterface"}))
+      h1 = Interface.hash(new_interface(%{name: "TestInterface"}))
+      h2 = Interface.hash(new_interface(%{name: "TestInterface"}))
       assert h1 == h2
     end
 
     test "nil name hashes empty string" do
-      hash = Interface.get_hash(new_interface(%{name: nil}))
+      hash = Interface.hash(new_interface(%{name: nil}))
       assert byte_size(hash) == 32
     end
   end

@@ -354,7 +354,7 @@ defmodule RNS.Interfaces.KISSInterface do
       beacon_data: beacon_data
     }
 
-    state = %{state | hash: RNS.Interfaces.Interface.get_hash(state)}
+    state = %{state | hash: RNS.Interfaces.Interface.hash(state)}
 
     if skip_open do
       state = configure_device(state)

@@ -23,7 +23,7 @@ defmodule RNS.ProofDestination do
   """
   @spec new(RNS.Packet.t()) :: t()
   def new(%RNS.Packet{} = packet) do
-    full_hash = RNS.Packet.get_hash(packet)
+    full_hash = RNS.Packet.hash(packet)
     truncated = binary_part(full_hash, 0, div(@truncated_hashlength, 8))
 
     %__MODULE__{

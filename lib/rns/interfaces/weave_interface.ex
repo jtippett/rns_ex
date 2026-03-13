@@ -93,7 +93,7 @@ defmodule RNS.Interfaces.WeaveInterface do
     skip_wdcl = Keyword.get(opts, :skip_wdcl, false)
 
     bitrate = configured_bitrate || @bitrate_guess
-    hash = RNS.Interfaces.Interface.get_hash(%{name: interface_name})
+    hash = RNS.Interfaces.Interface.hash(%{name: interface_name})
 
     state = %__MODULE__{
       name: interface_name,
@@ -1315,7 +1315,7 @@ defmodule RNS.Interfaces.WeaveInterface.WeaveInterfacePeer do
     mode = Keyword.get(opts, :mode)
 
     name = if endpoint_addr, do: RNS.hexrep(endpoint_addr), else: "unknown"
-    hash = RNS.Interfaces.Interface.get_hash(%{name: name})
+    hash = RNS.Interfaces.Interface.hash(%{name: name})
 
     %__MODULE__{
       name: name,

@@ -663,7 +663,7 @@ defmodule RNS.Interfaces.RNodeMultiInterface do
         {false, nil}
       end
 
-    hash = RNS.Interfaces.Interface.get_hash(%{name: interface_name})
+    hash = RNS.Interfaces.Interface.hash(%{name: interface_name})
 
     state = %__MODULE__{
       name: interface_name,
@@ -1073,7 +1073,7 @@ defmodule RNS.Interfaces.RNodeSubInterface do
     lt_alock = Keyword.get(opts, :lt_alock)
     owner = Keyword.get(opts, :owner)
 
-    hash = RNS.Interfaces.Interface.get_hash(%{name: name})
+    hash = RNS.Interfaces.Interface.hash(%{name: name})
 
     %__MODULE__{
       name: name,

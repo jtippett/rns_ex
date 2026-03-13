@@ -1134,7 +1134,7 @@ defmodule RNS.Interfaces.RNodeInterface do
       id_callsign: id_callsign
     }
 
-    state = %{state | hash: RNS.Interfaces.Interface.get_hash(state)}
+    state = %{state | hash: RNS.Interfaces.Interface.hash(state)}
 
     if skip_open do
       # Set bitrate from desired radio params if available

@@ -573,7 +573,7 @@ defmodule RNS.LinkLifecycleTest do
     test "handles channel data" do
       {init, resp} = make_handshaken_pair()
       # Create channel on responder
-      {_channel, resp} = Link.get_channel(resp)
+      {_channel, resp} = Link.channel(resp)
 
       {:ok, encrypted} = Link.encrypt(init, "channel data")
 

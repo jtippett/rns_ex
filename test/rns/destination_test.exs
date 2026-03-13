@@ -417,7 +417,7 @@ defmodule RNS.DestinationTest do
       id = Identity.new()
       dest = Destination.new(id, Destination.direction_in(), Destination.group(), "myapp")
       dest = Destination.create_keys(dest)
-      key = Destination.get_private_key(dest)
+      key = Destination.private_key(dest)
 
       # Create new destination and load the key
       dest2 = Destination.new(id, Destination.direction_in(), Destination.group(), "myapp2")
@@ -466,7 +466,7 @@ defmodule RNS.DestinationTest do
       id = Identity.new()
       dest = Destination.new(id, Destination.direction_in(), Destination.group(), "myapp")
       dest = Destination.create_keys(dest)
-      assert byte_size(Destination.get_private_key(dest)) == 64
+      assert byte_size(Destination.private_key(dest)) == 64
     end
 
     test "create_keys raises for PLAIN" do
@@ -486,20 +486,20 @@ defmodule RNS.DestinationTest do
       end
     end
 
-    test "get_private_key raises for PLAIN" do
+    test "private_key raises for PLAIN" do
       dest = Destination.new(nil, Destination.direction_in(), Destination.plain(), "myapp")
 
       assert_raise ArgumentError, ~r/plain/i, fn ->
-        Destination.get_private_key(dest)
+        Destination.private_key(dest)
       end
     end
 
-    test "get_private_key raises for SINGLE" do
+    test "private_key raises for SINGLE" do
       id = Identity.new()
       dest = Destination.new(id, Destination.direction_in(), Destination.single(), "myapp")
 
       assert_raise ArgumentError, ~r/single/i, fn ->
-        Destination.get_private_key(dest)
+        Destination.private_key(dest)
       end
     end
 
@@ -856,7 +856,7 @@ defmodule RNS.DestinationStoreTest do
 
       # Extract public key (first 64 bytes)
       <<pub_key::binary-size(64), _rest::binary>> = data
-      assert pub_key == Identity.get_public_key(id)
+      assert pub_key == Identity.public_key(id)
     end
 
     test "announce with app_data" do
@@ -1096,7 +1096,7 @@ defmodule RNS.DestinationStoreTest do
       dest = Destination.enable_ratchets(dest, path)
       {_packet, _dest} = Destination.announce(dest, send: false)
 
-      ratchet = Identity.get_ratchet(dest.hash)
+      ratchet = Identity.ratchet(dest.hash)
       assert ratchet != nil
       assert byte_size(ratchet) == 32
     end

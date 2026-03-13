@@ -74,41 +74,41 @@ defmodule RNS.RequestReceiptTest do
 
   # ── Status queries ─────────────────────────────────────────────
 
-  describe "get_request_id/1" do
+  describe "request_id/1" do
     test "returns request_id" do
       hash = :crypto.strong_rand_bytes(16)
       receipt = %RequestReceipt{request_id: hash}
-      assert RequestReceipt.get_request_id(receipt) == hash
+      assert RequestReceipt.request_id(receipt) == hash
     end
   end
 
-  describe "get_status/1" do
+  describe "status/1" do
     test "returns current status" do
       receipt = %RequestReceipt{status: RequestReceipt.sent()}
-      assert RequestReceipt.get_status(receipt) == RequestReceipt.sent()
+      assert RequestReceipt.status(receipt) == RequestReceipt.sent()
     end
   end
 
-  describe "get_progress/1" do
+  describe "progress/1" do
     test "returns progress value" do
       receipt = %RequestReceipt{progress: 0.5}
-      assert RequestReceipt.get_progress(receipt) == 0.5
+      assert RequestReceipt.progress(receipt) == 0.5
     end
   end
 
-  describe "get_response/1" do
+  describe "response/1" do
     test "returns response when ready" do
       receipt = %RequestReceipt{status: RequestReceipt.ready(), response: "data"}
-      assert RequestReceipt.get_response(receipt) == "data"
+      assert RequestReceipt.response(receipt) == "data"
     end
 
     test "returns nil when not ready" do
       receipt = %RequestReceipt{status: RequestReceipt.sent(), response: "data"}
-      assert RequestReceipt.get_response(receipt) == nil
+      assert RequestReceipt.response(receipt) == nil
     end
   end
 
-  describe "get_response_time/1" do
+  describe "response_time/1" do
     test "returns response time when ready" do
       receipt = %RequestReceipt{
         status: RequestReceipt.ready(),
@@ -116,12 +116,12 @@ defmodule RNS.RequestReceiptTest do
         response_concluded_at: 1005
       }
 
-      assert RequestReceipt.get_response_time(receipt) == 5
+      assert RequestReceipt.response_time(receipt) == 5
     end
 
     test "returns nil when not ready" do
       receipt = %RequestReceipt{status: RequestReceipt.sent()}
-      assert RequestReceipt.get_response_time(receipt) == nil
+      assert RequestReceipt.response_time(receipt) == nil
     end
   end
 

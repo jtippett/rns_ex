@@ -225,7 +225,7 @@ defmodule RNS.Link do
 
   @doc "Computes link ID from a link request packet."
   @spec link_id_from_lr_packet(map()) :: binary()
-  def link_id_from_lr_packet(%{data: data, get_hashable_part: hashable_part}) do
+  def link_id_from_lr_packet(%{data: data, hashable_part: hashable_part}) do
     hashable =
       if byte_size(data) > @ecpubsize do
         diff = byte_size(data) - @ecpubsize
@@ -276,8 +276,8 @@ defmodule RNS.Link do
       HKDF.derive_key(
         shared_key,
         derived_key_length,
-        get_salt(link),
-        get_context(link)
+        salt(link),
+        context(link)
       )
 
     {:ok, %{link | status: @status_handshake, shared_key: shared_key, derived_key: derived_key}}
@@ -285,15 +285,15 @@ defmodule RNS.Link do
 
   def handshake(%__MODULE__{}), do: {:error, :invalid_state}
 
-  # ── Get salt / Get context ──────────────────────────────────────
+  # ── Salt / Context ─────────────────────────────────────────────
 
   @doc "Returns the HKDF salt for key derivation (the link_id)."
-  @spec get_salt(t()) :: binary() | nil
-  def get_salt(%__MODULE__{link_id: link_id}), do: link_id
+  @spec salt(t()) :: binary() | nil
+  def salt(%__MODULE__{link_id: link_id}), do: link_id
 
   @doc "Returns the HKDF context for key derivation (nil)."
-  @spec get_context(t()) :: nil
-  def get_context(%__MODULE__{}), do: nil
+  @spec context(t()) :: nil
+  def context(%__MODULE__{}), do: nil
 
   # ── Encrypt / Decrypt ───────────────────────────────────────────
 
@@ -477,7 +477,7 @@ defmodule RNS.Link do
         peer_pub_bytes = binary_part(proof_data, sig_len, ec_half)
 
         # Get peer signing public key from destination identity
-        dest_pub_key = Identity.get_public_key(link.destination.identity)
+        dest_pub_key = Identity.public_key(link.destination.identity)
         peer_sig_pub_bytes = binary_part(dest_pub_key, ec_half, ec_half)
 
         updated = load_peer(link, peer_pub_bytes, peer_sig_pub_bytes)
@@ -607,7 +607,7 @@ defmodule RNS.Link do
         %__MODULE__{initiator: true, status: @status_active, link_id: link_id},
         %Identity{} = identity
       ) do
-    pub_key = Identity.get_public_key(identity)
+    pub_key = Identity.public_key(identity)
     signed_data = link_id <> pub_key
     signature = Identity.sign(identity, signed_data)
     {:ok, pub_key <> signature}
@@ -648,45 +648,45 @@ defmodule RNS.Link do
   end
 
   @doc "Returns the RSSI if tracking is enabled."
-  @spec get_rssi(t()) :: number() | nil
-  def get_rssi(%__MODULE__{track_phy_stats: true, rssi: rssi}), do: rssi
-  def get_rssi(%__MODULE__{}), do: nil
+  @spec rssi(t()) :: number() | nil
+  def rssi(%__MODULE__{track_phy_stats: true, rssi: rssi}), do: rssi
+  def rssi(%__MODULE__{}), do: nil
 
   @doc "Returns the SNR if tracking is enabled."
-  @spec get_snr(t()) :: number() | nil
-  def get_snr(%__MODULE__{track_phy_stats: true, snr: snr}), do: snr
-  def get_snr(%__MODULE__{}), do: nil
+  @spec snr(t()) :: number() | nil
+  def snr(%__MODULE__{track_phy_stats: true, snr: snr}), do: snr
+  def snr(%__MODULE__{}), do: nil
 
   @doc "Returns the link quality if tracking is enabled."
-  @spec get_q(t()) :: number() | nil
-  def get_q(%__MODULE__{track_phy_stats: true, q: q}), do: q
-  def get_q(%__MODULE__{}), do: nil
+  @spec q(t()) :: number() | nil
+  def q(%__MODULE__{track_phy_stats: true, q: q}), do: q
+  def q(%__MODULE__{}), do: nil
 
   # ── Establishment rate ──────────────────────────────────────────
 
   @doc "Returns the establishment rate in bits per second."
-  @spec get_establishment_rate(t()) :: float() | nil
-  def get_establishment_rate(%__MODULE__{establishment_rate: rate}) when is_number(rate) do
+  @spec establishment_rate(t()) :: float() | nil
+  def establishment_rate(%__MODULE__{establishment_rate: rate}) when is_number(rate) do
     rate * 8
   end
 
-  def get_establishment_rate(%__MODULE__{}), do: nil
+  def establishment_rate(%__MODULE__{}), do: nil
 
   # ── Remote identity ─────────────────────────────────────────────
 
   @doc "Returns the remote peer's identity if known."
-  @spec get_remote_identity(t()) :: Identity.t() | nil
-  def get_remote_identity(%__MODULE__{remote_identity: id}), do: id
+  @spec remote_identity(t()) :: Identity.t() | nil
+  def remote_identity(%__MODULE__{remote_identity: id}), do: id
 
   # ── Channel ─────────────────────────────────────────────────────
 
   @doc "Gets or creates the Channel for this link."
-  @spec get_channel(t()) :: {RNS.Channel.t(), t()}
-  def get_channel(%__MODULE__{channel: %RNS.Channel{} = channel} = link) do
+  @spec channel(t()) :: {RNS.Channel.t(), t()}
+  def channel(%__MODULE__{channel: %RNS.Channel{} = channel} = link) do
     {channel, link}
   end
 
-  def get_channel(%__MODULE__{} = link) do
+  def channel(%__MODULE__{} = link) do
     outlet = RNS.Channel.LinkChannelOutlet.new(link)
     channel = RNS.Channel.new(outlet)
     {channel, %{link | channel: channel}}

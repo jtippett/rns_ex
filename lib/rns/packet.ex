@@ -191,7 +191,7 @@ defmodule RNS.Packet do
       q: nil
     }
 
-    %{packet | flags: get_packed_flags(packet)}
+    %{packet | flags: packed_flags(packet)}
   end
 
   # ── Flags ────────────────────────────────────────────────────────
@@ -199,8 +199,8 @@ defmodule RNS.Packet do
   @doc """
   Computes the packed flags byte for a packet.
   """
-  @spec get_packed_flags(t()) :: non_neg_integer()
-  def get_packed_flags(%__MODULE__{} = packet) do
+  @spec packed_flags(t()) :: non_neg_integer()
+  def packed_flags(%__MODULE__{} = packet) do
     dest_type =
       if packet.context == @context_lrproof do
         @dest_link
@@ -226,7 +226,7 @@ defmodule RNS.Packet do
   @spec pack(t()) :: t()
   def pack(%__MODULE__{} = packet) do
     destination_hash = Map.get(packet.destination, :hash)
-    flags = get_packed_flags(packet)
+    flags = packed_flags(packet)
 
     header = <<flags::8, packet.hops::8>>
 
@@ -383,17 +383,17 @@ defmodule RNS.Packet do
   @doc """
   Returns the full SHA-256 hash of the packet's hashable part.
   """
-  @spec get_hash(t()) :: binary()
-  def get_hash(%__MODULE__{} = packet) do
-    RNS.Identity.full_hash(get_hashable_part(packet))
+  @spec hash(t()) :: binary()
+  def hash(%__MODULE__{} = packet) do
+    RNS.Identity.full_hash(hashable_part(packet))
   end
 
   @doc """
   Returns the truncated (16-byte) hash of the packet's hashable part.
   """
-  @spec get_truncated_hash(t()) :: binary()
-  def get_truncated_hash(%__MODULE__{} = packet) do
-    RNS.Identity.truncated_hash(get_hashable_part(packet))
+  @spec truncated_hash(t()) :: binary()
+  def truncated_hash(%__MODULE__{} = packet) do
+    RNS.Identity.truncated_hash(hashable_part(packet))
   end
 
   @doc """
@@ -402,8 +402,8 @@ defmodule RNS.Packet do
   For HEADER_1: lower nibble of flags byte + everything after flags+hops.
   For HEADER_2: lower nibble of flags byte + everything after flags+hops+transport_id.
   """
-  @spec get_hashable_part(t()) :: binary()
-  def get_hashable_part(%__MODULE__{raw: raw} = packet) do
+  @spec hashable_part(t()) :: binary()
+  def hashable_part(%__MODULE__{raw: raw} = packet) do
     masked_flags = :binary.at(raw, 0) &&& 0x0F
 
     rest =
@@ -421,7 +421,7 @@ defmodule RNS.Packet do
   """
   @spec update_hash(t()) :: t()
   def update_hash(%__MODULE__{} = packet) do
-    %{packet | packet_hash: get_hash(packet)}
+    %{packet | packet_hash: hash(packet)}
   end
 
   # ── Send / Resend ────────────────────────────────────────────────
@@ -532,5 +532,4 @@ defmodule RNS.Packet do
   def generate_proof_destination(%__MODULE__{} = packet) do
     RNS.ProofDestination.new(packet)
   end
-
 end

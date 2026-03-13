@@ -342,7 +342,7 @@ defmodule RNS.Destination do
       :crypto.strong_rand_bytes(5) <>
         <<System.system_time(:second)::big-unsigned-size(40)>>
 
-    public_key = Identity.get_public_key(dest.identity)
+    public_key = Identity.public_key(dest.identity)
 
     # Handle ratchets
     {ratchet_bytes, dest} =
@@ -529,7 +529,7 @@ defmodule RNS.Destination do
 
   def encrypt(%__MODULE__{type: @single, identity: identity} = dest, plaintext)
       when identity != nil do
-    selected_ratchet = Identity.get_ratchet(dest.hash)
+    selected_ratchet = Identity.ratchet(dest.hash)
     Identity.encrypt(identity, plaintext, ratchet: selected_ratchet)
   end
 
@@ -621,16 +621,16 @@ defmodule RNS.Destination do
 
   Raises for PLAIN and SINGLE destination types.
   """
-  @spec get_private_key(t()) :: binary() | nil
-  def get_private_key(%__MODULE__{type: @plain}) do
+  @spec private_key(t()) :: binary() | nil
+  def private_key(%__MODULE__{type: @plain}) do
     raise ArgumentError, "A plain destination does not hold any keys"
   end
 
-  def get_private_key(%__MODULE__{type: @single}) do
+  def private_key(%__MODULE__{type: @single}) do
     raise ArgumentError, "A single destination holds keys through an Identity instance"
   end
 
-  def get_private_key(%__MODULE__{prv_bytes: prv_bytes}), do: prv_bytes
+  def private_key(%__MODULE__{prv_bytes: prv_bytes}), do: prv_bytes
 
   @doc """
   Loads a symmetric private key for a GROUP destination.

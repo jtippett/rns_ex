@@ -52,7 +52,7 @@ defmodule RNS.Transport.CacheManagement do
 
     if force_cache or should_cache(packet) do
       try do
-        hash = packet.packet_hash || Packet.get_hash(packet)
+        hash = packet.packet_hash || Packet.hash(packet)
         packet_hash = Base.encode16(hash, case: :lower)
 
         interface_reference =

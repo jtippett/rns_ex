@@ -316,7 +316,7 @@ defmodule RNS.Interfaces.TCPClientInterface do
           state
       end
 
-    state = %{state | hash: RNS.Interfaces.Interface.get_hash(state)}
+    state = %{state | hash: RNS.Interfaces.Interface.hash(state)}
     {:ok, state}
   end
 
@@ -1012,7 +1012,7 @@ defmodule RNS.Interfaces.TCPServerInterface do
           created: System.system_time(:second)
         }
 
-        state = %{state | hash: RNS.Interfaces.Interface.get_hash(state)}
+        state = %{state | hash: RNS.Interfaces.Interface.hash(state)}
         {:ok, state}
 
       {:error, reason} ->

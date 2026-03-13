@@ -1606,7 +1606,7 @@ defmodule RNS.Transport do
   end
 
   defp record_reverse_entry(packet, outbound_interface) do
-    truncated_hash = Packet.get_truncated_hash(packet)
+    truncated_hash = Packet.truncated_hash(packet)
 
     entry = %ReverseEntry{
       received_on_interface: packet.receiving_interface,

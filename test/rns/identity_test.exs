@@ -111,17 +111,17 @@ defmodule RNS.IdentityTest do
     end
   end
 
-  describe "get_private_key/1 and get_public_key/1" do
-    test "get_private_key returns 64-byte concatenation of prv + sig_prv" do
+  describe "private_key/1 and public_key/1" do
+    test "private_key returns 64-byte concatenation of prv + sig_prv" do
       id = Identity.new()
-      prv = Identity.get_private_key(id)
+      prv = Identity.private_key(id)
       assert byte_size(prv) == @keysize |> div(8)
       assert prv == id.prv_bytes <> id.sig_prv_bytes
     end
 
-    test "get_public_key returns 64-byte concatenation of pub + sig_pub" do
+    test "public_key returns 64-byte concatenation of pub + sig_pub" do
       id = Identity.new()
-      pub = Identity.get_public_key(id)
+      pub = Identity.public_key(id)
       assert byte_size(pub) == @keysize |> div(8)
       assert pub == id.pub_bytes <> id.sig_pub_bytes
     end
@@ -130,7 +130,7 @@ defmodule RNS.IdentityTest do
   describe "load_private_key/2" do
     test "loads 64-byte private key and derives all keys" do
       id1 = Identity.new()
-      prv = Identity.get_private_key(id1)
+      prv = Identity.private_key(id1)
 
       id2 = Identity.new(create_keys: false)
       assert {:ok, id2} = Identity.load_private_key(id2, prv)
@@ -145,20 +145,20 @@ defmodule RNS.IdentityTest do
 
     test "derives correct public keys from private keys" do
       id = Identity.new()
-      prv = Identity.get_private_key(id)
+      prv = Identity.private_key(id)
 
       id2 = Identity.new(create_keys: false)
       {:ok, id2} = Identity.load_private_key(id2, prv)
 
       # Public keys should match
-      assert Identity.get_public_key(id) == Identity.get_public_key(id2)
+      assert Identity.public_key(id) == Identity.public_key(id2)
     end
   end
 
   describe "load_public_key/2" do
     test "loads 64-byte public key" do
       id1 = Identity.new()
-      pub = Identity.get_public_key(id1)
+      pub = Identity.public_key(id1)
 
       id2 = Identity.new(create_keys: false)
       id2 = Identity.load_public_key(id2, pub)
@@ -171,7 +171,7 @@ defmodule RNS.IdentityTest do
 
     test "does not set private keys when loading public key" do
       id1 = Identity.new()
-      pub = Identity.get_public_key(id1)
+      pub = Identity.public_key(id1)
 
       id2 = Identity.new(create_keys: false)
       id2 = Identity.load_public_key(id2, pub)
@@ -184,11 +184,11 @@ defmodule RNS.IdentityTest do
   describe "from_bytes/1" do
     test "creates identity from private key bytes" do
       id1 = Identity.new()
-      prv = Identity.get_private_key(id1)
+      prv = Identity.private_key(id1)
 
       id2 = Identity.from_bytes(prv)
       assert id2 != nil
-      assert Identity.get_public_key(id2) == Identity.get_public_key(id1)
+      assert Identity.public_key(id2) == Identity.public_key(id1)
       assert id2.hash == id1.hash
     end
 
@@ -206,8 +206,8 @@ defmodule RNS.IdentityTest do
         assert Identity.to_file(id1, path) == true
         id2 = Identity.from_file(path)
         assert id2 != nil
-        assert Identity.get_private_key(id2) == Identity.get_private_key(id1)
-        assert Identity.get_public_key(id2) == Identity.get_public_key(id1)
+        assert Identity.private_key(id2) == Identity.private_key(id1)
+        assert Identity.public_key(id2) == Identity.public_key(id1)
         assert id2.hash == id1.hash
       after
         File.rm(path)
@@ -248,7 +248,7 @@ defmodule RNS.IdentityTest do
 
     test "sign raises when no private key" do
       id1 = Identity.new()
-      pub = Identity.get_public_key(id1)
+      pub = Identity.public_key(id1)
       id2 = Identity.new(create_keys: false)
       id2 = Identity.load_public_key(id2, pub)
 
@@ -289,7 +289,7 @@ defmodule RNS.IdentityTest do
       receiver_pub_only = Identity.new(create_keys: false)
 
       receiver_pub_only =
-        Identity.load_public_key(receiver_pub_only, Identity.get_public_key(receiver_id))
+        Identity.load_public_key(receiver_pub_only, Identity.public_key(receiver_id))
 
       ciphertext = Identity.encrypt(receiver_pub_only, "secret message")
       assert Identity.decrypt(receiver_id, ciphertext) == "secret message"
@@ -308,7 +308,7 @@ defmodule RNS.IdentityTest do
       ciphertext = Identity.encrypt(id1, "hello")
 
       id2 = Identity.new(create_keys: false)
-      id2 = Identity.load_public_key(id2, Identity.get_public_key(id1))
+      id2 = Identity.load_public_key(id2, Identity.public_key(id1))
 
       assert_raise KeyError, fn ->
         Identity.decrypt(id2, ciphertext)
@@ -362,14 +362,14 @@ defmodule RNS.IdentityTest do
     end
   end
 
-  describe "get_random_hash/0" do
+  describe "random_hash/0" do
     test "returns 16 bytes" do
-      assert byte_size(Identity.get_random_hash()) == 16
+      assert byte_size(Identity.random_hash()) == 16
     end
 
     test "returns unique values" do
-      h1 = Identity.get_random_hash()
-      h2 = Identity.get_random_hash()
+      h1 = Identity.random_hash()
+      h2 = Identity.random_hash()
       assert h1 != h2
     end
   end
@@ -377,21 +377,21 @@ defmodule RNS.IdentityTest do
   describe "hash computation" do
     test "hash is truncated hash of public key" do
       id = Identity.new()
-      pub = Identity.get_public_key(id)
+      pub = Identity.public_key(id)
       expected = Identity.truncated_hash(pub)
       assert id.hash == expected
     end
   end
 
-  describe "get_salt/1 and get_context/1" do
-    test "get_salt returns identity hash" do
+  describe "salt/1 and context/1" do
+    test "salt returns identity hash" do
       id = Identity.new()
-      assert Identity.get_salt(id) == id.hash
+      assert Identity.salt(id) == id.hash
     end
 
-    test "get_context returns nil" do
+    test "context returns nil" do
       id = Identity.new()
-      assert Identity.get_context(id) == nil
+      assert Identity.context(id) == nil
     end
   end
 
@@ -453,7 +453,7 @@ defmodule RNS.IdentityStoreTest do
   describe "remember/4" do
     test "remembers a destination with valid public key" do
       id = Identity.new()
-      pub = Identity.get_public_key(id)
+      pub = Identity.public_key(id)
       dest_hash = Identity.truncated_hash(pub)
       packet_hash = :crypto.strong_rand_bytes(32)
 
@@ -462,7 +462,7 @@ defmodule RNS.IdentityStoreTest do
 
     test "remembers a destination with app_data" do
       id = Identity.new()
-      pub = Identity.get_public_key(id)
+      pub = Identity.public_key(id)
       dest_hash = Identity.truncated_hash(pub)
       packet_hash = :crypto.strong_rand_bytes(32)
       app_data = "test app data"
@@ -482,7 +482,7 @@ defmodule RNS.IdentityStoreTest do
   describe "recall/1" do
     test "recalls a remembered identity by destination hash" do
       id = Identity.new()
-      pub = Identity.get_public_key(id)
+      pub = Identity.public_key(id)
       dest_hash = Identity.truncated_hash(pub)
       packet_hash = :crypto.strong_rand_bytes(32)
 
@@ -490,7 +490,7 @@ defmodule RNS.IdentityStoreTest do
 
       recalled = Identity.recall(dest_hash)
       assert recalled != nil
-      assert Identity.get_public_key(recalled) == pub
+      assert Identity.public_key(recalled) == pub
     end
 
     test "returns nil for unknown destination hash" do
@@ -499,7 +499,7 @@ defmodule RNS.IdentityStoreTest do
 
     test "recalls with app_data" do
       id = Identity.new()
-      pub = Identity.get_public_key(id)
+      pub = Identity.public_key(id)
       dest_hash = Identity.truncated_hash(pub)
       packet_hash = :crypto.strong_rand_bytes(32)
       app_data = "my app data"
@@ -513,7 +513,7 @@ defmodule RNS.IdentityStoreTest do
 
     test "recalls by identity hash" do
       id = Identity.new()
-      pub = Identity.get_public_key(id)
+      pub = Identity.public_key(id)
       dest_hash = :crypto.strong_rand_bytes(16)
       packet_hash = :crypto.strong_rand_bytes(32)
 
@@ -522,7 +522,7 @@ defmodule RNS.IdentityStoreTest do
       identity_hash = Identity.truncated_hash(pub)
       recalled = Identity.recall(identity_hash, from_identity_hash: true)
       assert recalled != nil
-      assert Identity.get_public_key(recalled) == pub
+      assert Identity.public_key(recalled) == pub
     end
 
     test "recall by identity hash returns nil when not found" do
@@ -533,7 +533,7 @@ defmodule RNS.IdentityStoreTest do
   describe "recall_app_data/1" do
     test "recalls app_data for known destination" do
       id = Identity.new()
-      pub = Identity.get_public_key(id)
+      pub = Identity.public_key(id)
       dest_hash = Identity.truncated_hash(pub)
       packet_hash = :crypto.strong_rand_bytes(32)
       app_data = "stored data"
@@ -548,7 +548,7 @@ defmodule RNS.IdentityStoreTest do
 
     test "returns nil when no app_data was stored" do
       id = Identity.new()
-      pub = Identity.get_public_key(id)
+      pub = Identity.public_key(id)
       dest_hash = Identity.truncated_hash(pub)
       packet_hash = :crypto.strong_rand_bytes(32)
 
@@ -569,24 +569,24 @@ defmodule RNS.IdentityStoreTest do
       assert byte_size(pub) == 32
     end
 
-    test "get_ratchet_id returns first NAME_HASH_LENGTH//8 bytes of hash" do
+    test "ratchet_id returns first NAME_HASH_LENGTH//8 bytes of hash" do
       ratchet = Identity.generate_ratchet()
       pub = Identity.ratchet_public_bytes(ratchet)
-      ratchet_id = Identity.get_ratchet_id(pub)
+      ratchet_id = Identity.ratchet_id(pub)
       assert byte_size(ratchet_id) == div(Identity.name_hash_length(), 8)
     end
 
-    test "remember_ratchet and get_ratchet roundtrip" do
+    test "remember_ratchet and ratchet roundtrip" do
       dest_hash = :crypto.strong_rand_bytes(16)
       ratchet = Identity.generate_ratchet()
       pub = Identity.ratchet_public_bytes(ratchet)
 
       Identity.remember_ratchet(dest_hash, pub)
-      assert Identity.get_ratchet(dest_hash) == pub
+      assert Identity.ratchet(dest_hash) == pub
     end
 
-    test "get_ratchet returns nil for unknown destination" do
-      assert Identity.get_ratchet(:crypto.strong_rand_bytes(16)) == nil
+    test "ratchet returns nil for unknown destination" do
+      assert Identity.ratchet(:crypto.strong_rand_bytes(16)) == nil
     end
 
     test "current_ratchet_id returns nil when no ratchet" do

@@ -165,7 +165,7 @@ defmodule RNS.Interfaces.PipeInterface do
         created: System.system_time(:second)
       }
 
-      state = %{state | hash: RNS.Interfaces.Interface.get_hash(state)}
+      state = %{state | hash: RNS.Interfaces.Interface.hash(state)}
 
       case open_pipe(state) do
         {:ok, new_state} ->

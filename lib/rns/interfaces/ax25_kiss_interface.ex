@@ -396,7 +396,7 @@ defmodule RNS.Interfaces.AX25KISSInterface do
           interface_ready: !flow_control
         }
 
-        state = %{state | hash: RNS.Interfaces.Interface.get_hash(state)}
+        state = %{state | hash: RNS.Interfaces.Interface.hash(state)}
 
         if skip_open do
           state = configure_device(state)

@@ -219,7 +219,7 @@ defmodule RNS.Interfaces.SerialInterface do
       backend: detect_backend()
     }
 
-    state = %{state | hash: RNS.Interfaces.Interface.get_hash(state)}
+    state = %{state | hash: RNS.Interfaces.Interface.hash(state)}
 
     if skip_open do
       {:ok, %{state | online: true}}

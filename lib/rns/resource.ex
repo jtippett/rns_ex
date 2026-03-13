@@ -495,7 +495,7 @@ defmodule RNS.Resource do
       end
 
     # Prepend random hash and encrypt
-    random_prefix = Identity.get_random_hash() |> binary_part(0, @random_hash_size)
+    random_prefix = Identity.random_hash() |> binary_part(0, @random_hash_size)
     prefixed_data = random_prefix <> final_data
 
     # Encrypt using link
@@ -505,7 +505,7 @@ defmodule RNS.Resource do
     total_parts = ceil(size / resource.sdu)
 
     # Generate resource hash and hashmap
-    resource_random_hash = Identity.get_random_hash() |> binary_part(0, @random_hash_size)
+    resource_random_hash = Identity.random_hash() |> binary_part(0, @random_hash_size)
 
     resource_hash = Identity.full_hash(full_data <> resource_random_hash)
     truncated_hash = Identity.truncated_hash(full_data <> resource_random_hash)
@@ -587,7 +587,7 @@ defmodule RNS.Resource do
         end_pos = min((i + 1) * sdu, byte_size(encrypted_data))
         part_data = binary_part(encrypted_data, start_pos, end_pos - start_pos)
 
-        map_hash = get_map_hash(part_data, random_hash)
+        map_hash = map_hash(part_data, random_hash)
 
         if MapSet.member?(guard_set, map_hash) do
           {:halt, :collision}
@@ -627,8 +627,8 @@ defmodule RNS.Resource do
   end
 
   @doc "Compute a map hash for a part."
-  @spec get_map_hash(binary(), binary()) :: binary()
-  def get_map_hash(data, random_hash) do
+  @spec map_hash(binary(), binary()) :: binary()
+  def map_hash(data, random_hash) do
     Identity.full_hash(data <> random_hash) |> binary_part(0, @maphash_len)
   end
 
@@ -892,7 +892,7 @@ defmodule RNS.Resource do
 
     if resource.status != @status_failed do
       resource = %{resource | status: @status_transferring}
-      part_hash = get_map_hash(part_data, resource.random_hash)
+      part_hash = map_hash(part_data, resource.random_hash)
 
       consecutive_index = max(resource.consecutive_completed_height, 0)
 
@@ -1576,16 +1576,16 @@ defmodule RNS.Resource do
   # ── Progress ──────────────────────────────────────────────────
 
   @doc "Returns the current progress as a float between 0.0 and 1.0."
-  @spec get_progress(t()) :: float()
-  def get_progress(%__MODULE__{status: @status_complete, segment_index: si, total_segments: ts})
+  @spec progress(t()) :: float()
+  def progress(%__MODULE__{status: @status_complete, segment_index: si, total_segments: ts})
       when si == ts,
       do: 1.0
 
-  def get_progress(%__MODULE__{initiator: true, split: false} = r) do
+  def progress(%__MODULE__{initiator: true, split: false} = r) do
     if r.total_parts > 0, do: min(1.0, r.sent_parts / r.total_parts), else: 0.0
   end
 
-  def get_progress(%__MODULE__{initiator: true, split: true} = r) do
+  def progress(%__MODULE__{initiator: true, split: true} = r) do
     max_parts_per_segment = ceil(@max_efficient_size / r.sdu)
     processed_segments = r.segment_index - 1
     previously_processed = processed_segments * max_parts_per_segment
@@ -1602,11 +1602,11 @@ defmodule RNS.Resource do
     if total > 0, do: min(1.0, processed / total), else: 0.0
   end
 
-  def get_progress(%__MODULE__{initiator: false, split: false} = r) do
+  def progress(%__MODULE__{initiator: false, split: false} = r) do
     if r.total_parts > 0, do: min(1.0, r.received_count / r.total_parts), else: 0.0
   end
 
-  def get_progress(%__MODULE__{initiator: false, split: true} = r) do
+  def progress(%__MODULE__{initiator: false, split: true} = r) do
     max_parts_per_segment = ceil(@max_efficient_size / r.sdu)
     processed_segments = r.segment_index - 1
     previously_processed = processed_segments * max_parts_per_segment
@@ -1624,8 +1624,8 @@ defmodule RNS.Resource do
   end
 
   @doc "Returns the segment progress as a float between 0.0 and 1.0."
-  @spec get_segment_progress(t()) :: float()
-  def get_segment_progress(%__MODULE__{
+  @spec segment_progress(t()) :: float()
+  def segment_progress(%__MODULE__{
         status: @status_complete,
         segment_index: si,
         total_segments: ts
@@ -1633,35 +1633,35 @@ defmodule RNS.Resource do
       when si == ts,
       do: 1.0
 
-  def get_segment_progress(%__MODULE__{initiator: true} = r) do
+  def segment_progress(%__MODULE__{initiator: true} = r) do
     if r.total_parts > 0, do: min(1.0, r.sent_parts / r.total_parts), else: 0.0
   end
 
-  def get_segment_progress(%__MODULE__{initiator: false} = r) do
+  def segment_progress(%__MODULE__{initiator: false} = r) do
     if r.total_parts > 0, do: min(1.0, r.received_count / r.total_parts), else: 0.0
   end
 
-  # ── Getters ───────────────────────────────────────────────────
+  # ── Accessors ─────────────────────────────────────────────────
 
   @doc "Returns the transfer size in bytes."
-  @spec get_transfer_size(t()) :: non_neg_integer()
-  def get_transfer_size(%__MODULE__{size: size}), do: size
+  @spec transfer_size(t()) :: non_neg_integer()
+  def transfer_size(%__MODULE__{size: size}), do: size
 
   @doc "Returns the total data size in bytes."
-  @spec get_data_size(t()) :: non_neg_integer()
-  def get_data_size(%__MODULE__{total_size: total_size}), do: total_size
+  @spec data_size(t()) :: non_neg_integer()
+  def data_size(%__MODULE__{total_size: total_size}), do: total_size
 
   @doc "Returns the number of parts."
-  @spec get_parts(t()) :: non_neg_integer()
-  def get_parts(%__MODULE__{total_parts: total_parts}), do: total_parts
+  @spec parts(t()) :: non_neg_integer()
+  def parts(%__MODULE__{total_parts: total_parts}), do: total_parts
 
   @doc "Returns the number of segments."
-  @spec get_segments(t()) :: non_neg_integer()
-  def get_segments(%__MODULE__{total_segments: total_segments}), do: total_segments
+  @spec segments(t()) :: non_neg_integer()
+  def segments(%__MODULE__{total_segments: total_segments}), do: total_segments
 
   @doc "Returns the resource hash."
-  @spec get_hash(t()) :: binary() | nil
-  def get_hash(%__MODULE__{hash: hash}), do: hash
+  @spec hash(t()) :: binary() | nil
+  def hash(%__MODULE__{hash: hash}), do: hash
 
   @doc "Returns whether the resource is compressed."
   @spec is_compressed(t()) :: boolean()
@@ -1882,24 +1882,24 @@ defmodule RNS.Resource.Advertisement do
   def read_size(%__MODULE__{d: d}), do: d
 
   @doc "Get the transfer size."
-  @spec get_transfer_size(t()) :: non_neg_integer()
-  def get_transfer_size(%__MODULE__{t: t}), do: t
+  @spec transfer_size(t()) :: non_neg_integer()
+  def transfer_size(%__MODULE__{t: t}), do: t
 
   @doc "Get the data size."
-  @spec get_data_size(t()) :: non_neg_integer()
-  def get_data_size(%__MODULE__{d: d}), do: d
+  @spec data_size(t()) :: non_neg_integer()
+  def data_size(%__MODULE__{d: d}), do: d
 
   @doc "Get the number of parts."
-  @spec get_parts(t()) :: non_neg_integer()
-  def get_parts(%__MODULE__{n: n}), do: n
+  @spec parts(t()) :: non_neg_integer()
+  def parts(%__MODULE__{n: n}), do: n
 
   @doc "Get the number of segments."
-  @spec get_segments(t()) :: non_neg_integer()
-  def get_segments(%__MODULE__{l: l}), do: l
+  @spec segments(t()) :: non_neg_integer()
+  def segments(%__MODULE__{l: l}), do: l
 
   @doc "Get the resource hash."
-  @spec get_hash(t()) :: binary()
-  def get_hash(%__MODULE__{h: h}), do: h
+  @spec hash(t()) :: binary()
+  def hash(%__MODULE__{h: h}), do: h
 
   @doc "Check if compressed."
   @spec is_compressed(t()) :: boolean()

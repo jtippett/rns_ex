@@ -263,7 +263,7 @@ defmodule RNS.Interfaces.LocalClientInterface do
           state
       end
 
-    state = %{state | hash: RNS.Interfaces.Interface.get_hash(state)}
+    state = %{state | hash: RNS.Interfaces.Interface.hash(state)}
     {:ok, state}
   end
 
@@ -735,7 +735,7 @@ defmodule RNS.Interfaces.LocalServerInterface do
           state
       end
 
-    state = %{state | hash: RNS.Interfaces.Interface.get_hash(state)}
+    state = %{state | hash: RNS.Interfaces.Interface.hash(state)}
     {:ok, state}
   end
 

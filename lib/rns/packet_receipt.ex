@@ -68,8 +68,8 @@ defmodule RNS.PacketReceipt do
     now = System.system_time(:second)
 
     %__MODULE__{
-      hash: RNS.Packet.get_hash(packet),
-      truncated_hash: RNS.Packet.get_truncated_hash(packet),
+      hash: RNS.Packet.hash(packet),
+      truncated_hash: RNS.Packet.truncated_hash(packet),
       sent: true,
       sent_at: now,
       proved: false,
@@ -99,12 +99,12 @@ defmodule RNS.PacketReceipt do
   # ── Status ───────────────────────────────────────────────────────
 
   @doc "Returns the current receipt status."
-  @spec get_status(t()) :: non_neg_integer()
-  def get_status(%__MODULE__{status: status}), do: status
+  @spec status(t()) :: non_neg_integer()
+  def status(%__MODULE__{status: status}), do: status
 
   @doc "Returns the round-trip time in seconds."
-  @spec get_rtt(t()) :: number()
-  def get_rtt(%__MODULE__{concluded_at: concluded_at, sent_at: sent_at}) do
+  @spec rtt(t()) :: number()
+  def rtt(%__MODULE__{concluded_at: concluded_at, sent_at: sent_at}) do
     concluded_at - sent_at
   end
 
