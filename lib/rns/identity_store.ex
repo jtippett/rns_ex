@@ -137,6 +137,26 @@ defmodule RNS.IdentityStore do
     {:reply, state.storagepath, state}
   end
 
+  @impl true
+  def terminate(_reason, state) do
+    # Defense in depth: save known destinations on termination.
+    # Reticulum.terminate also saves, but if IdentityStore crashes
+    # independently this ensures data is not lost.
+    if state.storagepath do
+      try do
+        File.mkdir_p(state.storagepath)
+        do_save_known_destinations(state.storagepath)
+      rescue
+        e ->
+          Logger.debug(
+            "IdentityStore terminate: could not save known destinations: #{Exception.message(e)}"
+          )
+      end
+    end
+
+    :ok
+  end
+
   defp safe_create_table(name, opts) do
     case :ets.info(name) do
       :undefined ->
@@ -192,6 +212,8 @@ defmodule RNS.IdentityStore do
     file_path = Path.join(storagepath, "known_destinations")
 
     try do
+      File.mkdir_p!(storagepath)
+
       destinations =
         :ets.tab2list(@destinations_table)
         |> Map.new(fn {dest_hash, {ts, pkt_hash, pub_key, app_data}} ->

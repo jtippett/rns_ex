@@ -481,6 +481,17 @@ defmodule RNS.Transport do
     GenServer.call(__MODULE__, :network_identity)
   end
 
+  @doc """
+  Persists all Transport state (packet hashlist, path table, tunnel table) to disk.
+
+  Defense-in-depth: called from Transport.terminate/2 and also from
+  Reticulum.persist_data/0 during normal shutdown.
+  """
+  @spec persist_data() :: :ok
+  def persist_data do
+    GenServer.call(__MODULE__, :persist_data)
+  end
+
   # ── Control & Management Destinations ────────────────────────────────
 
   @doc """
@@ -2296,6 +2307,16 @@ defmodule RNS.Transport do
   end
 
   @impl true
+  def handle_call(:persist_data, _from, state) do
+    if state.storage_path do
+      File.mkdir_p(state.storage_path)
+      CacheManagement.persist_data(state.storage_path)
+    end
+
+    {:reply, :ok, state}
+  end
+
+  @impl true
   def handle_call({:create_destinations, opts}, _from, state) do
     state = do_create_destinations(state, opts)
     {:reply, :ok, state}
@@ -2390,7 +2411,13 @@ defmodule RNS.Transport do
   @impl true
   def terminate(_reason, state) do
     if state.storage_path do
-      CacheManagement.persist_data(state.storage_path)
+      File.mkdir_p(state.storage_path)
+
+      try do
+        CacheManagement.persist_data(state.storage_path)
+      rescue
+        e -> Logger.debug("Transport terminate: could not persist data: #{Exception.message(e)}")
+      end
     end
 
     :ok

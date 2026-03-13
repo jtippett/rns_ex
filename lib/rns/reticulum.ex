@@ -262,6 +262,15 @@ defmodule RNS.Reticulum do
   @spec identity() :: RNS.Identity.t() | nil
   def identity, do: GenServer.call(__MODULE__, :identity)
 
+  @doc """
+  Persists all state to disk (known destinations, packet hashlist, path table, tunnels).
+
+  Skips persistence when connected to a shared instance (the daemon owns the data).
+  Called during shutdown and periodically during runtime.
+  """
+  @spec persist_data() :: :ok
+  def persist_data, do: GenServer.call(__MODULE__, :persist_data)
+
   @doc "Triggers gracious persistence if enough time has elapsed."
   @spec should_persist_data() :: :ok
   def should_persist_data, do: GenServer.cast(__MODULE__, :should_persist_data)
@@ -810,6 +819,17 @@ defmodule RNS.Reticulum do
   end
 
   @impl true
+  def handle_call(:persist_data, _from, state) do
+    if state.is_connected_to_shared_instance do
+      Logger.debug("Skipping state persistence — connected to shared instance")
+    else
+      persist_data(state)
+    end
+
+    {:reply, :ok, state}
+  end
+
+  @impl true
   def handle_cast(:should_persist_data, state) do
     now = System.system_time(:second)
 
@@ -858,8 +878,13 @@ defmodule RNS.Reticulum do
     # Detach all interfaces
     detach_all_interfaces(state)
 
-    # Persist state
-    persist_data(state)
+    # Persist state — skip when connected to shared instance (Python parity:
+    # Transport.exit_handler only persists if not connected to shared instance)
+    if state.is_connected_to_shared_instance do
+      Logger.debug("Skipping state persistence — connected to shared instance")
+    else
+      persist_data(state)
+    end
 
     :ok
   end
@@ -882,7 +907,9 @@ defmodule RNS.Reticulum do
     Process.send_after(self(), :run_jobs, @job_interval * 1000)
   end
 
-  defp persist_data(state) do
+  defp persist_data(_state) do
+    # Delegate to each subsystem's own persist API — they know their own
+    # storage paths and handle missing dirs gracefully.
     try do
       RNS.IdentityStore.save_known_destinations()
     rescue
@@ -890,21 +917,9 @@ defmodule RNS.Reticulum do
     end
 
     try do
-      RNS.Transport.save_packet_hashlist(Path.join(state.storagepath, "packet_hashlist"))
+      RNS.Transport.persist_data()
     rescue
-      e -> Logger.debug("Could not save packet hashlist: #{Exception.message(e)}")
-    end
-
-    try do
-      RNS.Transport.save_path_table(Path.join(state.storagepath, "destination_table"))
-    rescue
-      e -> Logger.debug("Could not save path table: #{Exception.message(e)}")
-    end
-
-    try do
-      RNS.Transport.save_tunnel_table(Path.join(state.storagepath, "tunnels"))
-    rescue
-      e -> Logger.debug("Could not save tunnel table: #{Exception.message(e)}")
+      e -> Logger.debug("Could not save transport state: #{Exception.message(e)}")
     end
 
     :ok

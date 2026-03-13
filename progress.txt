@@ -348,3 +348,42 @@ timer (12h interval via :run_jobs) was already working.
   after boot and have correct types/aspects.
 
 **Result:** `mix test` passes with 0 failures (3098 tests, 13 pre-existing skipped fixture tests).
+
+## 2026-03-14 — Task 2.4: Clean shutdown with full state persistence
+
+**Changes:**
+- `lib/rns/reticulum.ex`:
+  - Added `persist_data/0` public API (GenServer call) for explicit state persistence.
+  - Added shared-instance guard: both `persist_data/0` and `terminate/2` skip persistence
+    when `is_connected_to_shared_instance` is true, matching Python's `Transport.exit_handler()`
+    which only calls `persist_data()` if not connected to a shared instance.
+  - Refactored private `persist_data/1` to delegate to subsystem APIs (`IdentityStore.save_known_destinations/0`
+    and `Transport.persist_data/0`) instead of manually constructing file paths. Each subsystem
+    knows its own storage path, eliminating path duplication.
+  - Added `File.mkdir_p` in persist path to handle missing storage directories gracefully.
+- `lib/rns/transport.ex`:
+  - Added `persist_data/0` public API (GenServer call) that saves all three state files
+    (packet hashlist, path table, tunnel table) via `CacheManagement.persist_data/1`.
+  - Added `handle_call(:persist_data, ...)` with `File.mkdir_p` for missing dir safety.
+  - Improved `terminate/2` with `File.mkdir_p` and try/rescue for graceful error handling
+    during shutdown, preventing crash logs from missing directories.
+- `lib/rns/identity_store.ex`:
+  - Added `terminate/2` callback for defense-in-depth: saves known destinations to disk
+    when IdentityStore shuts down, even if Reticulum's terminate didn't run (e.g.,
+    IdentityStore crashes independently). Includes `File.mkdir_p` and try/rescue.
+  - Added `File.mkdir_p!` in `do_save_known_destinations/1` so save works even if the
+    storage directory doesn't exist yet.
+- `test/rns/shutdown_persistence_test.exs`: New test file with 11 tests covering:
+  - Reticulum persist_data saves all four files when NOT connected to shared instance
+  - Reticulum persist_data skips all persistence when connected to shared instance
+  - Reticulum terminate writes all four persistence files
+  - Reticulum terminate produces no error logs
+  - Transport.persist_data/0 public API works and writes files
+  - Transport CacheManagement.persist_data writes all three files
+  - IdentityStore terminate saves known destinations to disk and round-trips
+  - Missing storage directory handled gracefully (no crash, GenServers survive)
+  - IdentityStore save handles nonexistent directory gracefully
+  - Full shutdown/restart round-trip: data persisted by Reticulum survives clear + reload
+  - Shutdown order verification: ETS tables accessible during Reticulum's lifetime
+
+**Result:** `mix test` passes with 0 failures (3109 tests, 13 pre-existing skipped fixture tests).
