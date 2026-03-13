@@ -385,8 +385,9 @@ defmodule RNS.Utilities.RNStatus do
       sig = ifstat["ifac_signature"]
       sig_bytes = if is_binary(sig), do: sig, else: <<>>
 
-      last_5 =
-        binary_part(sig_bytes, max(byte_size(sig_bytes) - 5, 0), min(5, byte_size(sig_bytes)))
+      sig_size = byte_size(sig_bytes)
+      skip = max(sig_size - 5, 0)
+      <<_::binary-size(skip), last_5::binary>> = sig_bytes
 
       sigstr = "<…#{RNS.hexrep(last_5, false)}>"
       IO.puts("    Access    : #{ifstat["ifac_size"] * 8}-bit IFAC by #{sigstr}")

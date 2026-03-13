@@ -228,8 +228,9 @@ defmodule RNS.Link do
   def link_id_from_lr_packet(%{data: data, hashable_part: hashable_part}) do
     hashable =
       if byte_size(data) > @ecpubsize do
-        diff = byte_size(data) - @ecpubsize
-        binary_part(hashable_part, 0, byte_size(hashable_part) - diff)
+        trim_len = byte_size(hashable_part) - (byte_size(data) - @ecpubsize)
+        <<trimmed::binary-size(trim_len), _::binary>> = hashable_part
+        trimmed
       else
         hashable_part
       end
@@ -388,8 +389,8 @@ defmodule RNS.Link do
   end
 
   defp do_validate_request(owner, data, packet, signalling_type) do
-    peer_pub_bytes = binary_part(data, 0, div(@ecpubsize, 2))
-    peer_sig_pub_bytes = binary_part(data, div(@ecpubsize, 2), div(@ecpubsize, 2))
+    ec_half = div(@ecpubsize, 2)
+    <<peer_pub_bytes::binary-size(ec_half), peer_sig_pub_bytes::binary-size(ec_half), _::binary>> = data
 
     prv = X25519.generate_keypair()
 
@@ -467,18 +468,18 @@ defmodule RNS.Link do
         if byte_size(packet.data) == sig_len + ec_half + @link_mtu_size do
           mtu = mtu_from_lp_packet(packet)
           sig_bytes = signalling_bytes(mtu, mode)
-          trimmed = binary_part(packet.data, 0, sig_len + ec_half)
+          <<trimmed::binary-size(sig_len + ec_half), _::binary>> = packet.data
           {mtu, sig_bytes, trimmed}
         else
           {nil, <<>>, packet.data}
         end
 
       if byte_size(proof_data) == sig_len + ec_half do
-        peer_pub_bytes = binary_part(proof_data, sig_len, ec_half)
+        <<_sig::binary-size(sig_len), peer_pub_bytes::binary-size(ec_half)>> = proof_data
 
         # Get peer signing public key from destination identity
         dest_pub_key = Identity.public_key(link.destination.identity)
-        peer_sig_pub_bytes = binary_part(dest_pub_key, ec_half, ec_half)
+        <<_enc_pub::binary-size(ec_half), peer_sig_pub_bytes::binary-size(ec_half)>> = dest_pub_key
 
         updated = load_peer(link, peer_pub_bytes, peer_sig_pub_bytes)
 
@@ -490,7 +491,7 @@ defmodule RNS.Link do
                 handshaken.peer_sig_pub_bytes <>
                 signalling
 
-            signature = binary_part(proof_data, 0, sig_len)
+            <<signature::binary-size(sig_len), _::binary>> = proof_data
 
             if Identity.validate(link.destination.identity, signature, signed_data) do
               if handshaken.status != @status_handshake do
@@ -1038,8 +1039,7 @@ defmodule RNS.Link do
         siglength_bytes = div(Identity.siglength(), 8)
 
         if not link.initiator and byte_size(plaintext) == keysize_bytes + siglength_bytes do
-          public_key = binary_part(plaintext, 0, keysize_bytes)
-          signature = binary_part(plaintext, keysize_bytes, siglength_bytes)
+          <<public_key::binary-size(keysize_bytes), signature::binary-size(siglength_bytes)>> = plaintext
           signed_data = link.link_id <> public_key
 
           identity = Identity.new(create_keys: false)

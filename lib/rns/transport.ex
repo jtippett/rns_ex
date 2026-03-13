@@ -1055,7 +1055,8 @@ defmodule RNS.Transport do
 
     # Calculate packet access code
     signature = Identity.sign(ifac_identity, raw)
-    ifac = binary_part(signature, byte_size(signature) - ifac_size, ifac_size)
+    ifac_start = byte_size(signature) - ifac_size
+    <<_::binary-size(ifac_start), ifac::binary-size(ifac_size)>> = signature
 
     # Generate mask using HKDF
     mask =
@@ -1176,11 +1177,9 @@ defmodule RNS.Transport do
         new_flags = @header_2 <<< 6 ||| @transport <<< 4 ||| (packet.flags &&& 0x0F)
         next_hop_hash = path_entry.next_hop
 
-        new_raw =
-          <<new_flags::8>> <>
-            binary_part(packet.raw, 1, 1) <>
-            next_hop_hash <>
-            binary_part(packet.raw, 2, byte_size(packet.raw) - 2)
+        <<_flags::8, hops::8, rest::binary>> = packet.raw
+
+        new_raw = <<new_flags::8, hops::8>> <> next_hop_hash <> rest
 
         transmit(outbound_interface, new_raw)
         update_path_timestamp(packet.destination_hash)
@@ -1194,11 +1193,9 @@ defmodule RNS.Transport do
         new_flags = @header_2 <<< 6 ||| @transport <<< 4 ||| (packet.flags &&& 0x0F)
         next_hop_hash = path_entry.next_hop
 
-        new_raw =
-          <<new_flags::8>> <>
-            binary_part(packet.raw, 1, 1) <>
-            next_hop_hash <>
-            binary_part(packet.raw, 2, byte_size(packet.raw) - 2)
+        <<_flags::8, hops::8, rest::binary>> = packet.raw
+
+        new_raw = <<new_flags::8, hops::8>> <> next_hop_hash <> rest
 
         transmit(outbound_interface, new_raw)
         update_path_timestamp(packet.destination_hash)
@@ -1357,7 +1354,7 @@ defmodule RNS.Transport do
         ifac_size = interface.ifac_size
 
         if byte_size(raw) > 2 + ifac_size do
-          ifac = binary_part(raw, 2, ifac_size)
+          <<_::binary-size(2), ifac::binary-size(ifac_size), _::binary>> = raw
 
           # Generate mask
           mask =
@@ -1378,8 +1375,8 @@ defmodule RNS.Transport do
           # Calculate expected IFAC
           expected_signature = Identity.sign(interface.ifac_identity, new_raw)
 
-          expected_ifac =
-            binary_part(expected_signature, byte_size(expected_signature) - ifac_size, ifac_size)
+          expected_ifac_start = byte_size(expected_signature) - ifac_size
+          <<_::binary-size(expected_ifac_start), expected_ifac::binary-size(ifac_size)>> = expected_signature
 
           if ifac == expected_ifac, do: {:ok, new_raw}, else: :drop
         else
@@ -1540,28 +1537,24 @@ defmodule RNS.Transport do
         outbound_interface = path_entry.interface
         hash_len = div(@truncated_hashlength, 8)
 
+        <<flags::8, _hops::8, rest::binary>> = packet.raw
+
         new_raw =
           cond do
             remaining_hops > 1 ->
               # Forward with updated hop count and next hop address
-              binary_part(packet.raw, 0, 1) <>
-                <<packet.hops::8>> <>
-                next_hop_addr <>
-                binary_part(packet.raw, hash_len + 2, byte_size(packet.raw) - hash_len - 2)
+              <<_transport_id::binary-size(hash_len), payload::binary>> = rest
+              <<flags::8, packet.hops::8>> <> next_hop_addr <> payload
 
             remaining_hops == 1 ->
               # Strip transport headers, convert back to HEADER_1
               new_flags = @header_1 <<< 6 ||| @broadcast <<< 4 ||| (packet.flags &&& 0x0F)
-
-              <<new_flags::8>> <>
-                <<packet.hops::8>> <>
-                binary_part(packet.raw, hash_len + 2, byte_size(packet.raw) - hash_len - 2)
+              <<_transport_id::binary-size(hash_len), payload::binary>> = rest
+              <<new_flags::8, packet.hops::8>> <> payload
 
             true ->
               # remaining_hops == 0, just update hop count
-              binary_part(packet.raw, 0, 1) <>
-                <<packet.hops::8>> <>
-                binary_part(packet.raw, 2, byte_size(packet.raw) - 2)
+              <<flags::8, packet.hops::8>> <> rest
           end
 
         # Record link table entry for link requests, reverse entry for others
@@ -1585,7 +1578,8 @@ defmodule RNS.Transport do
     # Derive link_id from the link request packet data (first 32 bytes of X25519 public key)
     link_id =
       if byte_size(packet.data) >= 32 do
-        Identity.truncated_hash(binary_part(packet.data, 0, 32))
+        <<first_32::binary-size(32), _::binary>> = packet.data
+        Identity.truncated_hash(first_32)
       else
         packet.destination_hash
       end
@@ -1634,10 +1628,8 @@ defmodule RNS.Transport do
           if outbound_interface != nil do
             mark_packet_hash(packet.packet_hash)
 
-            new_raw =
-              binary_part(packet.raw, 0, 1) <>
-                <<packet.hops::8>> <>
-                binary_part(packet.raw, 2, byte_size(packet.raw) - 2)
+            <<flags::8, _hops::8, rest::binary>> = packet.raw
+            new_raw = <<flags::8, packet.hops::8>> <> rest
 
             transmit(outbound_interface, new_raw)
 
@@ -1877,10 +1869,8 @@ defmodule RNS.Transport do
 
           reverse_entry ->
             if packet.receiving_interface == reverse_entry.outbound_interface do
-              new_raw =
-                binary_part(packet.raw, 0, 1) <>
-                  <<packet.hops::8>> <>
-                  binary_part(packet.raw, 2, byte_size(packet.raw) - 2)
+              <<flags::8, _hops::8, rest::binary>> = packet.raw
+              new_raw = <<flags::8, packet.hops::8>> <> rest
 
               transmit(reverse_entry.received_on_interface, new_raw)
             end
@@ -1906,10 +1896,8 @@ defmodule RNS.Transport do
           if packet.hops == link_entry.remaining_hops and
                packet.receiving_interface == link_entry.next_hop_interface do
             # Validate and forward the link proof
-            new_raw =
-              binary_part(packet.raw, 0, 1) <>
-                <<packet.hops::8>> <>
-                binary_part(packet.raw, 2, byte_size(packet.raw) - 2)
+            <<flags::8, _hops::8, rest::binary>> = packet.raw
+            new_raw = <<flags::8, packet.hops::8>> <> rest
 
             # Mark link as validated
             put_link_entry(packet.destination_hash, %{link_entry | validated: true})
@@ -1945,10 +1933,9 @@ defmodule RNS.Transport do
     expl_length = hashlength_bytes + siglength_bytes
 
     proof_hash =
-      if byte_size(packet.data) == expl_length do
-        binary_part(packet.data, 0, hashlength_bytes)
-      else
-        nil
+      case packet.data do
+        <<hash::binary-size(hashlength_bytes), _::binary-size(siglength_bytes)>> -> hash
+        _ -> nil
       end
 
     receipts = get_all_receipts()

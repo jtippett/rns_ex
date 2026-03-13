@@ -123,35 +123,28 @@ defmodule RNS.Identity do
   Returns `{:ok, updated_identity}` on success, `{:error, reason}` on failure.
   """
   @spec load_private_key(t(), binary()) :: {:ok, t()} | {:error, term()}
-  def load_private_key(%__MODULE__{} = id, prv_bytes) when is_binary(prv_bytes) do
-    half = div(@keysize, 8 * 2)
+  def load_private_key(%__MODULE__{} = id, <<enc_prv::binary-size(32), sig_prv::binary-size(32), _::binary>>) do
+    try do
+      enc_kp = X25519.from_private_bytes(enc_prv)
+      sig_kp = Ed25519.from_private_bytes(sig_prv)
 
-    if byte_size(prv_bytes) < half * 2 do
-      {:error, :invalid_key_length}
-    else
-      try do
-        <<enc_prv::binary-size(half), sig_prv::binary-size(half)>> =
-          binary_part(prv_bytes, 0, half * 2)
+      updated =
+        %{
+          id
+          | prv_bytes: enc_prv,
+            sig_prv_bytes: sig_prv,
+            pub_bytes: X25519.public_key(enc_kp),
+            sig_pub_bytes: Ed25519.public_key(sig_kp)
+        }
+        |> update_hashes()
 
-        enc_kp = X25519.from_private_bytes(enc_prv)
-        sig_kp = Ed25519.from_private_bytes(sig_prv)
-
-        updated =
-          %{
-            id
-            | prv_bytes: enc_prv,
-              sig_prv_bytes: sig_prv,
-              pub_bytes: X25519.public_key(enc_kp),
-              sig_pub_bytes: Ed25519.public_key(sig_kp)
-          }
-          |> update_hashes()
-
-        {:ok, updated}
-      rescue
-        e -> {:error, e}
-      end
+      {:ok, updated}
+    rescue
+      e -> {:error, e}
     end
   end
+
+  def load_private_key(%__MODULE__{}, _), do: {:error, :invalid_key_length}
 
   @doc """
   Loads a 64-byte public key into the identity.
@@ -159,12 +152,7 @@ defmodule RNS.Identity do
   Returns the updated identity.
   """
   @spec load_public_key(t(), binary()) :: t()
-  def load_public_key(%__MODULE__{} = id, pub_bytes) when is_binary(pub_bytes) do
-    half = div(@keysize, 8 * 2)
-
-    <<enc_pub::binary-size(half), sig_pub::binary-size(half)>> =
-      binary_part(pub_bytes, 0, half * 2)
-
+  def load_public_key(%__MODULE__{} = id, <<enc_pub::binary-size(32), sig_pub::binary-size(32), _::binary>>) do
     %{id | pub_bytes: enc_pub, sig_pub_bytes: sig_pub}
     |> update_hashes()
   end
@@ -402,73 +390,43 @@ defmodule RNS.Identity do
   """
   @spec validate_announce(map()) :: boolean()
   def validate_announce(packet) do
-    try do
-      keysize_bytes = div(@keysize, 8)
-      name_hash_len = div(@name_hash_length, 8)
-      sig_len = div(@siglength, 8)
-      ratchetsize_bytes = div(@ratchetsize, 8)
-      destination_hash = packet.destination_hash
-      data = packet.data
+    keysize_bytes = div(@keysize, 8)
+    name_hash_len = div(@name_hash_length, 8)
+    sig_len = div(@siglength, 8)
+    ratchetsize_bytes = div(@ratchetsize, 8)
 
-      # Extract fields based on context flag (ratchet present or not)
+    with data when is_binary(data) <- packet.data,
+         dest_hash when is_binary(dest_hash) <- packet.destination_hash do
+      <<public_key::binary-size(keysize_bytes), rest::binary>> = data
+
       {name_hash, random_hash, ratchet, signature, app_data} =
-        if Map.get(packet, :context_flag, 0) == 1 do
-          # FLAG_SET: announce contains a ratchet
-          nh = binary_part(data, keysize_bytes, name_hash_len)
-          rh = binary_part(data, keysize_bytes + name_hash_len, 10)
-          rt = binary_part(data, keysize_bytes + name_hash_len + 10, ratchetsize_bytes)
-          sig = binary_part(data, keysize_bytes + name_hash_len + 10 + ratchetsize_bytes, sig_len)
+        case Map.get(packet, :context_flag, 0) do
+          1 ->
+            <<nh::binary-size(name_hash_len), rh::binary-size(10),
+              rt::binary-size(ratchetsize_bytes), sig::binary-size(sig_len),
+              ad::binary>> = rest
 
-          ad =
-            if byte_size(data) > keysize_bytes + name_hash_len + 10 + sig_len + ratchetsize_bytes do
-              binary_part(
-                data,
-                keysize_bytes + name_hash_len + 10 + sig_len + ratchetsize_bytes,
-                byte_size(data) -
-                  (keysize_bytes + name_hash_len + 10 + sig_len + ratchetsize_bytes)
-              )
-            else
-              <<>>
-            end
+            {nh, rh, rt, sig, ad}
 
-          {nh, rh, rt, sig, ad}
-        else
-          # FLAG_UNSET: no ratchet
-          nh = binary_part(data, keysize_bytes, name_hash_len)
-          rh = binary_part(data, keysize_bytes + name_hash_len, 10)
-          sig = binary_part(data, keysize_bytes + name_hash_len + 10, sig_len)
+          _ ->
+            <<nh::binary-size(name_hash_len), rh::binary-size(10),
+              sig::binary-size(sig_len), ad::binary>> = rest
 
-          ad =
-            if byte_size(data) > keysize_bytes + name_hash_len + 10 + sig_len do
-              binary_part(
-                data,
-                keysize_bytes + name_hash_len + 10 + sig_len,
-                byte_size(data) - (keysize_bytes + name_hash_len + 10 + sig_len)
-              )
-            else
-              <<>>
-            end
-
-          {nh, rh, <<>>, sig, ad}
+            {nh, rh, <<>>, sig, ad}
         end
 
-      public_key = binary_part(data, 0, keysize_bytes)
+      signed_data = dest_hash <> public_key <> name_hash <> random_hash <> ratchet <> app_data
 
-      signed_data =
-        destination_hash <> public_key <> name_hash <> random_hash <> ratchet <> app_data
+      identity =
+        new(create_keys: false)
+        |> load_public_key(public_key)
 
-      # Load the announced identity's public key and validate
-      announced_identity = new(create_keys: false)
-      announced_identity = load_public_key(announced_identity, public_key)
-
-      if announced_identity.pub_bytes != nil do
-        validate(announced_identity, signature, signed_data)
-      else
-        false
-      end
-    rescue
+      identity.pub_bytes != nil and validate(identity, signature, signed_data)
+    else
       _ -> false
     end
+  rescue
+    _ -> false
   end
 
   # --- Hash helpers ---

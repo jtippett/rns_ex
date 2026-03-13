@@ -479,10 +479,11 @@ defmodule RNS.Interfaces.WeaveInterface.WDCL do
     expected_len = switch_id_len + 1 + pubkey_size + signature_len
 
     if byte_size(data) == expected_len do
-      signed_id = binary_part(data, 0, switch_id_len)
-      pub_key = binary_part(data, switch_id_len + 1, pubkey_size)
-      remote_switch_id = binary_part(pub_key, pubkey_size - 4, 4)
-      signature = binary_part(data, switch_id_len + 1 + pubkey_size, signature_len)
+      <<signed_id::binary-size(switch_id_len), _::8,
+        pub_key::binary-size(pubkey_size),
+        signature::binary-size(signature_len)>> = data
+      sid_skip = pubkey_size - 4
+      <<_::binary-size(sid_skip), remote_switch_id::binary-size(4)>> = pub_key
 
       {:ok,
        %{
@@ -1014,15 +1015,9 @@ defmodule RNS.Interfaces.WeaveInterface.WeaveDevice do
         :binary.at(data, @weave_switch_id_len) == 0x05 and
         device.connection != nil and
           binary_part(data, 0, @weave_switch_id_len) == device.connection.switch_id ->
-        payload =
-          binary_part(
-            data,
-            @weave_switch_id_len + 1,
-            byte_size(data) - @weave_switch_id_len - 1 - @weave_endpoint_id_len
-          )
-
-        src_endpoint =
-          binary_part(data, byte_size(data) - @weave_endpoint_id_len, @weave_endpoint_id_len)
+        <<_switch_id::binary-size(@weave_switch_id_len), _cmd::8, rest::binary>> = data
+        payload_len = byte_size(rest) - @weave_endpoint_id_len
+        <<payload::binary-size(payload_len), src_endpoint::binary-size(@weave_endpoint_id_len)>> = rest
 
         received_packet(device, src_endpoint, payload)
 
@@ -1084,7 +1079,8 @@ defmodule RNS.Interfaces.WeaveInterface.WeaveDevice do
   end
 
   defp handle_log_frame(device, data) do
-    fd = binary_part(data, @weave_switch_id_len + 2, byte_size(data) - @weave_switch_id_len - 2)
+    skip_log = @weave_switch_id_len + 2
+    <<_::binary-size(skip_log), fd::binary>> = data
 
     if byte_size(fd) >= 9 do
       <<_, ts::unsigned-big-32, lvl, evt::unsigned-big-16, rest::binary>> = fd
@@ -1104,7 +1100,8 @@ defmodule RNS.Interfaces.WeaveInterface.WeaveDevice do
   end
 
   defp handle_display_frame(device, data) do
-    fd = binary_part(data, @weave_switch_id_len + 1, byte_size(data) - @weave_switch_id_len - 1)
+    skip_disp = @weave_switch_id_len + 1
+    <<_::binary-size(skip_disp), fd::binary>> = data
 
     if byte_size(fd) >= 10 do
       <<_cf, ofs::unsigned-big-32, dsz::unsigned-big-32, fbf::binary>> = fd
@@ -1117,15 +1114,13 @@ defmodule RNS.Interfaces.WeaveInterface.WeaveDevice do
         end
 
       # Update display buffer at offset
-      before = binary_part(display_buffer, 0, ofs)
+      <<before::binary-size(ofs), rest_buf::binary>> = display_buffer
 
       after_part =
-        if ofs + byte_size(fbf) < byte_size(display_buffer) do
-          binary_part(
-            display_buffer,
-            ofs + byte_size(fbf),
-            byte_size(display_buffer) - ofs - byte_size(fbf)
-          )
+        if byte_size(fbf) < byte_size(rest_buf) do
+          skip_fbf = byte_size(fbf)
+          <<_::binary-size(skip_fbf), after_data::binary>> = rest_buf
+          after_data
         else
           <<>>
         end
@@ -1154,13 +1149,12 @@ defmodule RNS.Interfaces.WeaveInterface.WeaveDevice do
 
       frame.event == Evt.et_proto_weave_ep_via() and
           byte_size(frame.data) == @weave_endpoint_id_len + @weave_switch_id_len ->
-        ep_id = binary_part(frame.data, 0, @weave_endpoint_id_len)
-        via_id = binary_part(frame.data, @weave_endpoint_id_len, @weave_switch_id_len)
+        <<ep_id::binary-size(@weave_endpoint_id_len), via_id::binary-size(@weave_switch_id_len)>> = frame.data
         endpoint_via(device, ep_id, via_id)
 
       frame.event == Evt.et_stat_task_cpu() and byte_size(frame.data) > 1 ->
         cpu_load = :binary.at(frame.data, 0)
-        task_id = binary_part(frame.data, 1, byte_size(frame.data) - 1)
+        <<_::8, task_id::binary>> = frame.data
 
         try do
           task_name = :binary.bin_to_list(task_id) |> List.to_string()
@@ -1182,7 +1176,7 @@ defmodule RNS.Interfaces.WeaveInterface.WeaveDevice do
         capture_stats_cpu(device)
 
       frame.event == Evt.et_stat_memory() and byte_size(frame.data) >= 8 ->
-        <<mem_free::unsigned-big-32, mem_total::unsigned-big-32>> = binary_part(frame.data, 0, 8)
+        <<mem_free::unsigned-big-32, mem_total::unsigned-big-32, _::binary>> = frame.data
         mem_used = mem_total - mem_free
         mem_pct = if mem_total > 0, do: Float.round(mem_used / mem_total * 100, 2), else: 0.0
 

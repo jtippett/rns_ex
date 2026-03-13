@@ -205,7 +205,7 @@ defmodule RNS.PacketReceipt do
         if identity == nil do
           false
         else
-          signature = binary_part(proof, 0, sig_len)
+          <<signature::binary-size(sig_len), _::binary>> = proof
 
           if RNS.Identity.validate(identity, signature, receipt.hash) do
             conclude_delivery(receipt, proof_packet)
@@ -228,8 +228,7 @@ defmodule RNS.PacketReceipt do
     sig_len = div(@siglength, 8)
 
     if byte_size(proof) >= hash_len + sig_len do
-      <<proof_hash::binary-size(hash_len), signature::binary-size(sig_len)>> =
-        binary_part(proof, 0, hash_len + sig_len)
+      <<proof_hash::binary-size(hash_len), signature::binary-size(sig_len), _::binary>> = proof
 
       if proof_hash == receipt.hash do
         validate_fn = Map.get(link, :validate)

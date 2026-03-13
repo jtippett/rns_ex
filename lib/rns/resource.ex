@@ -462,11 +462,14 @@ defmodule RNS.Resource do
 
         segment_data =
           if segment_index == 1 do
-            binary_part(data, 0, min(first_read_size, data_size))
+            read_len = min(first_read_size, data_size)
+            <<seg::binary-size(read_len), _::binary>> = data
+            seg
           else
             seek_position = first_read_size + (segment_index - 2) * @max_efficient_size
             read_size = min(@max_efficient_size, data_size - seek_position)
-            binary_part(data, seek_position, read_size)
+            <<_::binary-size(seek_position), seg::binary-size(read_size), _::binary>> = data
+            seg
           end
 
         {segment_data, total_segs, segment_index, true, data}
@@ -495,7 +498,7 @@ defmodule RNS.Resource do
       end
 
     # Prepend random hash and encrypt
-    random_prefix = Identity.random_hash() |> binary_part(0, @random_hash_size)
+    <<random_prefix::binary-size(@random_hash_size), _::binary>> = Identity.random_hash()
     prefixed_data = random_prefix <> final_data
 
     # Encrypt using link
@@ -505,7 +508,7 @@ defmodule RNS.Resource do
     total_parts = ceil(size / resource.sdu)
 
     # Generate resource hash and hashmap
-    resource_random_hash = Identity.random_hash() |> binary_part(0, @random_hash_size)
+    <<resource_random_hash::binary-size(@random_hash_size), _::binary>> = Identity.random_hash()
 
     resource_hash = Identity.full_hash(full_data <> resource_random_hash)
     truncated_hash = Identity.truncated_hash(full_data <> resource_random_hash)
@@ -585,7 +588,8 @@ defmodule RNS.Resource do
                                                                             guard_set} ->
         start_pos = i * sdu
         end_pos = min((i + 1) * sdu, byte_size(encrypted_data))
-        part_data = binary_part(encrypted_data, start_pos, end_pos - start_pos)
+        part_len = end_pos - start_pos
+        <<_::binary-size(start_pos), part_data::binary-size(part_len), _::binary>> = encrypted_data
 
         map_hash = map_hash(part_data, random_hash)
 
@@ -629,7 +633,8 @@ defmodule RNS.Resource do
   @doc "Compute a map hash for a part."
   @spec map_hash(binary(), binary()) :: binary()
   def map_hash(data, random_hash) do
-    Identity.full_hash(data <> random_hash) |> binary_part(0, @maphash_len)
+    <<hash::binary-size(@maphash_len), _::binary>> = Identity.full_hash(data <> random_hash)
+    hash
   end
 
   # ── Advertise ─────────────────────────────────────────────────
@@ -768,7 +773,7 @@ defmodule RNS.Resource do
     resource = %{resource | last_activity: now_float(), retries_left: resource.max_retries}
 
     hash_len = div(Identity.hashlength(), 8)
-    update_data = plaintext |> binary_part(hash_len, byte_size(plaintext) - hash_len)
+    <<_hash::binary-size(hash_len), update_data::binary>> = plaintext
     [segment, hashmap] = Msgpax.unpack!(update_data)
     hashmap_update(resource, segment, hashmap)
   end
@@ -786,7 +791,8 @@ defmodule RNS.Resource do
       Enum.reduce(0..(hashes - 1), {resource.hashmap, resource.hashmap_height}, fn i,
                                                                                    {hmap, height} ->
         idx = i + segment * seg_len
-        hash = binary_part(hashmap, i * @maphash_len, @maphash_len)
+        offset = i * @maphash_len
+        <<_::binary-size(offset), hash::binary-size(@maphash_len), _::binary>> = hashmap
 
         new_height =
           if Enum.at(hmap, idx) == nil do
@@ -1157,14 +1163,12 @@ defmodule RNS.Resource do
 
     hash_len = div(Identity.hashlength(), 8)
 
-    requested_hashes_bin =
-      binary_part(request_data, pad + hash_len, byte_size(request_data) - pad - hash_len)
+    skip = pad + hash_len
+    <<_::binary-size(skip), requested_hashes_bin::binary>> = request_data
 
     # Parse requested hashes
     map_hashes =
-      for i <- 0..(div(byte_size(requested_hashes_bin), @maphash_len) - 1)//1 do
-        binary_part(requested_hashes_bin, i * @maphash_len, @maphash_len)
-      end
+      for <<hash::binary-size(@maphash_len) <- requested_hashes_bin>>, do: hash
 
     map_hash_set = MapSet.new(map_hashes)
 
@@ -1207,7 +1211,7 @@ defmodule RNS.Resource do
     # Handle hashmap update request
     {resource, hmu_actions} =
       if wants_more_hashmap do
-        last_map_hash = binary_part(request_data, 1, @maphash_len)
+        <<_::8, last_map_hash::binary-size(@maphash_len), _::binary>> = request_data
 
         # Find the part index matching last_map_hash
         search_range = Enum.slice(resource.parts, search_start..(search_end - 1)//1)
@@ -1242,8 +1246,9 @@ defmodule RNS.Resource do
 
           hashmap_data =
             Enum.reduce(hashmap_start..(hashmap_end - 1)//1, <<>>, fn i, acc ->
-              start_byte = i * @maphash_len
-              acc <> binary_part(resource.hashmap, start_byte, @maphash_len)
+              offset = i * @maphash_len
+              <<_::binary-size(offset), hash::binary-size(@maphash_len), _::binary>> = resource.hashmap
+              acc <> hash
             end)
 
           hmu_payload = resource.hash <> Msgpax.pack!([segment, hashmap_data], iodata: false)
@@ -1289,7 +1294,7 @@ defmodule RNS.Resource do
         end
 
       # Strip random hash prefix
-      data = binary_part(data, @random_hash_size, byte_size(data) - @random_hash_size)
+      <<_random::binary-size(@random_hash_size), data::binary>> = data
 
       # Decompress
       data =
@@ -1307,9 +1312,8 @@ defmodule RNS.Resource do
         {metadata, payload} =
           if resource.has_metadata and resource.segment_index == 1 do
             <<metadata_size::unsigned-big-24, rest::binary>> = data
-            packed_metadata = binary_part(rest, 0, metadata_size)
+            <<packed_metadata::binary-size(metadata_size), payload::binary>> = rest
             metadata = Msgpax.unpack!(packed_metadata)
-            payload = binary_part(rest, metadata_size, byte_size(rest) - metadata_size)
             {metadata, payload}
           else
             {nil, data}
@@ -1350,7 +1354,7 @@ defmodule RNS.Resource do
     expected_len = hash_len * 2
 
     if byte_size(proof_data) == expected_len do
-      proof = binary_part(proof_data, hash_len, hash_len)
+      <<_resource_hash::binary-size(hash_len), proof::binary-size(hash_len)>> = proof_data
 
       if proof == resource.expected_proof do
         %{resource | status: @status_complete}
@@ -1807,7 +1811,9 @@ defmodule RNS.Resource.Advertisement do
       if is_binary(adv.m) do
         # Binary hashmap (sender-side)
         Enum.reduce(hashmap_start..(hashmap_end - 1)//1, <<>>, fn i, acc ->
-          acc <> binary_part(adv.m, i * maphash_len, maphash_len)
+          offset = i * maphash_len
+          <<_::binary-size(offset), hash::binary-size(maphash_len), _::binary>> = adv.m
+          acc <> hash
         end)
       else
         # Already segmented or empty

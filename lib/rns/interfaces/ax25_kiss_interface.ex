@@ -314,7 +314,7 @@ defmodule RNS.Interfaces.AX25KISSInterface do
   def process_incoming(state, data) do
     # Strip AX.25 header (first 16 bytes) if present
     if byte_size(data) > @ax25_header_size do
-      payload = binary_part(data, @ax25_header_size, byte_size(data) - @ax25_header_size)
+      <<_header::binary-size(@ax25_header_size), payload::binary>> = data
       updated = %{state | rxb: state.rxb + byte_size(data)}
 
       if state.owner do

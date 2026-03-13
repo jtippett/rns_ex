@@ -99,9 +99,10 @@ defmodule RNS.Transport.AnnounceHandler do
   def extract_random_blob(packet) do
     key_offset = div(Identity.keysize(), 8)
     name_offset = div(Identity.name_hash_length(), 8)
-    start = key_offset + name_offset
+    skip = key_offset + name_offset
 
-    binary_part(packet.data, start, 10)
+    <<_::binary-size(skip), random_blob::binary-size(10), _::binary>> = packet.data
+    random_blob
   end
 
   @doc """

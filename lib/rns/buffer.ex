@@ -153,10 +153,8 @@ defmodule RNS.Buffer.RawChannelReader do
   @spec read(pid(), non_neg_integer()) :: binary() | nil
   def read(agent, size) do
     Agent.get_and_update(agent, fn state ->
-      result = binary_part(state.buffer, 0, min(size, byte_size(state.buffer)))
-
-      remaining =
-        binary_part(state.buffer, byte_size(result), byte_size(state.buffer) - byte_size(result))
+      read_len = min(size, byte_size(state.buffer))
+      <<result::binary-size(read_len), remaining::binary>> = state.buffer
 
       if byte_size(result) > 0 do
         {result, %{state | buffer: remaining}}
@@ -307,7 +305,8 @@ defmodule RNS.Buffer.RawChannelWriter do
 
       {data, chunk_len} =
         if chunk_len > @max_chunk_len do
-          {binary_part(data, 0, @max_chunk_len), @max_chunk_len}
+          <<chunk::binary-size(@max_chunk_len), _::binary>> = data
+          {chunk, @max_chunk_len}
         else
           {data, chunk_len}
         end
@@ -320,7 +319,8 @@ defmodule RNS.Buffer.RawChannelWriter do
           {compressed_chunk, chunk_segment_length}
         else
           actual_len = min(byte_size(data), max_data_len)
-          {binary_part(data, 0, actual_len), actual_len}
+          <<chunk::binary-size(actual_len), _::binary>> = data
+          {chunk, actual_len}
         end
 
       message =
@@ -387,7 +387,7 @@ defmodule RNS.Buffer.RawChannelWriter do
     if chunk_segment_length <= 0 do
       {false, nil, 0}
     else
-      segment = binary_part(data, 0, chunk_segment_length)
+      <<segment::binary-size(chunk_segment_length), _::binary>> = data
       compressed_chunk = :zlib.compress(segment)
       compressed_length = byte_size(compressed_chunk)
 

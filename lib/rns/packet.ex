@@ -403,17 +403,14 @@ defmodule RNS.Packet do
   For HEADER_2: lower nibble of flags byte + everything after flags+hops+transport_id.
   """
   @spec hashable_part(t()) :: binary()
-  def hashable_part(%__MODULE__{raw: raw} = packet) do
-    masked_flags = :binary.at(raw, 0) &&& 0x0F
+  def hashable_part(%__MODULE__{raw: raw, header_type: @header_2}) do
+    <<flags::8, _hops::8, _transport_id::binary-size(@dst_len), rest::binary>> = raw
+    <<(flags &&& 0x0F)::8, rest::binary>>
+  end
 
-    rest =
-      if packet.header_type == @header_2 do
-        binary_part(raw, @dst_len + 2, byte_size(raw) - @dst_len - 2)
-      else
-        binary_part(raw, 2, byte_size(raw) - 2)
-      end
-
-    <<masked_flags::8>> <> rest
+  def hashable_part(%__MODULE__{raw: raw}) do
+    <<flags::8, _hops::8, rest::binary>> = raw
+    <<(flags &&& 0x0F)::8, rest::binary>>
   end
 
   @doc """

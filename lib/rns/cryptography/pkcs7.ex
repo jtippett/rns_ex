@@ -58,6 +58,8 @@ defmodule RNS.Cryptography.PKCS7 do
             "cannot unpad, invalid padding length of #{n} bytes"
     end
 
-    binary_part(data, 0, byte_size(data) - n)
+    keep = byte_size(data) - n
+    <<unpadded::binary-size(keep), _::binary>> = data
+    unpadded
   end
 end

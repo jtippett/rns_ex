@@ -42,17 +42,13 @@ defmodule RNS.Transport.TunnelManagement do
 
     if byte_size(data) == expected_length do
       try do
-        public_key = binary_part(data, 0, keysize_bytes)
-        interface_hash = binary_part(data, keysize_bytes, hashlength_bytes)
+        <<public_key::binary-size(keysize_bytes),
+          interface_hash::binary-size(hashlength_bytes),
+          random_hash::binary-size(truncated_hashlength_bytes),
+          signature::binary-size(siglength_bytes)>> = data
+
         tunnel_id_data = public_key <> interface_hash
-
         tunnel_id = Identity.full_hash(tunnel_id_data)
-
-        random_hash_start = keysize_bytes + hashlength_bytes
-        random_hash = binary_part(data, random_hash_start, truncated_hashlength_bytes)
-
-        sig_start = random_hash_start + truncated_hashlength_bytes
-        signature = binary_part(data, sig_start, siglength_bytes)
 
         signed_data = tunnel_id_data <> random_hash
 

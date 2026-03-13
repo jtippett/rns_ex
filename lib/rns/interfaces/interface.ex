@@ -581,15 +581,15 @@ defmodule RNS.Interfaces.Interface do
           :incomplete
 
         {start, 1} ->
-          rest = binary_part(buffer, start + 1, byte_size(buffer) - start - 1)
+          skip = start + 1
+          <<_::binary-size(skip), rest::binary>> = buffer
 
           case :binary.match(rest, <<@flag>>) do
             :nomatch ->
               :incomplete
 
             {end_pos, 1} ->
-              frame_data = binary_part(rest, 0, end_pos)
-              remaining = binary_part(rest, end_pos + 1, byte_size(rest) - end_pos - 1)
+              <<frame_data::binary-size(end_pos), _flag::8, remaining::binary>> = rest
 
               if byte_size(frame_data) > 0 do
                 {:ok, frame_data, remaining}
@@ -604,7 +604,9 @@ defmodule RNS.Interfaces.Interface do
     defp deframe_skip(buffer) do
       case :binary.match(buffer, <<@flag>>) do
         :nomatch -> :incomplete
-        {start, 1} -> find_frame(binary_part(buffer, start, byte_size(buffer) - start))
+        {start, 1} ->
+          <<_::binary-size(start), from_flag::binary>> = buffer
+          find_frame(from_flag)
       end
     end
   end

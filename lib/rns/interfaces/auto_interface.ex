@@ -747,7 +747,8 @@ defmodule RNS.Interfaces.AutoInterface do
 
   defp handle_discovery_packet(state, data, addr) do
     if state.final_init_done do
-      peering_hash = binary_part(data, 0, min(byte_size(data), div(RNS.Identity.hashlength(), 8)))
+      hash_len = min(byte_size(data), div(RNS.Identity.hashlength(), 8))
+      <<peering_hash::binary-size(hash_len), _::binary>> = data
       expected_hash = RNS.Identity.full_hash(state.group_id <> addr)
 
       if peering_hash == expected_hash do

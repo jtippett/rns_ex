@@ -103,9 +103,9 @@ defmodule RNS.Destination do
   """
   @spec compute_name_hash(String.t(), [String.t()]) :: binary()
   def compute_name_hash(app_name, aspects) do
-    name_str = expand_name(nil, app_name, aspects)
-    full = Hashes.sha256(name_str)
-    binary_part(full, 0, div(@name_hash_length, 8))
+    name_len = div(@name_hash_length, 8)
+    <<hash::binary-size(name_len), _::binary>> = Hashes.sha256(expand_name(nil, app_name, aspects))
+    hash
   end
 
   @doc """
@@ -133,8 +133,9 @@ defmodule RNS.Destination do
           raise ArgumentError, "Invalid material supplied for destination hash calculation"
       end
 
-    full = Hashes.sha256(addr_hash_material)
-    binary_part(full, 0, div(@truncated_hashlength, 8))
+    hash_len = div(@truncated_hashlength, 8)
+    <<hash::binary-size(hash_len), _::binary>> = Hashes.sha256(addr_hash_material)
+    hash
   end
 
   @doc """
