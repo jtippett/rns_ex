@@ -30,3 +30,8 @@ rns_ex-*.tar
 
 # macOS
 **/.DS_Store
+
+# Local scripts and docs
+ralph-once.sh
+afk-ralph.sh
+PRD.md
