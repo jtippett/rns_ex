@@ -387,3 +387,44 @@ timer (12h interval via :run_jobs) was already working.
   - Shutdown order verification: ETS tables accessible during Reticulum's lifetime
 
 **Result:** `mix test` passes with 0 failures (3109 tests, 13 pre-existing skipped fixture tests).
+
+## 2026-03-14 — Task 3.1: Define Stamper behaviour and fail closed without one
+
+**Changes:**
+- `lib/rns/discovery.ex`:
+  - Added `RNS.Discovery.Stamper` behaviour module with 5 callbacks matching Python's
+    LXStamper interface: `stamp_size/0`, `generate_stamp/2`, `stamp_workblock/2`,
+    `stamp_value/2`, `stamp_valid/3`. Includes `@moduledoc` explaining that discovery
+    requires an external stamper module and how to configure one.
+  - Updated `InterfaceAnnounceHandler.new/1` to accept `:stamper` option. Previously
+    the stamper field was hardcoded to `nil`.
+  - Replaced `decode_announce_data/2` stub (which always returned `nil`) with real
+    implementation: without a stamper, returns `{:error, :no_stamper}` (fail closed).
+    With a stamper, extracts flags, packed data, and stamp from the payload, validates
+    the stamp via the stamper's `stamp_workblock`, `stamp_value`, and `stamp_valid`
+    callbacks, and parses the msgpack data into an interface info map via
+    `parse_interface_info/4`. Encrypted payloads return nil (network identity
+    decryption not yet supported).
+  - Replaced `InterfaceAnnouncer.get_interface_announce_data/2` stub with real
+    implementation: reads `stamper` and `stamp_cache` from ctx. Without a stamper,
+    returns `{:error, :no_stamper}`. With a stamper, packs the interface info with
+    Msgpax, computes infohash, checks the stamp cache, generates a stamp via the
+    stamper if not cached, and returns `{<<flags>> <> packed <> stamp, updated_cache}`.
+    Failed stamp generation returns nil.
+- `test/rns/discovery_stamper_test.exs`: New test file with 14 tests covering:
+  - MockStamper and RejectingStamper test implementations of the behaviour
+  - Handler without stamper: defaults to nil, returns `{:error, :no_stamper}` for
+    valid-length data, still returns nil for nil and too-short data
+  - Handler with stamper: accepts stamper option, decodes valid unencrypted payload
+    into interface info map, rejects invalid stamps (RejectingStamper), rejects stamps
+    below required value
+  - Announcer without stamper: returns `{:error, :no_stamper}` for discoverable types
+  - Announcer with stamper: generates payload with flags+packed+stamp, uses and
+    populates stamp cache, returns nil when stamp generation fails, returns nil for
+    non-discoverable types
+- `test/rns/discovery_test.exs`: Updated 2 existing tests:
+  - `decode_announce_data` test now expects `{:error, :no_stamper}` instead of nil
+  - `get_interface_announce_data` test now expects `{:error, :no_stamper}` and passes
+    `stamper: nil` in ctx
+
+**Result:** `mix test` passes with 0 failures (3123 tests, 13 pre-existing skipped fixture tests).

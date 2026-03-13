@@ -4,6 +4,7 @@ defmodule RNS.Discovery do
   Reticulum Network Stack.
 
   This module provides:
+  - `Stamper` — behaviour for stamp creation and validation (requires external implementation)
   - `InterfaceAnnouncer` — creates and sends discovery announces
   - `InterfaceAnnounceHandler` — receives and processes discovery announces
   - `InterfaceDiscovery` — coordinates discovery across interfaces
@@ -160,6 +161,79 @@ defmodule RNS.Discovery do
   end
 end
 
+defmodule RNS.Discovery.Stamper do
+  @moduledoc """
+  Behaviour for discovery stamp creation and validation.
+
+  Discovery announces require cryptographic stamps to prove work expenditure,
+  preventing spam on the network. The stamp implementation depends on the LXMF
+  module (LXStamper), which is external to RNS core.
+
+  To use interface discovery, you must provide a module implementing this
+  behaviour. Without a stamper, discovery will fail closed — returning
+  `{:error, :no_stamper}` rather than silently ignoring announces.
+
+  ## Example
+
+      defmodule MyApp.LXStamper do
+        @behaviour RNS.Discovery.Stamper
+
+        @impl true
+        def stamp_size, do: 32
+
+        @impl true
+        def generate_stamp(infohash, opts \\\\ []) do
+          # ... generate stamp proof-of-work ...
+          {:ok, stamp_binary, computed_value}
+        end
+
+        @impl true
+        def stamp_workblock(infohash, opts \\\\ []) do
+          # ... compute workblock from infohash ...
+        end
+
+        @impl true
+        def stamp_value(workblock, stamp) do
+          # ... compute stamp value ...
+        end
+
+        @impl true
+        def stamp_valid(stamp, required_value, workblock) do
+          # ... validate stamp meets required value ...
+        end
+      end
+
+  Then pass it when creating handlers:
+
+      handler = InterfaceAnnounceHandler.new(stamper: MyApp.LXStamper)
+  """
+
+  @doc "Returns the stamp size in bytes."
+  @callback stamp_size() :: non_neg_integer()
+
+  @doc """
+  Generates a stamp for the given infohash.
+
+  Returns `{:ok, stamp, value}` on success or `{:error, reason}` on failure.
+
+  ## Options
+  - `:stamp_cost` — minimum stamp cost/value (default: 14)
+  - `:expand_rounds` — workblock expansion rounds (default: 20)
+  """
+  @callback generate_stamp(infohash :: binary(), opts :: keyword()) ::
+              {:ok, stamp :: binary(), value :: non_neg_integer()} | {:error, term()}
+
+  @doc "Computes a workblock from the infohash for stamp validation."
+  @callback stamp_workblock(infohash :: binary(), opts :: keyword()) :: binary()
+
+  @doc "Computes the value of a stamp given its workblock."
+  @callback stamp_value(workblock :: binary(), stamp :: binary()) :: non_neg_integer()
+
+  @doc "Returns true if the stamp meets the required value for the workblock."
+  @callback stamp_valid(stamp :: binary(), required_value :: non_neg_integer(), workblock :: binary()) ::
+              boolean()
+end
+
 defmodule RNS.Discovery.InterfaceAnnounceHandler do
   @moduledoc """
   Handles received interface discovery announces.
@@ -204,6 +278,9 @@ defmodule RNS.Discovery.InterfaceAnnounceHandler do
   ## Options
   - `:required_value` — minimum stamp value required (default: 14)
   - `:callback` — function called with interface info on valid announce
+  - `:stamper` — module implementing `RNS.Discovery.Stamper` behaviour.
+    Without a stamper, `decode_announce_data/2` will return `{:error, :no_stamper}`
+    instead of silently returning nil.
   """
   @spec new(keyword()) :: t()
   def new(opts \\ []) do
@@ -212,26 +289,83 @@ defmodule RNS.Discovery.InterfaceAnnounceHandler do
       required_value:
         Keyword.get(opts, :required_value, RNS.Discovery.InterfaceAnnouncer.default_stamp_value()),
       callback: Keyword.get(opts, :callback),
-      stamper: nil
+      stamper: Keyword.get(opts, :stamper)
     }
   end
 
   @doc """
   Decodes announce data from a received discovery announce.
 
-  Returns the decoded interface info map, or nil if invalid.
+  Returns the decoded interface info map, nil if invalid, or
+  `{:error, :no_stamper}` if no stamper module is configured.
+
+  Discovery stamp validation requires an external stamper module implementing
+  the `RNS.Discovery.Stamper` behaviour. Without one, this function fails
+  closed rather than silently returning nil.
   """
-  @spec decode_announce_data(t(), binary() | nil) :: map() | nil
+  @spec decode_announce_data(t(), binary() | nil) :: map() | nil | {:error, :no_stamper}
   def decode_announce_data(_handler, nil), do: nil
 
-  def decode_announce_data(_handler, app_data) when byte_size(app_data) <= @stamp_size + 1,
-    do: nil
+  def decode_announce_data(%{stamper: stamper} = handler, app_data)
+      when is_binary(app_data) do
+    ss = if stamper, do: stamper.stamp_size(), else: @stamp_size
 
-  def decode_announce_data(_handler, _app_data) do
-    # Full stamp validation requires LXStamper (LXMF module).
-    # This is a stub that returns nil — the actual stamp validation
-    # would require the LXMF dependency which is not part of RNS core.
-    nil
+    if byte_size(app_data) <= ss + 1 do
+      nil
+    else
+      do_decode_announce_data(handler, app_data)
+    end
+  end
+
+  defp do_decode_announce_data(%{stamper: nil}, _app_data), do: {:error, :no_stamper}
+
+  defp do_decode_announce_data(
+         %{stamper: stamper, required_value: required_value},
+         app_data
+       ) do
+    stamp_sz = stamper.stamp_size()
+    <<flags, rest::binary>> = app_data
+    _signed = Bitwise.band(flags, @flag_signed) != 0
+    encrypted = Bitwise.band(flags, @flag_encrypted) != 0
+
+    # Encrypted payloads require network identity decryption (not yet supported)
+    if encrypted do
+      nil
+    else
+      stamp = binary_part(rest, byte_size(rest) - stamp_sz, stamp_sz)
+      packed = binary_part(rest, 0, byte_size(rest) - stamp_sz)
+      infohash = RNS.Identity.full_hash(packed)
+
+      workblock =
+        stamper.stamp_workblock(infohash,
+          expand_rounds: RNS.Discovery.InterfaceAnnouncer.workblock_expand_rounds()
+        )
+
+      value = stamper.stamp_value(workblock, stamp)
+      valid = stamper.stamp_valid(stamp, required_value, workblock)
+
+      cond do
+        not valid -> nil
+        value < required_value -> nil
+        true ->
+          unpacked = Msgpax.unpack!(packed)
+
+          if Map.has_key?(unpacked, Discovery.interface_type_field()) do
+            hops = 0
+            received_at = System.system_time(:second)
+
+            case parse_interface_info(unpacked, "", hops, received_at) do
+              nil -> nil
+              info ->
+                info
+                |> Map.put("stamp", stamp)
+                |> Map.put("value", value)
+            end
+          else
+            nil
+          end
+      end
+    end
   end
 
   @doc """
@@ -536,26 +670,56 @@ defmodule RNS.Discovery.InterfaceAnnouncer do
   @doc """
   Builds the full announce payload including stamp.
 
-  Returns `{payload, updated_stamp_cache}` or nil if stamping fails.
-  Since LXMF/LXStamper is not available in the core RNS library, this
-  is a stub that returns nil.
+  Returns `{payload, updated_stamp_cache}` on success, `nil` if the interface
+  is not discoverable or stamp generation fails, or `{:error, :no_stamper}`
+  if no stamper module is provided in `ctx.stamper`.
+
+  The stamper must implement `RNS.Discovery.Stamper`. Without one, discovery
+  announces cannot be created.
   """
-  @spec get_interface_announce_data(map(), map()) :: {binary(), map()} | nil
+  @spec get_interface_announce_data(map(), map()) ::
+          {binary(), map()} | nil | {:error, :no_stamper}
   def get_interface_announce_data(interface, ctx) do
     info = build_interface_info(interface, ctx)
 
-    if info == nil do
-      nil
-    else
-      # Stamp generation requires LXMF module (LXStamper).
-      # This is a stub — real implementation would:
-      # 1. Pack info with Msgpax
-      # 2. Compute infohash = Identity.full_hash(packed)
-      # 3. Check stamp_cache for existing stamp
-      # 4. Generate stamp via LXStamper if not cached
-      # 5. Optionally encrypt with network identity
-      # 6. Return <<flags>> <> payload
-      nil
+    cond do
+      info == nil ->
+        nil
+
+      Map.get(ctx, :stamper) == nil ->
+        {:error, :no_stamper}
+
+      true ->
+        stamper = ctx.stamper
+        stamp_cache = Map.get(ctx, :stamp_cache, %{})
+        stamp_value = Map.get(interface, :discovery_stamp_value) || @default_stamp_value
+
+        packed = Msgpax.pack!(info, iodata: false)
+        infohash = RNS.Identity.full_hash(packed)
+
+        {stamp, updated_cache} =
+          if Map.has_key?(stamp_cache, infohash) do
+            {stamp_cache[infohash], stamp_cache}
+          else
+            case stamper.generate_stamp(infohash,
+                   stamp_cost: stamp_value,
+                   expand_rounds: @workblock_expand_rounds
+                 ) do
+              {:ok, stamp, _value} ->
+                {stamp, Map.put(stamp_cache, infohash, stamp)}
+
+              {:error, _reason} ->
+                {nil, stamp_cache}
+            end
+          end
+
+        if stamp == nil do
+          nil
+        else
+          flags = 0x00
+          payload = <<flags>> <> packed <> stamp
+          {payload, updated_cache}
+        end
     end
   end
 

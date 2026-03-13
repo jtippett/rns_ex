@@ -159,8 +159,8 @@ defmodule RNS.Discovery.InterfaceAnnounceHandlerTest do
       assert InterfaceAnnounceHandler.decode_announce_data(handler, <<0, 1, 2, 3>>) == nil
     end
 
-    test "decodes unencrypted announce data with valid stamp" do
-      # Build a valid announce payload
+    test "decode_announce_data returns {:error, :no_stamper} without stamper" do
+      # Build a valid-length announce payload
       info = %{
         Discovery.interface_type_field() => "BackboneInterface",
         Discovery.transport_field() => true,
@@ -174,21 +174,14 @@ defmodule RNS.Discovery.InterfaceAnnounceHandlerTest do
       }
 
       packed = Msgpax.pack!(info, iodata: false)
-      # Use a dummy stamp (32 bytes) - the stamp validation will fail,
-      # but we can test the decoding path by setting required_value to 0
       stamp = :crypto.strong_rand_bytes(32)
-
       flags = 0x00
       app_data = <<flags>> <> packed <> stamp
 
       handler = InterfaceAnnounceHandler.new(required_value: 0)
-      # Note: stamp validation may reject this, but we can test the structure
+      # Without a stamper configured, fail closed with {:error, :no_stamper}
       result = InterfaceAnnounceHandler.decode_announce_data(handler, app_data)
-
-      # With required_value 0, all stamps should be valid-ish
-      # The result depends on the stamper implementation;
-      # test that at least the parsing doesn't crash
-      assert result == nil or is_map(result)
+      assert result == {:error, :no_stamper}
     end
   end
 
@@ -536,13 +529,14 @@ defmodule RNS.Discovery.InterfaceAnnouncerTest do
         InterfaceAnnouncer.get_interface_announce_data(interface, %{
           transport_enabled: false,
           transport_identity_hash: :crypto.strong_rand_bytes(16),
+          stamper: nil,
           stamp_cache: %{}
         })
 
       assert result == nil
     end
 
-    test "builds announce data for BackboneInterface" do
+    test "returns {:error, :no_stamper} for discoverable type without stamper" do
       transport_id = :crypto.strong_rand_bytes(16)
 
       interface = %{
@@ -563,15 +557,13 @@ defmodule RNS.Discovery.InterfaceAnnouncerTest do
       ctx = %{
         transport_enabled: true,
         transport_identity_hash: transport_id,
+        stamper: nil,
         stamp_cache: %{}
       }
 
       result = InterfaceAnnouncer.get_interface_announce_data(interface, ctx)
-      # The function returns nil if stamping fails (LXMF not available),
-      # or a {binary, updated_cache} tuple on success.
-      # In our implementation without a real stamper, we'll use a stub.
-      # Test that the info map is built correctly at least.
-      assert result == nil or is_tuple(result)
+      # Without a stamper, fail closed with {:error, :no_stamper}
+      assert result == {:error, :no_stamper}
     end
 
     test "builds info map for RNodeInterface with radio params" do
