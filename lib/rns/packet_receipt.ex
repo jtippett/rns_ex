@@ -299,9 +299,9 @@ defmodule RNS.PacketReceipt do
         receipt.callbacks.delivery.(receipt)
       rescue
         e ->
-          RNS.log(
+          RNS.Log.log(
             "Error while executing proof validated callback. The contained exception was: #{inspect(e)}",
-            RNS.log_error()
+            :error
           )
       end
     end

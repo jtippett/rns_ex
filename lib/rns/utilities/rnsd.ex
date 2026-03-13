@@ -112,9 +112,9 @@ defmodule RNS.Utilities.RNSD do
 
     {log_dest, effective_verbosity} =
       if opts.service do
-        {RNS.Log.log_file(), nil}
+        {:file, nil}
       else
-        {RNS.Log.log_stdout(), target_verbosity}
+        {:stdout, target_verbosity}
       end
 
     # Ensure the application is started (needed for escript mode)
@@ -150,13 +150,13 @@ defmodule RNS.Utilities.RNSD do
     version = RNS.Version.version()
 
     if is_connected do
-      RNS.log(
+      RNS.Log.log(
         "Started rnsd version #{version} connected to another shared local instance, " <>
           "this is probably NOT what you want!",
-        RNS.log_warning()
+        :warning
       )
     else
-      RNS.log("Started rnsd version #{version}", RNS.log_notice())
+      RNS.Log.log("Started rnsd version #{version}", :notice)
     end
 
     # Run the daemon loop
@@ -168,7 +168,7 @@ defmodule RNS.Utilities.RNSD do
   def daemon_loop do
     receive do
       :stop ->
-        RNS.log("rnsd shutting down", RNS.log_notice())
+        RNS.Log.log("rnsd shutting down", :notice)
         :ok
     after
       1_000 ->

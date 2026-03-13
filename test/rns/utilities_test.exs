@@ -153,17 +153,11 @@ defmodule RNS.UtilitiesTest do
     end
   end
 
-  describe "log level re-exports" do
-    test "RNS module re-exports log level constants" do
-      assert RNS.log_none() == -1
-      assert RNS.log_critical() == 0
-      assert RNS.log_error() == 1
-      assert RNS.log_warning() == 2
-      assert RNS.log_notice() == 3
-      assert RNS.log_info() == 4
-      assert RNS.log_verbose() == 5
-      assert RNS.log_debug() == 6
-      assert RNS.log_extreme() == 7
+  describe "log/2 with atom levels" do
+    test "RNS.log accepts atom levels" do
+      assert RNS.log("test notice", :notice) == :ok
+      assert RNS.log("test debug", :debug) == :ok
+      assert RNS.log("test error", :error) == :ok
     end
   end
 
@@ -179,7 +173,11 @@ defmodule RNS.UtilitiesTest do
   end
 
   describe "log/2 delegation" do
-    test "delegates to RNS.Log" do
+    test "delegates to RNS.Log with atom level" do
+      assert RNS.log("test", :notice) == :ok
+    end
+
+    test "delegates to RNS.Log with legacy integer level" do
       assert RNS.log("test", 3) == :ok
     end
   end

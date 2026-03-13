@@ -46,32 +46,17 @@ defmodule RNS do
 
   ## Logging
 
-  RNS defines 8 log levels (0-7) plus LOG_NONE (-1):
+  RNS wraps Elixir's Logger with RNS-specific metadata:
 
-      RNS.log("Something happened", RNS.log_notice())   # Level 3 (default)
-      RNS.log("Debug info", RNS.log_debug())             # Level 6
+      RNS.log("Something happened", :notice)   # default level
+      RNS.log("Debug info", :debug)
   """
 
   @version RNS.Version.version()
 
-  # ── Log level constants ──────────────────────────────────────────
-
-  defdelegate log_none(), to: RNS.Log
-  defdelegate log_critical(), to: RNS.Log
-  defdelegate log_error(), to: RNS.Log
-  defdelegate log_warning(), to: RNS.Log
-  defdelegate log_notice(), to: RNS.Log
-  defdelegate log_info(), to: RNS.Log
-  defdelegate log_verbose(), to: RNS.Log
-  defdelegate log_debug(), to: RNS.Log
-  defdelegate log_extreme(), to: RNS.Log
-
-  # ── Log destination constants ────────────────────────────────────
-
-  defdelegate log_stdout(), to: RNS.Log
-  defdelegate log_file(), to: RNS.Log
-  defdelegate log_callback(), to: RNS.Log
-  defdelegate log_maxsize(), to: RNS.Log
+  # ── Log level atoms ──────────────────────────────────────────────
+  # Use atom-based levels directly: :critical, :error, :warning,
+  # :notice, :info, :verbose, :debug, :extreme
 
   # ── Version and system info ──────────────────────────────────────
 
@@ -104,32 +89,17 @@ defmodule RNS do
 
   @doc """
   Logs a message at the given RNS log level.
-  Delegates to `RNS.Log.log/3`.
+
+  Accepts both atom levels (`:notice`, `:debug`) and legacy integer levels (3, 6).
 
   ## Examples
 
-      RNS.log("Hello from RNS")                        # LOG_NOTICE (default)
-      RNS.log("Debug details", RNS.log_debug())        # LOG_DEBUG
+      RNS.log("Hello from RNS")                        # :notice (default)
+      RNS.log("Debug details", :debug)
 
   """
-  @spec log(String.t(), integer()) :: :ok
-  def log(msg, level \\ 3), do: RNS.Log.log(msg, level)
-
-  @doc """
-  Returns the human-readable name for a log level.
-  Delegates to `RNS.Log.loglevelname/1`.
-
-  ## Examples
-
-      iex> RNS.loglevelname(0)
-      "[Critical]"
-
-      iex> RNS.loglevelname(3)
-      "[Notice]  "
-
-  """
-  @spec loglevelname(integer()) :: String.t()
-  defdelegate loglevelname(level), to: RNS.Log
+  @spec log(String.t(), RNS.Log.rns_level() | integer()) :: :ok
+  def log(msg, level \\ :notice), do: RNS.Log.log(msg, level)
 
   @doc """
   Formats an epoch timestamp as a human-readable string.
@@ -191,11 +161,11 @@ defmodule RNS do
     type = exception.__struct__ |> Module.split() |> Enum.join(".")
     message = Exception.message(exception)
 
-    RNS.Log.log("An unhandled #{type} exception occurred: #{message}", RNS.Log.log_error())
+    RNS.Log.log("An unhandled #{type} exception occurred: #{message}", :error)
 
     if stacktrace != [] do
       formatted = Exception.format(:error, exception, stacktrace)
-      RNS.Log.log(formatted, RNS.Log.log_error())
+      RNS.Log.log(formatted, :error)
     end
 
     :ok

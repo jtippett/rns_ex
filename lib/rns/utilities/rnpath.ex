@@ -188,7 +188,7 @@ defmodule RNS.Utilities.RNPath do
     ensure_application_started()
 
     reticulum_opts =
-      [logdest: RNS.Log.log_stdout()]
+      [logdest: :stdout]
       |> maybe_add_opt(:configdir, opts[:configdir])
       |> maybe_add_opt(:verbosity, if(opts.verbosity > 0, do: opts.verbosity))
 
@@ -675,7 +675,7 @@ defmodule RNS.Utilities.RNPath do
     rescue
       UndefinedFunctionError ->
         # If request_path isn't implemented yet, log a warning
-        RNS.log("Path request not yet fully implemented", RNS.log_warning())
+        RNS.Log.log("Path request not yet fully implemented", :warning)
     end
 
     :ok

@@ -228,9 +228,9 @@ defmodule RNS.Buffer.RawChannelReader do
               Task.start(fn -> listener.(byte_size(buffer)) end)
             rescue
               e ->
-                RNS.log(
+                RNS.Log.log(
                   "Error calling RawChannelReader(#{stream_id}) callback: #{inspect(e)}",
-                  RNS.log_error()
+                  :error
                 )
             end
           end)

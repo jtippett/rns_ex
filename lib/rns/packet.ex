@@ -610,7 +610,7 @@ defmodule RNS.Packet do
 
       # Link.CLOSED = 0x04
       if dest_status == 0x04 do
-        RNS.log("Attempt to transmit over a closed link, dropping packet", RNS.log_debug())
+        RNS.Log.log("Attempt to transmit over a closed link, dropping packet", :debug)
         false
       else
         do_send(packet)
@@ -627,7 +627,7 @@ defmodule RNS.Packet do
     if transport_outbound(packet) do
       packet.receipt
     else
-      RNS.log("No interfaces could process the outbound packet", RNS.log_error())
+      RNS.Log.log("No interfaces could process the outbound packet", :error)
       false
     end
   end
@@ -652,7 +652,7 @@ defmodule RNS.Packet do
     if transport_outbound(packet) do
       packet.receipt
     else
-      RNS.log("No interfaces could process the outbound packet", RNS.log_error())
+      RNS.Log.log("No interfaces could process the outbound packet", :error)
       false
     end
   end
@@ -679,9 +679,9 @@ defmodule RNS.Packet do
         :ok
 
       true ->
-        RNS.log(
+        RNS.Log.log(
           "Could not prove packet associated with neither a destination nor a link",
-          RNS.log_error()
+          :error
         )
 
         :error

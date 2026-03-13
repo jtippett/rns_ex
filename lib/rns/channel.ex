@@ -620,9 +620,9 @@ defmodule RNS.Channel do
       envelope = Envelope.unpack(envelope, channel.message_factories)
 
       if invalid_rx_sequence?(channel, envelope.sequence) do
-        RNS.log(
+        RNS.Log.log(
           "Invalid packet sequence (#{envelope.sequence}) received on channel",
-          RNS.log_extreme()
+          :extreme
         )
 
         channel
@@ -630,7 +630,7 @@ defmodule RNS.Channel do
         {channel, is_new} = emplace_envelope(channel, envelope, :rx)
 
         if not is_new do
-          RNS.log("Duplicate message received on channel", RNS.log_extreme())
+          RNS.Log.log("Duplicate message received on channel", :extreme)
           channel
         else
           deliver_contiguous(channel)
@@ -638,9 +638,9 @@ defmodule RNS.Channel do
       end
     rescue
       e ->
-        RNS.log(
+        RNS.Log.log(
           "An error ocurred while receiving data on channel. The contained exception was: #{inspect(e)}",
-          RNS.log_error()
+          :error
         )
 
         channel
@@ -741,7 +741,7 @@ defmodule RNS.Channel do
 
     case find_envelope_by_packet_id(channel.tx_ring, outlet, packet_id) do
       nil ->
-        RNS.log("Spurious message received on channel", RNS.log_extreme())
+        RNS.Log.log("Spurious message received on channel", :extreme)
         channel
 
       _envelope ->
@@ -815,12 +815,12 @@ defmodule RNS.Channel do
 
       case find_envelope_by_packet_id(channel.tx_ring, outlet, packet_id) do
         nil ->
-          RNS.log("Spurious timeout on channel", RNS.log_extreme())
+          RNS.Log.log("Spurious timeout on channel", :extreme)
           {:ok, channel}
 
         envelope ->
           if envelope.tries >= channel.max_tries do
-            RNS.log("Retry count exceeded on channel, tearing down Link.", RNS.log_error())
+            RNS.Log.log("Retry count exceeded on channel, tearing down Link.", :error)
             channel = shutdown(channel)
             Outlet.timed_out(channel.outlet)
             {:shutdown, channel}
@@ -902,9 +902,9 @@ defmodule RNS.Channel do
   defp do_emplace(envelope, ring, next_rx_sequence) do
     case find_insert_position(envelope, ring, next_rx_sequence) do
       :duplicate ->
-        RNS.log(
+        RNS.Log.log(
           "Envelope: Emplacement of duplicate envelope with sequence #{envelope.sequence}",
-          RNS.log_extreme()
+          :extreme
         )
 
         {ring, false}
@@ -978,9 +978,9 @@ defmodule RNS.Channel do
         end
       rescue
         e ->
-          RNS.log(
+          RNS.Log.log(
             "Channel experienced an error while running a message callback. The contained exception was: #{inspect(e)}",
-            RNS.log_error()
+            :error
           )
 
           {:cont, :ok}

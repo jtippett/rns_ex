@@ -144,7 +144,7 @@ defmodule RNS.Utilities.RNStatus do
     ensure_application_started()
 
     reticulum_opts =
-      [logdest: RNS.Log.log_stdout()]
+      [logdest: :stdout]
       |> maybe_add_opt(:configdir, opts[:configdir])
       |> maybe_add_opt(:verbosity, if(opts.verbosity > 0, do: opts.verbosity))
 

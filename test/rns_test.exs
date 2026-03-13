@@ -29,64 +29,6 @@ defmodule RNSTest do
     end
   end
 
-  # ── Log Level Constants ────────────────────────────────────────
-
-  describe "log level constants" do
-    test "log_none returns -1" do
-      assert RNS.log_none() == -1
-    end
-
-    test "log_critical returns 0" do
-      assert RNS.log_critical() == 0
-    end
-
-    test "log_error returns 1" do
-      assert RNS.log_error() == 1
-    end
-
-    test "log_warning returns 2" do
-      assert RNS.log_warning() == 2
-    end
-
-    test "log_notice returns 3" do
-      assert RNS.log_notice() == 3
-    end
-
-    test "log_info returns 4" do
-      assert RNS.log_info() == 4
-    end
-
-    test "log_verbose returns 5" do
-      assert RNS.log_verbose() == 5
-    end
-
-    test "log_debug returns 6" do
-      assert RNS.log_debug() == 6
-    end
-
-    test "log_extreme returns 7" do
-      assert RNS.log_extreme() == 7
-    end
-  end
-
-  describe "log destination constants" do
-    test "log_stdout returns 0x91" do
-      assert RNS.log_stdout() == 0x91
-    end
-
-    test "log_file returns 0x92" do
-      assert RNS.log_file() == 0x92
-    end
-
-    test "log_callback returns 0x93" do
-      assert RNS.log_callback() == 0x93
-    end
-
-    test "log_maxsize returns 5MB" do
-      assert RNS.log_maxsize() == 5 * 1024 * 1024
-    end
-  end
-
   # ── Logging Functions ──────────────────────────────────────────
 
   describe "log/2" do
@@ -94,26 +36,12 @@ defmodule RNSTest do
       assert RNS.log("test message") == :ok
     end
 
-    test "logs at specific level" do
-      assert RNS.log("debug message", RNS.log_debug()) == :ok
-    end
-  end
-
-  describe "loglevelname/1" do
-    test "returns correct names for all levels" do
-      assert RNS.loglevelname(0) == "[Critical]"
-      assert RNS.loglevelname(1) == "[Error]   "
-      assert RNS.loglevelname(2) == "[Warning] "
-      assert RNS.loglevelname(3) == "[Notice]  "
-      assert RNS.loglevelname(4) == "[Info]    "
-      assert RNS.loglevelname(5) == "[Verbose] "
-      assert RNS.loglevelname(6) == "[Debug]   "
-      assert RNS.loglevelname(7) == "[Extra]   "
+    test "logs at atom level" do
+      assert RNS.log("debug message", :debug) == :ok
     end
 
-    test "returns Unknown for invalid levels" do
-      assert RNS.loglevelname(99) == "Unknown"
-      assert RNS.loglevelname(-2) == "Unknown"
+    test "logs at legacy integer level for backward compatibility" do
+      assert RNS.log("debug message", 6) == :ok
     end
   end
 
@@ -575,7 +503,6 @@ defmodule RNSTest do
         {:host_os, 0},
         {:log, 1},
         {:log, 2},
-        {:loglevelname, 1},
         {:timestamp_str, 1},
         {:precise_timestamp_str, 1},
         {:trace_exception, 1},
@@ -598,22 +525,7 @@ defmodule RNSTest do
         {:phyparams, 0},
         {:panic, 0},
         {:rns_exit, 0},
-        {:rns_exit, 1},
-        # Log level constants
-        {:log_none, 0},
-        {:log_critical, 0},
-        {:log_error, 0},
-        {:log_warning, 0},
-        {:log_notice, 0},
-        {:log_info, 0},
-        {:log_verbose, 0},
-        {:log_debug, 0},
-        {:log_extreme, 0},
-        # Log destination constants
-        {:log_stdout, 0},
-        {:log_file, 0},
-        {:log_callback, 0},
-        {:log_maxsize, 0}
+        {:rns_exit, 1}
       ]
 
       for {func, arity} <- expected_functions do
