@@ -571,3 +571,76 @@ timer (12h interval via :run_jobs) was already working.
   - Per-file verification for transport.ex, packet_receipt.ex, buffer.ex, rncp.ex
 
 **Result:** `mix test` passes with 0 failures (3178 tests, 13 pre-existing skipped fixture tests).
+
+## 2026-03-14 — Task 4.2: Split pure state-machine logic from process orchestration
+
+**Analysis:**
+- `lib/rns/reticulum.ex` (2,111 lines): ~20+ pure config parsing/application functions mixed
+  with GenServer orchestration. Config parsing, path computation, interface parameter extraction,
+  and config application are all pure data transformations that were untestable without starting
+  the full supervision tree.
+- `lib/rns/transport.ex` (2,936 lines): 5 pure routing decision and IFAC masking functions
+  mixed with ETS-backed routing and GenServer state management.
+- `lib/rns/packet_receipt.ex` (292 lines): Already clean at 292 lines. Only 3 impure functions
+  (timeout callback spawn, delivery callback). Not worth splitting per PRD guidance.
+
+**Changes:**
+- `lib/rns/reticulum/config.ex`: New module (`RNS.Reticulum.Config`) with 25+ pure functions
+  extracted from reticulum.ex:
+  - Path computation: `compute_paths/1`, `determine_configdir/1`
+  - Config application: `apply_config/2`, `apply_logging_config/4`, `apply_reticulum_config/2`,
+    and 12 `apply_*` helper functions (bool_option, int_option, rpc_key, socket_path, etc.)
+  - Interface config extraction: `extract_interface_params/3`, `extract_discovery_params/3`,
+    `has_interface_mode_config?/1`, `parse_interface_mode/1`
+  - Config section conversion: `config_section_to_opts/3`, `coerce_config_value/2`,
+    `config_key_to_atom/1`
+  - Post-init building: `build_post_init_updates/2`
+  - Config helpers: `get_optional_bool/3`, `get_optional_int/3`, `get_optional_int_raw/2`,
+    `get_optional_float_raw/2`, `get_optional_string/2`, `get_nonempty_string/2`, `maybe_put/3`
+  - Protocol constants duplicated for self-containment (IFAC salt, bitrate, hash length, etc.)
+  - NOTE: `apply_network_identity/2` stays in reticulum.ex (requires File IO).
+    `apply_config/2` in Config applies all pure config, then Reticulum applies network identity
+    separately.
+- `lib/rns/reticulum.ex`:
+  - Added `alias RNS.Reticulum.Config`
+  - Replaced 25+ extracted functions with `defdelegate` (for public functions called by tests)
+    or direct `Config.*` calls (for internal callers)
+  - Removed unused `alias RNS.Interfaces.Interface` and unused `@default_local_*_port` constants
+  - Added `apply_network_identity_from_config/2` private function to handle the impure step
+    after Config.apply_config
+  - Net reduction: ~470 lines removed from reticulum.ex
+- `lib/rns/transport/routing.ex`: New module (`RNS.Transport.Routing`) with 5 pure functions:
+  - `should_use_path_table?/1` — routing predicate for path vs broadcast decision
+  - `should_generate_receipt?/1` — receipt generation predicate
+  - `determine_link_outbound_interface/2` — link transport interface selection
+  - `mask_ifac_payload/3` — IFAC outbound masking (pure binary XOR)
+  - `unmask_ifac_payload/3` — IFAC inbound unmasking (pure binary XOR)
+  - Packet/destination constants duplicated for self-containment
+- `lib/rns/transport.ex`:
+  - Added `alias RNS.Transport.Routing`
+  - Replaced 5 extracted private functions with one-line delegations to `Routing.*`
+  - Removed unused `@context_resource_rcl` constant (only consumer was extracted)
+- `test/rns/reticulum/config_test.exs`: New test file with 47 tests covering:
+  - compute_paths: all 8 paths computed correctly
+  - determine_configdir: custom path, nil fallback
+  - config_key_to_atom: known keys, aliases, unknown keys
+  - coerce_config_value: integers, booleans, passthrough, non-binary
+  - parse_interface_mode: all 8 modes (full, AP, PTP, roaming, boundary, gateway, aliases, unknown)
+  - has_interface_mode_config?: true/false for both keys
+  - extract_interface_params: defaults, mode override, IFAC, announce rate, ingress control
+  - config_section_to_opts: basic conversion, bitrate inclusion, unknown key filtering
+  - apply_config: defaults, transport_enabled, loglevel, verbosity, clamping, port override
+  - apply_logging_config: config value, override skip, verbosity offset, missing section
+  - build_post_init_updates: defaults, bitrate, IFAC with crypto
+  - maybe_put, get_optional_bool, get_optional_int, get_nonempty_string
+  - ALL tests run without starting any GenServers (async: true)
+- `test/rns/transport/routing_test.exs`: New test file with 32 tests covering:
+  - should_use_path_table: announce, PLAIN, GROUP → false; SINGLE, LINK, linkrequest, proof → true
+  - should_generate_receipt: valid, no create_receipt, PLAIN, announce, keepalive, resource
+  - determine_link_outbound_interface: forward/reverse routing, wrong hops, unknown interface,
+    same-interface special case
+  - mask/unmask_ifac_payload: IFAC flag preservation, IFAC byte preservation, round-trip,
+    larger IFAC sizes
+  - ALL tests run without starting any GenServers (async: true)
+
+**Result:** `mix test` passes with 0 failures (3257 tests, 13 pre-existing skipped fixture tests).

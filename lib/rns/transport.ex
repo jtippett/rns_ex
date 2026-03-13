@@ -14,6 +14,7 @@ defmodule RNS.Transport do
   alias RNS.Transport.AnnounceHandler
   alias RNS.Transport.CacheManagement
   alias RNS.Transport.PathManagement
+  alias RNS.Transport.Routing
 
   # ── Transport Type Constants ──────────────────────────────────────────
   @broadcast 0x00
@@ -111,7 +112,6 @@ defmodule RNS.Transport do
   @context_resource 0x01
   @context_resource_req 0x03
   @context_resource_prf 0x05
-  @context_resource_rcl 0x07
   @context_cache_request 0x08
   @context_path_response 0x0B
   @context_channel 0x0E
@@ -1179,24 +1179,8 @@ defmodule RNS.Transport do
     call_process_outgoing(interface, masked_raw)
   end
 
-  defp mask_ifac_payload(payload, mask, ifac_size) do
-    payload
-    |> :binary.bin_to_list()
-    |> Enum.with_index()
-    |> Enum.map(fn {byte, i} ->
-      mask_byte = :binary.at(mask, i)
-
-      cond do
-        # First byte: mask but keep IFAC flag set
-        i == 0 -> bxor(byte, mask_byte) ||| 0x80
-        # Second byte and payload (after IFAC): mask
-        i == 1 or i > ifac_size + 1 -> bxor(byte, mask_byte)
-        # IFAC itself: don't mask
-        true -> byte
-      end
-    end)
-    |> :binary.list_to_bin()
-  end
+  defp mask_ifac_payload(payload, mask, ifac_size),
+    do: Routing.mask_ifac_payload(payload, mask, ifac_size)
 
   defp call_process_outgoing(interface, raw) do
     cond do
@@ -1251,19 +1235,8 @@ defmodule RNS.Transport do
     sent
   end
 
-  defp should_use_path_table?(packet) do
-    packet.packet_type != @packet_announce and
-      packet.destination_type != @dest_plain and
-      packet.destination_type != @dest_group
-  end
-
-  defp should_generate_receipt?(packet) do
-    Map.get(packet, :create_receipt, false) and
-      packet.packet_type == @packet_data and
-      packet.destination_type != @dest_plain and
-      not (packet.context >= @context_keepalive and packet.context <= @context_lrproof) and
-      not (packet.context >= @context_resource and packet.context <= @context_resource_rcl)
-  end
+  defp should_use_path_table?(packet), do: Routing.should_use_path_table?(packet)
+  defp should_generate_receipt?(packet), do: Routing.should_generate_receipt?(packet)
 
   defp outbound_via_path(packet, transport_identity, is_shared_instance) do
     path_entry = get_path_entry(packet.destination_hash)
@@ -1500,21 +1473,8 @@ defmodule RNS.Transport do
     end
   end
 
-  defp unmask_ifac_payload(payload, mask, ifac_size) do
-    payload
-    |> :binary.bin_to_list()
-    |> Enum.with_index()
-    |> Enum.map(fn {byte, i} ->
-      mask_byte = :binary.at(mask, i)
-
-      if i <= 1 or i > ifac_size + 1 do
-        bxor(byte, mask_byte)
-      else
-        byte
-      end
-    end)
-    |> :binary.list_to_bin()
-  end
+  defp unmask_ifac_payload(payload, mask, ifac_size),
+    do: Routing.unmask_ifac_payload(payload, mask, ifac_size)
 
   defp process_inbound(raw, interface, opts) do
     transport_identity = opts[:transport_identity]
@@ -1746,36 +1706,8 @@ defmodule RNS.Transport do
     end
   end
 
-  defp determine_link_outbound_interface(packet, link_entry) do
-    cond do
-      # Same interface for both directions: check hop count matches
-      link_entry.next_hop_interface == link_entry.received_on_interface ->
-        if packet.hops == link_entry.remaining_hops or packet.hops == link_entry.taken_hops do
-          link_entry.next_hop_interface
-        else
-          nil
-        end
-
-      # Received on next-hop interface: send to received-on interface
-      packet.receiving_interface == link_entry.next_hop_interface ->
-        if packet.hops == link_entry.remaining_hops do
-          link_entry.received_on_interface
-        else
-          nil
-        end
-
-      # Received on received-on interface: send to next-hop interface
-      packet.receiving_interface == link_entry.received_on_interface ->
-        if packet.hops == link_entry.taken_hops do
-          link_entry.next_hop_interface
-        else
-          nil
-        end
-
-      true ->
-        nil
-    end
-  end
+  defp determine_link_outbound_interface(packet, link_entry),
+    do: Routing.determine_link_outbound_interface(packet, link_entry)
 
   # ── Announce Handling ─────────────────────────────────────────────────
 
