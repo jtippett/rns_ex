@@ -194,7 +194,8 @@ defmodule RNS.Interfaces.PipeInterface do
   end
 
   @impl GenServer
-  def handle_info({port_ref, {:data, data}}, %{port_ref: port_ref} = state) when is_port(port_ref) do
+  def handle_info({port_ref, {:data, data}}, %{port_ref: port_ref} = state)
+      when is_port(port_ref) do
     state = handle_pipe_data(state, data)
     {:noreply, state}
   end

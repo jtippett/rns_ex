@@ -395,7 +395,8 @@ defmodule RNS.TransportTest do
       add_path_entry(hash2, hops: 5, next_hop: :crypto.strong_rand_bytes(16), interface: iface)
 
       # Save to a temp file
-      path = Path.join(System.tmp_dir!(), "rns_test_path_table_#{:erlang.unique_integer([:positive])}")
+      path =
+        Path.join(System.tmp_dir!(), "rns_test_path_table_#{:erlang.unique_integer([:positive])}")
 
       assert :ok == Transport.save_path_table(path)
 
@@ -425,7 +426,12 @@ defmodule RNS.TransportTest do
       unregistered_iface = make_interface("UnregisteredIface")
       add_path_entry(hash, interface: unregistered_iface)
 
-      path = Path.join(System.tmp_dir!(), "rns_test_path_table_skip_#{:erlang.unique_integer([:positive])}")
+      path =
+        Path.join(
+          System.tmp_dir!(),
+          "rns_test_path_table_skip_#{:erlang.unique_integer([:positive])}"
+        )
+
       assert :ok == Transport.save_path_table(path)
 
       :ets.delete_all_objects(:rns_path_table)
@@ -444,7 +450,12 @@ defmodule RNS.TransportTest do
       # Add an entry that's already expired
       add_path_entry(hash, interface: iface, expires: System.system_time(:second) - 100)
 
-      path = Path.join(System.tmp_dir!(), "rns_test_path_table_expired_#{:erlang.unique_integer([:positive])}")
+      path =
+        Path.join(
+          System.tmp_dir!(),
+          "rns_test_path_table_expired_#{:erlang.unique_integer([:positive])}"
+        )
+
       Transport.save_path_table(path)
 
       :ets.delete_all_objects(:rns_path_table)
@@ -1632,7 +1643,12 @@ defmodule RNS.TransportTest do
     end
 
     test "rejects malformed announce data" do
-      packet = %{destination_hash: :crypto.strong_rand_bytes(16), data: <<1, 2, 3>>, context_flag: 0}
+      packet = %{
+        destination_hash: :crypto.strong_rand_bytes(16),
+        data: <<1, 2, 3>>,
+        context_flag: 0
+      }
+
       refute RNS.Identity.validate_announce(packet)
     end
   end
@@ -1653,7 +1669,12 @@ defmodule RNS.TransportTest do
 
       on_exit(fn -> File.rm_rf!(tmp_dir) end)
 
-      %{tmp_dir: tmp_dir, storage_dir: storage_dir, cache_dir: cache_dir, announces_dir: announces_dir}
+      %{
+        tmp_dir: tmp_dir,
+        storage_dir: storage_dir,
+        cache_dir: cache_dir,
+        announces_dir: announces_dir
+      }
     end
 
     # ── should_cache ──────────────────────────────────────────────
@@ -1786,7 +1807,10 @@ defmodule RNS.TransportTest do
     end
 
     test "load_packet_hashlist returns error for non-existent file" do
-      assert {:error, :enoent} == CacheManagement.load_packet_hashlist("/tmp/nonexistent_hashlist_#{:rand.uniform(999_999)}")
+      assert {:error, :enoent} ==
+               CacheManagement.load_packet_hashlist(
+                 "/tmp/nonexistent_hashlist_#{:rand.uniform(999_999)}"
+               )
     end
 
     test "save_packet_hashlist with empty hashlist", %{storage_dir: storage_dir} do
@@ -1844,7 +1868,10 @@ defmodule RNS.TransportTest do
     end
 
     test "load_tunnel_table returns error for non-existent file" do
-      assert {:error, :enoent} == CacheManagement.load_tunnel_table("/tmp/nonexistent_tunnels_#{:rand.uniform(999_999)}")
+      assert {:error, :enoent} ==
+               CacheManagement.load_tunnel_table(
+                 "/tmp/nonexistent_tunnels_#{:rand.uniform(999_999)}"
+               )
     end
 
     test "save_tunnel_table with empty table", %{storage_dir: storage_dir} do
@@ -1992,7 +2019,10 @@ defmodule RNS.TransportTest do
     end
 
     test "clean_announce_cache handles non-existent directory" do
-      assert :ok == CacheManagement.clean_announce_cache("/tmp/nonexistent_cache_#{:rand.uniform(999_999)}")
+      assert :ok ==
+               CacheManagement.clean_announce_cache(
+                 "/tmp/nonexistent_cache_#{:rand.uniform(999_999)}"
+               )
     end
 
     # ── persist_data ──────────────────────────────────────────────

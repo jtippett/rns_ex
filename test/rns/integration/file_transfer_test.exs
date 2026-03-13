@@ -79,7 +79,8 @@ defmodule RNS.Integration.FileTransferTest do
       assert resource.initiator == true
       # Compressed data should be smaller
       if resource.compressed do
-        assert resource.size < byte_size(data) + 100  # Allow overhead
+        # Allow overhead
+        assert resource.size < byte_size(data) + 100
       end
     end
 
@@ -138,13 +139,20 @@ defmodule RNS.Integration.FileTransferTest do
 
       unpacked = Resource.Advertisement.unpack(packed)
 
-      assert unpacked.h == adv.h   # hash
-      assert unpacked.t == adv.t   # size
-      assert unpacked.d == adv.d   # data size
-      assert unpacked.r == adv.r   # random hash
-      assert unpacked.o == adv.o   # original hash
-      assert unpacked.i == adv.i   # segment index
-      assert unpacked.l == adv.l   # total segments
+      # hash
+      assert unpacked.h == adv.h
+      # size
+      assert unpacked.t == adv.t
+      # data size
+      assert unpacked.d == adv.d
+      # random hash
+      assert unpacked.r == adv.r
+      # original hash
+      assert unpacked.o == adv.o
+      # segment index
+      assert unpacked.i == adv.i
+      # total segments
+      assert unpacked.l == adv.l
     end
   end
 
@@ -171,7 +179,8 @@ defmodule RNS.Integration.FileTransferTest do
 
       # === Transfer: simulate sending all parts ===
       receiver_resource =
-        Enum.reduce(Enum.with_index(sender_resource.parts), receiver_resource, fn {part, i}, acc ->
+        Enum.reduce(Enum.with_index(sender_resource.parts), receiver_resource, fn {part, i},
+                                                                                  acc ->
           # Receiver stores the part data at the correct index
           updated_parts = List.replace_at(acc.parts, i, part.data)
           %{acc | parts: updated_parts, received_count: acc.received_count + 1}
@@ -183,7 +192,8 @@ defmodule RNS.Integration.FileTransferTest do
       assert assembled.status == Resource.status_complete()
       assert {:ok, proof_data} = result
       assert is_binary(proof_data)
-      assert byte_size(proof_data) == 64  # Two 32-byte hashes
+      # Two 32-byte hashes
+      assert byte_size(proof_data) == 64
 
       # Verify reassembled data matches original
       assert assembled.data == original_data
@@ -209,7 +219,8 @@ defmodule RNS.Integration.FileTransferTest do
 
       # Transfer parts
       receiver_resource =
-        Enum.reduce(Enum.with_index(sender_resource.parts), receiver_resource, fn {part, i}, acc ->
+        Enum.reduce(Enum.with_index(sender_resource.parts), receiver_resource, fn {part, i},
+                                                                                  acc ->
           updated_parts = List.replace_at(acc.parts, i, part.data)
           %{acc | parts: updated_parts, received_count: acc.received_count + 1}
         end)
@@ -236,7 +247,8 @@ defmodule RNS.Integration.FileTransferTest do
 
       # Transfer all parts
       receiver_resource =
-        Enum.reduce(Enum.with_index(sender_resource.parts), receiver_resource, fn {part, i}, acc ->
+        Enum.reduce(Enum.with_index(sender_resource.parts), receiver_resource, fn {part, i},
+                                                                                  acc ->
           updated_parts = List.replace_at(acc.parts, i, part.data)
           %{acc | parts: updated_parts, received_count: acc.received_count + 1}
         end)
@@ -263,7 +275,8 @@ defmodule RNS.Integration.FileTransferTest do
 
       # Transfer parts but corrupt the last byte of the first part
       receiver_resource =
-        Enum.reduce(Enum.with_index(sender_resource.parts), receiver_resource, fn {part, i}, acc ->
+        Enum.reduce(Enum.with_index(sender_resource.parts), receiver_resource, fn {part, i},
+                                                                                  acc ->
           corrupted_data =
             if i == 0 do
               # Flip a bit in the data
@@ -345,7 +358,8 @@ defmodule RNS.Integration.FileTransferTest do
 
       # Complete the transfer
       receiver_resource =
-        Enum.reduce(Enum.with_index(sender_resource.parts), receiver_resource, fn {part, i}, acc ->
+        Enum.reduce(Enum.with_index(sender_resource.parts), receiver_resource, fn {part, i},
+                                                                                  acc ->
           updated_parts = List.replace_at(acc.parts, i, part.data)
           %{acc | parts: updated_parts, received_count: acc.received_count + 1}
         end)

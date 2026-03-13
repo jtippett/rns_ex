@@ -190,7 +190,13 @@ defmodule RNS.Transport.AnnounceHandlerTest do
 
     test "announce within rate target triggers violation" do
       hash = :crypto.strong_rand_bytes(16)
-      interface = make_interface(announce_rate_target: 30, announce_rate_grace: 0, announce_rate_penalty: 60)
+
+      interface =
+        make_interface(
+          announce_rate_target: 30,
+          announce_rate_grace: 0,
+          announce_rate_penalty: 60
+        )
 
       # First announce establishes baseline
       AnnounceHandler.check_announce_rate(hash, interface)
@@ -205,7 +211,8 @@ defmodule RNS.Transport.AnnounceHandlerTest do
     test "announce outside rate target does not block" do
       hash = :crypto.strong_rand_bytes(16)
       # rate target of 0 means any interval is acceptable
-      interface = make_interface(announce_rate_target: 0, announce_rate_grace: 5, announce_rate_penalty: 60)
+      interface =
+        make_interface(announce_rate_target: 0, announce_rate_grace: 5, announce_rate_penalty: 60)
 
       AnnounceHandler.check_announce_rate(hash, interface)
       {rate_blocked, _} = AnnounceHandler.check_announce_rate(hash, interface)
@@ -222,7 +229,13 @@ defmodule RNS.Transport.AnnounceHandlerTest do
 
     test "blocked_until prevents further announces" do
       hash = :crypto.strong_rand_bytes(16)
-      interface = make_interface(announce_rate_target: 999_999, announce_rate_grace: 0, announce_rate_penalty: 60)
+
+      interface =
+        make_interface(
+          announce_rate_target: 999_999,
+          announce_rate_grace: 0,
+          announce_rate_penalty: 60
+        )
 
       # First announce establishes rate entry
       AnnounceHandler.check_announce_rate(hash, interface)
@@ -281,10 +294,14 @@ defmodule RNS.Transport.AnnounceHandlerTest do
     test "rejects when hop count is worse and path not expired and emission not newer" do
       hash = :crypto.strong_rand_bytes(16)
       old_blob = make_random_blob(200)
-      new_blob = make_random_blob(100)  # older emission
+      # older emission
+      new_blob = make_random_blob(100)
 
-      add_path_entry(hash, hops: 2, random_blobs: [old_blob],
-        expires: System.system_time(:second) + 3600)
+      add_path_entry(hash,
+        hops: 2,
+        random_blobs: [old_blob],
+        expires: System.system_time(:second) + 3600
+      )
 
       packet = make_announce_packet_with_blob(new_blob, hops: 5)
       refute AnnounceHandler.should_add_path?(hash, packet, new_blob)
@@ -295,8 +312,11 @@ defmodule RNS.Transport.AnnounceHandlerTest do
       old_blob = make_random_blob(100)
       new_blob = make_random_blob(200)
 
-      add_path_entry(hash, hops: 2, random_blobs: [old_blob],
-        expires: System.system_time(:second) - 100)
+      add_path_entry(hash,
+        hops: 2,
+        random_blobs: [old_blob],
+        expires: System.system_time(:second) - 100
+      )
 
       packet = make_announce_packet_with_blob(new_blob, hops: 5)
       assert AnnounceHandler.should_add_path?(hash, packet, new_blob)
@@ -307,8 +327,11 @@ defmodule RNS.Transport.AnnounceHandlerTest do
       old_blob = make_random_blob(100)
       new_blob = make_random_blob(200)
 
-      add_path_entry(hash, hops: 2, random_blobs: [old_blob],
-        expires: System.system_time(:second) + 3600)
+      add_path_entry(hash,
+        hops: 2,
+        random_blobs: [old_blob],
+        expires: System.system_time(:second) + 3600
+      )
 
       packet = make_announce_packet_with_blob(new_blob, hops: 5)
       assert AnnounceHandler.should_add_path?(hash, packet, new_blob)
@@ -317,10 +340,15 @@ defmodule RNS.Transport.AnnounceHandlerTest do
     test "adds when same emission but path is unresponsive" do
       hash = :crypto.strong_rand_bytes(16)
       old_blob = make_random_blob(100)
-      new_blob = make_random_blob(100)  # same emission time, different blob
+      # same emission time, different blob
+      new_blob = make_random_blob(100)
 
-      add_path_entry(hash, hops: 2, random_blobs: [old_blob],
-        expires: System.system_time(:second) + 3600)
+      add_path_entry(hash,
+        hops: 2,
+        random_blobs: [old_blob],
+        expires: System.system_time(:second) + 3600
+      )
+
       Transport.mark_path_unresponsive(hash)
 
       packet = make_announce_packet_with_blob(new_blob, hops: 5)
@@ -332,8 +360,11 @@ defmodule RNS.Transport.AnnounceHandlerTest do
       blob = make_random_blob(100)
       new_blob = make_random_blob_with_same_emission(100, blob)
 
-      add_path_entry(hash, hops: 2, random_blobs: [blob],
-        expires: System.system_time(:second) + 3600)
+      add_path_entry(hash,
+        hops: 2,
+        random_blobs: [blob],
+        expires: System.system_time(:second) + 3600
+      )
 
       packet = make_announce_packet_with_blob(new_blob, hops: 5)
       refute AnnounceHandler.should_add_path?(hash, packet, new_blob)
@@ -365,10 +396,12 @@ defmodule RNS.Transport.AnnounceHandlerTest do
   describe "process_announce_queue/0" do
     test "removes entries that exceed retry limit" do
       hash = :crypto.strong_rand_bytes(16)
-      entry = make_announce_entry(
-        retries: Transport.pathfinder_r() + 1,
-        retransmit_timeout: 0.0
-      )
+
+      entry =
+        make_announce_entry(
+          retries: Transport.pathfinder_r() + 1,
+          retransmit_timeout: 0.0
+        )
 
       AnnounceHandler.put_announce_entry(hash, entry)
       {_outgoing, completed} = AnnounceHandler.process_announce_queue()
@@ -379,11 +412,13 @@ defmodule RNS.Transport.AnnounceHandlerTest do
 
     test "removes entries that exceed local rebroadcast limit with retries > 0" do
       hash = :crypto.strong_rand_bytes(16)
-      entry = make_announce_entry(
-        retries: 1,
-        local_rebroadcasts: Transport.local_rebroadcasts_max(),
-        retransmit_timeout: System.system_time(:second) + 9999
-      )
+
+      entry =
+        make_announce_entry(
+          retries: 1,
+          local_rebroadcasts: Transport.local_rebroadcasts_max(),
+          retransmit_timeout: System.system_time(:second) + 9999
+        )
 
       AnnounceHandler.put_announce_entry(hash, entry)
       {_outgoing, completed} = AnnounceHandler.process_announce_queue()
@@ -398,14 +433,16 @@ defmodule RNS.Transport.AnnounceHandlerTest do
 
       # Make a minimal packet-like map for retransmission
       packet = make_announce_packet(emission_time: now)
-      entry = make_announce_entry(
-        retries: 0,
-        retransmit_timeout: now - 10,
-        packet: packet,
-        hops: 2,
-        block_rebroadcasts: false,
-        attached_interface: nil
-      )
+
+      entry =
+        make_announce_entry(
+          retries: 0,
+          retransmit_timeout: now - 10,
+          packet: packet,
+          hops: 2,
+          block_rebroadcasts: false,
+          attached_interface: nil
+        )
 
       AnnounceHandler.put_announce_entry(hash, entry)
       {_outgoing, completed} = AnnounceHandler.process_announce_queue()
@@ -423,10 +460,11 @@ defmodule RNS.Transport.AnnounceHandlerTest do
       hash = :crypto.strong_rand_bytes(16)
       future_time = System.system_time(:second) + 9999
 
-      entry = make_announce_entry(
-        retries: 0,
-        retransmit_timeout: future_time
-      )
+      entry =
+        make_announce_entry(
+          retries: 0,
+          retransmit_timeout: future_time
+        )
 
       AnnounceHandler.put_announce_entry(hash, entry)
       {outgoing, completed} = AnnounceHandler.process_announce_queue()
@@ -457,11 +495,14 @@ defmodule RNS.Transport.AnnounceHandlerTest do
 
     test "removes entry when local rebroadcasts reach limit and retries > 0" do
       hash = :crypto.strong_rand_bytes(16)
-      entry = make_announce_entry(
-        hops: 3,
-        retries: 1,
-        local_rebroadcasts: Transport.local_rebroadcasts_max() - 1
-      )
+
+      entry =
+        make_announce_entry(
+          hops: 3,
+          retries: 1,
+          local_rebroadcasts: Transport.local_rebroadcasts_max() - 1
+        )
+
       AnnounceHandler.put_announce_entry(hash, entry)
 
       # This increments to LOCAL_REBROADCASTS_MAX
@@ -473,11 +514,15 @@ defmodule RNS.Transport.AnnounceHandlerTest do
     test "removes entry when next hop has picked it up (hops-1 == entry.hops+1)" do
       hash = :crypto.strong_rand_bytes(16)
       now = System.system_time(:second)
-      entry = make_announce_entry(
-        hops: 3,
-        retries: 1,
-        retransmit_timeout: now + 100  # not yet timed out
-      )
+
+      entry =
+        make_announce_entry(
+          hops: 3,
+          retries: 1,
+          # not yet timed out
+          retransmit_timeout: now + 100
+        )
+
       AnnounceHandler.put_announce_entry(hash, entry)
 
       # Packet with hops = 5 (hops-1 == 4 == entry.hops+1) and retries > 0, before timeout
@@ -489,11 +534,15 @@ defmodule RNS.Transport.AnnounceHandlerTest do
     test "does not remove when next hop picked up but timeout already passed" do
       hash = :crypto.strong_rand_bytes(16)
       now = System.system_time(:second)
-      entry = make_announce_entry(
-        hops: 3,
-        retries: 1,
-        retransmit_timeout: now - 100  # already timed out
-      )
+
+      entry =
+        make_announce_entry(
+          hops: 3,
+          retries: 1,
+          # already timed out
+          retransmit_timeout: now - 100
+        )
+
       AnnounceHandler.put_announce_entry(hash, entry)
 
       # Packet with hops-1 == entry.hops+1 but timeout passed

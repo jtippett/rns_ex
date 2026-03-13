@@ -16,6 +16,7 @@ defmodule RNS.ApplicationTest do
       pid = Process.whereis(RNS.InterfaceSupervisor)
       assert is_pid(pid)
       assert Process.alive?(pid)
+
       assert DynamicSupervisor.count_children(RNS.InterfaceSupervisor) == %{
                active: 0,
                specs: 0,
@@ -28,6 +29,7 @@ defmodule RNS.ApplicationTest do
       pid = Process.whereis(RNS.LinkSupervisor)
       assert is_pid(pid)
       assert Process.alive?(pid)
+
       assert DynamicSupervisor.count_children(RNS.LinkSupervisor) == %{
                active: 0,
                specs: 0,
@@ -40,6 +42,7 @@ defmodule RNS.ApplicationTest do
       pid = Process.whereis(RNS.ResourceSupervisor)
       assert is_pid(pid)
       assert Process.alive?(pid)
+
       assert DynamicSupervisor.count_children(RNS.ResourceSupervisor) == %{
                active: 0,
                specs: 0,

@@ -59,7 +59,7 @@ defmodule RNS.Interfaces.WeaveInterface do
                 ifac_netname: nil,
                 ifac_netkey: nil,
                 announce_rate_grace: nil,
-                announce_rate_penalty: nil,
+                announce_rate_penalty: nil
               ]
 
   @doc "Returns all public constants."
@@ -71,7 +71,7 @@ defmodule RNS.Interfaces.WeaveInterface do
       peering_timeout: @peering_timeout,
       bitrate_guess: @bitrate_guess,
       multi_if_deque_len: @multi_if_deque_len,
-      multi_if_deque_ttl: @multi_if_deque_ttl,
+      multi_if_deque_ttl: @multi_if_deque_ttl
     }
   end
 
@@ -108,7 +108,7 @@ defmodule RNS.Interfaces.WeaveInterface do
       _online: false,
       in: true,
       out: false,
-      created: System.system_time(:second),
+      created: System.system_time(:second)
     }
 
     if not skip_wdcl do
@@ -131,18 +131,19 @@ defmodule RNS.Interfaces.WeaveInterface do
     if Map.has_key?(state.peers, endpoint_addr) do
       refresh_peer(state, endpoint_addr)
     else
-      peer = WeaveInterfacePeer.new(
-        owner: state,
-        endpoint_addr: endpoint_addr,
-        hw_mtu: @hw_mtu,
-        fixed_mtu: @fixed_mtu,
-        bitrate: state.bitrate,
-        ifac_size: state.ifac_size,
-        ifac_netname: state.ifac_netname,
-        ifac_netkey: state.ifac_netkey,
-        announce_rate_target: state.announce_rate_target,
-        mode: state.mode
-      )
+      peer =
+        WeaveInterfacePeer.new(
+          owner: state,
+          endpoint_addr: endpoint_addr,
+          hw_mtu: @hw_mtu,
+          fixed_mtu: @fixed_mtu,
+          bitrate: state.bitrate,
+          ifac_size: state.ifac_size,
+          ifac_netname: state.ifac_netname,
+          ifac_netkey: state.ifac_netkey,
+          announce_rate_target: state.announce_rate_target,
+          mode: state.mode
+        )
 
       # Remove existing spawned interface for same addr if exists
       state =
@@ -157,11 +158,12 @@ defmodule RNS.Interfaces.WeaveInterface do
 
       peer = %{peer | _online: true}
 
-      peers = Map.put(state.peers, endpoint_addr, %{
-        addr: endpoint_addr,
-        last_heard: System.system_time(:millisecond) / 1000,
-        interface: peer
-      })
+      peers =
+        Map.put(state.peers, endpoint_addr, %{
+          addr: endpoint_addr,
+          last_heard: System.system_time(:millisecond) / 1000,
+          interface: peer
+        })
 
       spawned_interfaces = Map.put(state.spawned_interfaces, endpoint_addr, peer)
 
@@ -173,9 +175,16 @@ defmodule RNS.Interfaces.WeaveInterface do
   @spec refresh_peer(map(), binary()) :: map()
   def refresh_peer(state, endpoint_addr) do
     case Map.get(state.peers, endpoint_addr) do
-      nil -> state
+      nil ->
+        state
+
       peer_entry ->
-        peers = Map.put(state.peers, endpoint_addr, %{peer_entry | last_heard: System.system_time(:millisecond) / 1000})
+        peers =
+          Map.put(state.peers, endpoint_addr, %{
+            peer_entry
+            | last_heard: System.system_time(:millisecond) / 1000
+          })
+
         %{state | peers: peers}
     end
   end
@@ -184,7 +193,9 @@ defmodule RNS.Interfaces.WeaveInterface do
   @spec endpoint_via(map(), binary(), binary()) :: map()
   def endpoint_via(state, endpoint_addr, via_switch_id) do
     case Map.get(state.spawned_interfaces, endpoint_addr) do
-      nil -> state
+      nil ->
+        state
+
       peer ->
         peer = %{peer | via_switch_id: via_switch_id}
         %{state | spawned_interfaces: Map.put(state.spawned_interfaces, endpoint_addr, peer)}
@@ -194,7 +205,8 @@ defmodule RNS.Interfaces.WeaveInterface do
   @doc "Process incoming data from a specific endpoint."
   @spec process_incoming(map(), binary(), binary() | nil) :: map()
   def process_incoming(state, data, endpoint_addr \\ nil) do
-    if state._online and endpoint_addr != nil and Map.has_key?(state.spawned_interfaces, endpoint_addr) do
+    if state._online and endpoint_addr != nil and
+         Map.has_key?(state.spawned_interfaces, endpoint_addr) do
       peer = state.spawned_interfaces[endpoint_addr]
       {peer, state} = WeaveInterfacePeer.process_incoming(peer, data, state)
       %{state | spawned_interfaces: Map.put(state.spawned_interfaces, endpoint_addr, peer)}
@@ -239,7 +251,10 @@ defmodule RNS.Interfaces.WeaveInterface do
     else
       # Add to deques
       mif_deque = bounded_enqueue(state.mif_deque, data_hash, @multi_if_deque_len)
-      mif_deque_times = bounded_enqueue(state.mif_deque_times, {data_hash, now}, @multi_if_deque_len)
+
+      mif_deque_times =
+        bounded_enqueue(state.mif_deque_times, {data_hash, now}, @multi_if_deque_len)
+
       {false, %{state | mif_deque: mif_deque, mif_deque_times: mif_deque_times}}
     end
   end
@@ -364,7 +379,7 @@ defmodule RNS.Interfaces.WeaveInterface.WDCL do
     switch_id: nil,
     switch_pub_bytes: nil,
     rxb: 0,
-    txb: 0,
+    txb: 0
   ]
 
   @doc "Returns all public constants."
@@ -381,7 +396,7 @@ defmodule RNS.Interfaces.WeaveInterface.WDCL do
       wdcl_handshake_timeout: @wdcl_handshake_timeout,
       header_minsize: @header_minsize,
       max_chunk: @max_chunk,
-      default_speed: @default_speed,
+      default_speed: @default_speed
     }
   end
 
@@ -402,7 +417,7 @@ defmodule RNS.Interfaces.WeaveInterface.WDCL do
       port: port,
       as_interface: as_interface,
       switch_id: switch_id,
-      switch_pub_bytes: switch_pub_bytes,
+      switch_pub_bytes: switch_pub_bytes
     }
   end
 
@@ -453,7 +468,9 @@ defmodule RNS.Interfaces.WeaveInterface.WDCL do
 
   @doc "Parse a discovery response frame."
   @spec parse_discovery_response(binary()) ::
-          {:ok, %{signed_id: binary(), pub_key: binary(), switch_id: binary(), signature: binary()}} | :error
+          {:ok,
+           %{signed_id: binary(), pub_key: binary(), switch_id: binary(), signature: binary()}}
+          | :error
   def parse_discovery_response(data) do
     switch_id_len = RNS.Interfaces.WeaveInterface.WeaveDevice.switch_id_len()
     pubkey_size = RNS.Interfaces.WeaveInterface.WeaveDevice.pubkey_size()
@@ -467,12 +484,13 @@ defmodule RNS.Interfaces.WeaveInterface.WDCL do
       remote_switch_id = binary_part(pub_key, pubkey_size - 4, 4)
       signature = binary_part(data, switch_id_len + 1 + pubkey_size, signature_len)
 
-      {:ok, %{
-        signed_id: signed_id,
-        pub_key: pub_key,
-        switch_id: remote_switch_id,
-        signature: signature
-      }}
+      {:ok,
+       %{
+         signed_id: signed_id,
+         pub_key: pub_key,
+         switch_id: remote_switch_id,
+         signature: signature
+       }}
     else
       :error
     end
@@ -513,7 +531,7 @@ defmodule RNS.Interfaces.WeaveInterface.Cmd do
       wdcl_cmd_endpoint_pkt: @wdcl_cmd_endpoint_pkt,
       wdcl_cmd_endpoints_list: @wdcl_cmd_endpoints_list,
       wdcl_cmd_remote_display: @wdcl_cmd_remote_display,
-      wdcl_cmd_remote_input: @wdcl_cmd_remote_input,
+      wdcl_cmd_remote_input: @wdcl_cmd_remote_input
     }
   end
 end
@@ -649,7 +667,7 @@ defmodule RNS.Interfaces.WeaveInterface.Evt do
     @et_proto_weave_ep_timeout => "Weave endpoint disappeared",
     @et_srvctl_remote_display => "Remote display service control event",
     @et_interface_registered => "Interface registration",
-    @et_syserr_mem_exhausted => "System memory exhausted",
+    @et_syserr_mem_exhausted => "System memory exhausted"
   }
 
   @interface_types %{
@@ -668,7 +686,7 @@ defmodule RNS.Interfaces.WeaveInterface.Evt do
     @if_type_spi => "spi",
     @if_type_i2c => "i2c",
     @if_type_can => "can",
-    @if_type_dma => "dma",
+    @if_type_dma => "dma"
   }
 
   @channel_descriptions %{
@@ -685,7 +703,7 @@ defmodule RNS.Interfaces.WeaveInterface.Evt do
     11 => "Channel 11 (2462 MHz)",
     12 => "Channel 12 (2467 MHz)",
     13 => "Channel 13 (2472 MHz)",
-    14 => "Channel 14 (2484 MHz)",
+    14 => "Channel 14 (2484 MHz)"
   }
 
   @levels %{
@@ -698,7 +716,7 @@ defmodule RNS.Interfaces.WeaveInterface.Evt do
     @log_verbose => "Verbose",
     @log_debug => "Debug",
     @log_extreme => "Extreme",
-    @log_system => "System",
+    @log_system => "System"
   }
 
   @task_descriptions %{
@@ -718,7 +736,7 @@ defmodule RNS.Interfaces.WeaveInterface.Evt do
     "kernel_logger" => "Service: Logging",
     "remote_display" => "Service: Remote Display",
     "wifi" => "System: WiFi Hardware",
-    "sys_evt" => "System: Kernel Events",
+    "sys_evt" => "System: Kernel Events"
   }
 
   # Public accessors
@@ -789,7 +807,7 @@ defmodule RNS.Interfaces.WeaveInterface.Evt do
       et_proto_weave_ep_via: @et_proto_weave_ep_via,
       et_stat_cpu: @et_stat_cpu,
       et_stat_memory: @et_stat_memory,
-      et_interface_registered: @et_interface_registered,
+      et_interface_registered: @et_interface_registered
     }
   end
 end
@@ -810,7 +828,7 @@ defmodule RNS.Interfaces.WeaveInterface.LogFrame do
       timestamp: Keyword.get(opts, :timestamp),
       level: Keyword.get(opts, :level),
       event: Keyword.get(opts, :event),
-      data: Keyword.get(opts, :data, <<>>),
+      data: Keyword.get(opts, :data, <<>>)
     }
   end
 end
@@ -828,7 +846,7 @@ defmodule RNS.Interfaces.WeaveInterface.WeaveEndpoint do
     :endpoint_addr,
     alive: nil,
     via: nil,
-    received: :queue.new(),
+    received: :queue.new()
   ]
 
   def queue_len, do: @queue_len
@@ -838,7 +856,7 @@ defmodule RNS.Interfaces.WeaveInterface.WeaveEndpoint do
   def new(endpoint_addr) do
     %__MODULE__{
       endpoint_addr: endpoint_addr,
-      alive: System.system_time(:millisecond) / 1000,
+      alive: System.system_time(:millisecond) / 1000
     }
   end
 
@@ -908,7 +926,7 @@ defmodule RNS.Interfaces.WeaveInterface.WeaveDevice do
     display_buffer: <<>>,
     update_display: false,
     next_update_memory: 0,
-    next_update_cpu: 0,
+    next_update_cpu: 0
   ]
 
   # Public constant accessors
@@ -930,7 +948,7 @@ defmodule RNS.Interfaces.WeaveInterface.WeaveDevice do
       weave_auth_len: @weave_auth_len,
       weave_pubkey_size: @weave_pubkey_size,
       weave_prvkey_size: @weave_prvkey_size,
-      weave_signature_len: @weave_signature_len,
+      weave_signature_len: @weave_signature_len
     }
   end
 
@@ -939,7 +957,7 @@ defmodule RNS.Interfaces.WeaveInterface.WeaveDevice do
   def new(opts \\ []) do
     %__MODULE__{
       as_interface: Keyword.get(opts, :as_interface, false),
-      rns_interface: Keyword.get(opts, :rns_interface),
+      rns_interface: Keyword.get(opts, :rns_interface)
     }
   end
 
@@ -949,7 +967,11 @@ defmodule RNS.Interfaces.WeaveInterface.WeaveDevice do
     endpoints =
       if Map.has_key?(device.endpoints, endpoint_id) do
         ep = device.endpoints[endpoint_id]
-        Map.put(device.endpoints, endpoint_id, %{ep | alive: System.system_time(:millisecond) / 1000})
+
+        Map.put(device.endpoints, endpoint_id, %{
+          ep
+          | alive: System.system_time(:millisecond) / 1000
+        })
       else
         Map.put(device.endpoints, endpoint_id, WeaveEndpoint.new(endpoint_id))
       end
@@ -991,24 +1013,32 @@ defmodule RNS.Interfaces.WeaveInterface.WeaveDevice do
       byte_size(data) > @weave_switch_id_len + 2 and
         :binary.at(data, @weave_switch_id_len) == 0x05 and
         device.connection != nil and
-        binary_part(data, 0, @weave_switch_id_len) == device.connection.switch_id ->
-        payload = binary_part(data, @weave_switch_id_len + 1, byte_size(data) - @weave_switch_id_len - 1 - @weave_endpoint_id_len)
-        src_endpoint = binary_part(data, byte_size(data) - @weave_endpoint_id_len, @weave_endpoint_id_len)
+          binary_part(data, 0, @weave_switch_id_len) == device.connection.switch_id ->
+        payload =
+          binary_part(
+            data,
+            @weave_switch_id_len + 1,
+            byte_size(data) - @weave_switch_id_len - 1 - @weave_endpoint_id_len
+          )
+
+        src_endpoint =
+          binary_part(data, byte_size(data) - @weave_endpoint_id_len, @weave_endpoint_id_len)
+
         received_packet(device, src_endpoint, payload)
 
       # Discovery response
       byte_size(data) > @weave_switch_id_len + 1 and
-        :binary.at(data, @weave_switch_id_len) == 0x00 ->
+          :binary.at(data, @weave_switch_id_len) == 0x00 ->
         handle_discovery_response(device, data)
 
       # Log frame
       byte_size(data) > @weave_switch_id_len + 1 and
-        :binary.at(data, @weave_switch_id_len) == 0x03 ->
+          :binary.at(data, @weave_switch_id_len) == 0x03 ->
         handle_log_frame(device, data)
 
       # Display frame
       byte_size(data) > @weave_switch_id_len + 10 and
-        :binary.at(data, @weave_switch_id_len) == 0x04 ->
+          :binary.at(data, @weave_switch_id_len) == 0x04 ->
         handle_display_frame(device, data)
 
       true ->
@@ -1029,7 +1059,13 @@ defmodule RNS.Interfaces.WeaveInterface.WeaveDevice do
 
   defp handle_discovery_response(device, data) do
     case WDCL.parse_discovery_response(data) do
-      {:ok, %{signed_id: signed_id, pub_key: pub_key, switch_id: remote_switch_id, signature: signature}} ->
+      {:ok,
+       %{
+         signed_id: signed_id,
+         pub_key: pub_key,
+         switch_id: remote_switch_id,
+         signature: signature
+       }} ->
         # Verify signature
         remote_identity = RNS.Identity.new(create_keys: false)
         remote_identity = RNS.Identity.load_public_key(remote_identity, pub_key <> pub_key)
@@ -1037,6 +1073,7 @@ defmodule RNS.Interfaces.WeaveInterface.WeaveDevice do
         case RNS.Identity.validate(remote_identity, signature, signed_id) do
           true ->
             %{device | identity: remote_identity, switch_id: remote_switch_id}
+
           false ->
             device
         end
@@ -1052,12 +1089,13 @@ defmodule RNS.Interfaces.WeaveInterface.WeaveDevice do
     if byte_size(fd) >= 9 do
       <<_, ts::unsigned-big-32, lvl, evt::unsigned-big-16, rest::binary>> = fd
 
-      frame = LogFrame.new(
-        timestamp: ts / 1000.0,
-        level: lvl,
-        event: evt,
-        data: rest
-      )
+      frame =
+        LogFrame.new(
+          timestamp: ts / 1000.0,
+          level: lvl,
+          event: evt,
+          data: rest
+        )
 
       log_handle(device, frame)
     else
@@ -1080,11 +1118,17 @@ defmodule RNS.Interfaces.WeaveInterface.WeaveDevice do
 
       # Update display buffer at offset
       before = binary_part(display_buffer, 0, ofs)
-      after_part = if ofs + byte_size(fbf) < byte_size(display_buffer) do
-        binary_part(display_buffer, ofs + byte_size(fbf), byte_size(display_buffer) - ofs - byte_size(fbf))
-      else
-        <<>>
-      end
+
+      after_part =
+        if ofs + byte_size(fbf) < byte_size(display_buffer) do
+          binary_part(
+            display_buffer,
+            ofs + byte_size(fbf),
+            byte_size(display_buffer) - ofs - byte_size(fbf)
+          )
+        else
+          <<>>
+        end
 
       display_buffer = before <> fbf <> after_part
       %{device | display_buffer: display_buffer}
@@ -1100,13 +1144,16 @@ defmodule RNS.Interfaces.WeaveInterface.WeaveDevice do
       frame.event == Evt.et_proto_wdcl_connection() ->
         device
 
-      frame.event == Evt.et_proto_wdcl_host_endpoint() and byte_size(frame.data) == @weave_endpoint_id_len ->
+      frame.event == Evt.et_proto_wdcl_host_endpoint() and
+          byte_size(frame.data) == @weave_endpoint_id_len ->
         %{device | endpoint_id: frame.data}
 
-      frame.event == Evt.et_proto_weave_ep_alive() and byte_size(frame.data) == @weave_endpoint_id_len ->
+      frame.event == Evt.et_proto_weave_ep_alive() and
+          byte_size(frame.data) == @weave_endpoint_id_len ->
         endpoint_alive(device, frame.data)
 
-      frame.event == Evt.et_proto_weave_ep_via() and byte_size(frame.data) == @weave_endpoint_id_len + @weave_switch_id_len ->
+      frame.event == Evt.et_proto_weave_ep_via() and
+          byte_size(frame.data) == @weave_endpoint_id_len + @weave_switch_id_len ->
         ep_id = binary_part(frame.data, 0, @weave_endpoint_id_len)
         via_id = binary_part(frame.data, @weave_endpoint_id_len, @weave_switch_id_len)
         endpoint_via(device, ep_id, via_id)
@@ -1117,10 +1164,13 @@ defmodule RNS.Interfaces.WeaveInterface.WeaveDevice do
 
         try do
           task_name = :binary.bin_to_list(task_id) |> List.to_string()
-          active_tasks = Map.put(device.active_tasks, task_name, %{
-            cpu_load: cpu_load,
-            timestamp: System.system_time(:millisecond) / 1000
-          })
+
+          active_tasks =
+            Map.put(device.active_tasks, task_name, %{
+              cpu_load: cpu_load,
+              timestamp: System.system_time(:millisecond) / 1000
+            })
+
           %{device | active_tasks: active_tasks}
         rescue
           _ -> device
@@ -1135,12 +1185,15 @@ defmodule RNS.Interfaces.WeaveInterface.WeaveDevice do
         <<mem_free::unsigned-big-32, mem_total::unsigned-big-32>> = binary_part(frame.data, 0, 8)
         mem_used = mem_total - mem_free
         mem_pct = if mem_total > 0, do: Float.round(mem_used / mem_total * 100, 2), else: 0.0
-        device = %{device |
-          memory_free: mem_free,
-          memory_total: mem_total,
-          memory_used: mem_used,
-          memory_used_pct: mem_pct
+
+        device = %{
+          device
+          | memory_free: mem_free,
+            memory_total: mem_total,
+            memory_used: mem_used,
+            memory_used_pct: mem_pct
         }
+
         capture_stats_memory(device)
 
       true ->
@@ -1175,14 +1228,16 @@ defmodule RNS.Interfaces.WeaveInterface.WeaveDevice do
   @spec get_cpu_stats(%__MODULE__{}) :: map()
   def get_cpu_stats(device) do
     stats_list = :queue.to_list(device.cpu_stats)
-    tbegin = case List.last(stats_list) do
-      nil -> 0
-      entry -> entry.timestamp
-    end
+
+    tbegin =
+      case List.last(stats_list) do
+        nil -> 0
+        entry -> entry.timestamp
+      end
 
     %{
       timestamps: Enum.map(stats_list, &(&1.timestamp - tbegin)),
-      values: Enum.map(stats_list, &(&1.cpu_load)),
+      values: Enum.map(stats_list, & &1.cpu_load),
       max: 100,
       unit: "%"
     }
@@ -1192,14 +1247,16 @@ defmodule RNS.Interfaces.WeaveInterface.WeaveDevice do
   @spec get_memory_stats(%__MODULE__{}) :: map()
   def get_memory_stats(device) do
     stats_list = :queue.to_list(device.memory_stats)
-    tbegin = case List.last(stats_list) do
-      nil -> 0
-      entry -> entry.timestamp
-    end
+
+    tbegin =
+      case List.last(stats_list) do
+        nil -> 0
+        entry -> entry.timestamp
+      end
 
     %{
       timestamps: Enum.map(stats_list, &(&1.timestamp - tbegin)),
-      values: Enum.map(stats_list, &(&1.memory_used)),
+      values: Enum.map(stats_list, & &1.memory_used),
       max: device.memory_total,
       unit: "B"
     }
@@ -1240,7 +1297,7 @@ defmodule RNS.Interfaces.WeaveInterface.WeaveInterfacePeer do
                 addr_info: nil,
                 _online: false,
                 ifac_netname: nil,
-                ifac_netkey: nil,
+                ifac_netkey: nil
               ]
 
   @doc "Create a new peer interface."
@@ -1275,7 +1332,7 @@ defmodule RNS.Interfaces.WeaveInterface.WeaveInterfacePeer do
       announce_rate_target: announce_rate_target,
       mode: mode,
       _online: false,
-      created: System.system_time(:second),
+      created: System.system_time(:second)
     }
   end
 
@@ -1287,7 +1344,9 @@ defmodule RNS.Interfaces.WeaveInterface.WeaveInterfacePeer do
         RNS.Interfaces.WeaveInterface.mif_deque_check(parent_state, data)
 
       if not deque_hit do
-        parent_state = RNS.Interfaces.WeaveInterface.refresh_peer(parent_state, peer.endpoint_addr)
+        parent_state =
+          RNS.Interfaces.WeaveInterface.refresh_peer(parent_state, peer.endpoint_addr)
+
         peer = %{peer | rxb: peer.rxb + byte_size(data)}
         parent_state = %{parent_state | rxb: parent_state.rxb + byte_size(data)}
 

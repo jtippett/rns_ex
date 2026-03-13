@@ -380,7 +380,7 @@ defmodule RNS.Vendor.ConfigObjTest do
   describe "parse_file/1" do
     setup do
       dir = System.tmp_dir!()
-      path = Path.join(dir, "test_config_#{:rand.uniform(999999)}")
+      path = Path.join(dir, "test_config_#{:rand.uniform(999_999)}")
       on_cleanup = fn -> File.rm(path) end
       %{path: path, cleanup: on_cleanup}
     end
@@ -479,7 +479,11 @@ defmodule RNS.Vendor.ConfigObjTest do
     end
 
     test "as_bool with various boolean strings" do
-      {:ok, config} = ConfigObj.parse("[s]\nyes = Yes\nno = No\ntrue = True\nfalse = False\non = On\noff = Off\none = 1\nzero = 0")
+      {:ok, config} =
+        ConfigObj.parse(
+          "[s]\nyes = Yes\nno = No\ntrue = True\nfalse = False\non = On\noff = Off\none = 1\nzero = 0"
+        )
+
       s = Section.get(config, "s")
 
       assert Section.as_bool(s, "yes") == true
@@ -775,7 +779,7 @@ defmodule RNS.Vendor.ConfigObjTest do
 
       serial = Section.get(interfaces, "Serial Interface")
       assert Section.get(serial, "port") == "/dev/ttyUSB0"
-      assert Section.as_int(serial, "speed") == 115200
+      assert Section.as_int(serial, "speed") == 115_200
       assert Section.as_bool(serial, "enabled") == false
 
       rnode = Section.get(interfaces, "RNode LoRa")
@@ -888,7 +892,9 @@ defmodule RNS.Vendor.ConfigObjTest do
     end
 
     test "values with special characters" do
-      config_str = "[s]\npath = /dev/ttyUSB0\nip = 192.168.1.1\nurl = https://example.com:8080/path"
+      config_str =
+        "[s]\npath = /dev/ttyUSB0\nip = 192.168.1.1\nurl = https://example.com:8080/path"
+
       {:ok, config} = ConfigObj.parse(config_str)
       s = Section.get(config, "s")
 
@@ -950,36 +956,37 @@ defmodule RNS.Vendor.ConfigObjTest do
       reticulum = Section.get(config, "reticulum")
 
       # Matching Python pattern: for option in self.config["reticulum"]:
-      results = Enum.reduce(reticulum, %{}, fn {option, _value}, acc ->
-        case option do
-          "share_instance" ->
-            Map.put(acc, :share_instance, Section.as_bool(reticulum, option))
+      results =
+        Enum.reduce(reticulum, %{}, fn {option, _value}, acc ->
+          case option do
+            "share_instance" ->
+              Map.put(acc, :share_instance, Section.as_bool(reticulum, option))
 
-          "enable_transport" ->
-            Map.put(acc, :enable_transport, Section.as_bool(reticulum, option))
+            "enable_transport" ->
+              Map.put(acc, :enable_transport, Section.as_bool(reticulum, option))
 
-          "instance_name" ->
-            Map.put(acc, :instance_name, Section.get(reticulum, option))
+            "instance_name" ->
+              Map.put(acc, :instance_name, Section.get(reticulum, option))
 
-          "shared_instance_port" ->
-            Map.put(acc, :shared_instance_port, Section.as_int(reticulum, option))
+            "shared_instance_port" ->
+              Map.put(acc, :shared_instance_port, Section.as_int(reticulum, option))
 
-          "instance_control_port" ->
-            Map.put(acc, :instance_control_port, Section.as_int(reticulum, option))
+            "instance_control_port" ->
+              Map.put(acc, :instance_control_port, Section.as_int(reticulum, option))
 
-          "panic_on_interface_error" ->
-            Map.put(acc, :panic_on_interface_error, Section.as_bool(reticulum, option))
+            "panic_on_interface_error" ->
+              Map.put(acc, :panic_on_interface_error, Section.as_bool(reticulum, option))
 
-          "use_implicit_proof" ->
-            Map.put(acc, :use_implicit_proof, Section.as_bool(reticulum, option))
+            "use_implicit_proof" ->
+              Map.put(acc, :use_implicit_proof, Section.as_bool(reticulum, option))
 
-          "respond_to_probes" ->
-            Map.put(acc, :respond_to_probes, Section.as_bool(reticulum, option))
+            "respond_to_probes" ->
+              Map.put(acc, :respond_to_probes, Section.as_bool(reticulum, option))
 
-          _ ->
-            acc
-        end
-      end)
+            _ ->
+              acc
+          end
+        end)
 
       assert results[:share_instance] == true
       assert results[:enable_transport] == false

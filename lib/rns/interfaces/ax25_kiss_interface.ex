@@ -173,8 +173,8 @@ defmodule RNS.Interfaces.AX25KISSInterface do
 
     ssid_byte =
       case type do
-        :dst -> 0x60 ||| (ssid <<< 1)
-        :src -> 0x60 ||| (ssid <<< 1) ||| 0x01
+        :dst -> 0x60 ||| ssid <<< 1
+        :src -> 0x60 ||| ssid <<< 1 ||| 0x01
       end
 
     :binary.list_to_bin(call_bytes ++ [ssid_byte])
@@ -278,7 +278,8 @@ defmodule RNS.Interfaces.AX25KISSInterface do
           end
 
         # Build AX.25 header
-        ax25_header = build_ax25_header(state.dst_call, state.dst_ssid, state.src_call, state.src_ssid)
+        ax25_header =
+          build_ax25_header(state.dst_call, state.dst_ssid, state.src_call, state.src_ssid)
 
         # Prepend AX.25 header to data, then KISS escape and frame
         ax25_data = ax25_header <> data
@@ -507,10 +508,30 @@ defmodule RNS.Interfaces.AX25KISSInterface do
   def configure_device(%__MODULE__{skip_open: true} = state), do: state
 
   def configure_device(%__MODULE__{} = state) do
-    write_kiss_command(state, KISS.cmd_txdelay(), RNS.Interfaces.KISSInterface.preamble_value(state.preamble))
-    write_kiss_command(state, KISS.cmd_txtail(), RNS.Interfaces.KISSInterface.txtail_value(state.txtail))
-    write_kiss_command(state, KISS.cmd_p(), RNS.Interfaces.KISSInterface.persistence_value(state.persistence))
-    write_kiss_command(state, KISS.cmd_slottime(), RNS.Interfaces.KISSInterface.slottime_value(state.slottime))
+    write_kiss_command(
+      state,
+      KISS.cmd_txdelay(),
+      RNS.Interfaces.KISSInterface.preamble_value(state.preamble)
+    )
+
+    write_kiss_command(
+      state,
+      KISS.cmd_txtail(),
+      RNS.Interfaces.KISSInterface.txtail_value(state.txtail)
+    )
+
+    write_kiss_command(
+      state,
+      KISS.cmd_p(),
+      RNS.Interfaces.KISSInterface.persistence_value(state.persistence)
+    )
+
+    write_kiss_command(
+      state,
+      KISS.cmd_slottime(),
+      RNS.Interfaces.KISSInterface.slottime_value(state.slottime)
+    )
+
     write_kiss_command(state, KISS.cmd_ready(), 0x01)
     state
   end

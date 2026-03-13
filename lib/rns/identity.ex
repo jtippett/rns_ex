@@ -197,7 +197,9 @@ defmodule RNS.Identity do
   @spec load_public_key(t(), binary()) :: t()
   def load_public_key(%__MODULE__{} = id, pub_bytes) when is_binary(pub_bytes) do
     half = div(@keysize, 8 * 2)
-    <<enc_pub::binary-size(half), sig_pub::binary-size(half)>> = binary_part(pub_bytes, 0, half * 2)
+
+    <<enc_pub::binary-size(half), sig_pub::binary-size(half)>> =
+      binary_part(pub_bytes, 0, half * 2)
 
     %{id | pub_bytes: enc_pub, sig_pub_bytes: sig_pub}
     |> update_hashes()
@@ -256,7 +258,9 @@ defmodule RNS.Identity do
   """
   @spec sign(t(), binary()) :: binary()
   def sign(%__MODULE__{sig_prv_bytes: nil}, _message) do
-    raise KeyError, key: :sig_prv, term: "Signing failed because identity does not hold a private key"
+    raise KeyError,
+      key: :sig_prv,
+      term: "Signing failed because identity does not hold a private key"
   end
 
   def sign(%__MODULE__{sig_prv_bytes: sig_prv}, message) when is_binary(message) do
@@ -272,7 +276,9 @@ defmodule RNS.Identity do
   """
   @spec validate(t(), binary(), binary()) :: boolean()
   def validate(%__MODULE__{pub_bytes: nil}, _signature, _message) do
-    raise KeyError, key: :pub, term: "Signature validation failed because identity does not hold a public key"
+    raise KeyError,
+      key: :pub,
+      term: "Signature validation failed because identity does not hold a public key"
   end
 
   def validate(%__MODULE__{sig_pub_bytes: sig_pub}, signature, message) do
@@ -296,7 +302,9 @@ defmodule RNS.Identity do
   def encrypt(id, plaintext, opts \\ [])
 
   def encrypt(%__MODULE__{pub_bytes: nil}, _plaintext, _opts) do
-    raise KeyError, key: :pub, term: "Encryption failed because identity does not hold a public key"
+    raise KeyError,
+      key: :pub,
+      term: "Encryption failed because identity does not hold a public key"
   end
 
   def encrypt(%__MODULE__{} = id, plaintext, opts) when is_binary(plaintext) do
@@ -343,7 +351,9 @@ defmodule RNS.Identity do
   def decrypt(id, ciphertext_token, opts \\ [])
 
   def decrypt(%__MODULE__{prv_bytes: nil}, _ciphertext_token, _opts) do
-    raise KeyError, key: :prv, term: "Decryption failed because identity does not hold a private key"
+    raise KeyError,
+      key: :prv,
+      term: "Decryption failed because identity does not hold a private key"
   end
 
   def decrypt(%__MODULE__{} = id, ciphertext_token, opts) when is_binary(ciphertext_token) do
@@ -447,8 +457,12 @@ defmodule RNS.Identity do
 
           ad =
             if byte_size(data) > keysize_bytes + name_hash_len + 10 + sig_len + ratchetsize_bytes do
-              binary_part(data, keysize_bytes + name_hash_len + 10 + sig_len + ratchetsize_bytes,
-                byte_size(data) - (keysize_bytes + name_hash_len + 10 + sig_len + ratchetsize_bytes))
+              binary_part(
+                data,
+                keysize_bytes + name_hash_len + 10 + sig_len + ratchetsize_bytes,
+                byte_size(data) -
+                  (keysize_bytes + name_hash_len + 10 + sig_len + ratchetsize_bytes)
+              )
             else
               <<>>
             end
@@ -462,8 +476,11 @@ defmodule RNS.Identity do
 
           ad =
             if byte_size(data) > keysize_bytes + name_hash_len + 10 + sig_len do
-              binary_part(data, keysize_bytes + name_hash_len + 10 + sig_len,
-                byte_size(data) - (keysize_bytes + name_hash_len + 10 + sig_len))
+              binary_part(
+                data,
+                keysize_bytes + name_hash_len + 10 + sig_len,
+                byte_size(data) - (keysize_bytes + name_hash_len + 10 + sig_len)
+              )
             else
               <<>>
             end
@@ -472,7 +489,9 @@ defmodule RNS.Identity do
         end
 
       public_key = binary_part(data, 0, keysize_bytes)
-      signed_data = destination_hash <> public_key <> name_hash <> random_hash <> ratchet <> app_data
+
+      signed_data =
+        destination_hash <> public_key <> name_hash <> random_hash <> ratchet <> app_data
 
       # Load the announced identity's public key and validate
       announced_identity = new(create_keys: false)
@@ -521,7 +540,8 @@ defmodule RNS.Identity do
 
   The public key must be exactly KEYSIZE // 8 bytes (64).
   """
-  @spec remember(binary(), binary(), binary(), binary() | nil) :: :ok | {:error, :invalid_public_key}
+  @spec remember(binary(), binary(), binary(), binary() | nil) ::
+          :ok | {:error, :invalid_public_key}
   defdelegate remember(packet_hash, destination_hash, public_key, app_data \\ nil),
     to: RNS.IdentityStore
 

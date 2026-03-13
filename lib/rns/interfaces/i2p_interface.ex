@@ -203,7 +203,9 @@ defmodule RNS.Interfaces.I2PInterface do
     state =
       if not skip_i2p and storagepath do
         case RNS.Interfaces.I2PController.start_link(storagepath: storagepath) do
-          {:ok, pid} -> %{state | i2p_controller: pid}
+          {:ok, pid} ->
+            %{state | i2p_controller: pid}
+
           {:error, reason} ->
             Logger.error("Failed to start I2P controller: #{inspect(reason)}")
             state
@@ -399,7 +401,9 @@ defmodule RNS.Interfaces.I2PInterface do
     ]
 
     case RNS.Interfaces.I2PInterfacePeer.start_link(peer_opts) do
-      {:ok, _pid} -> :ok
+      {:ok, _pid} ->
+        :ok
+
       {:error, reason} ->
         Logger.error("Failed to start I2P peer #{interface_name}: #{inspect(reason)}")
     end

@@ -434,7 +434,10 @@ defmodule RNS.Interfaces.AutoInterface do
     group_id = Keyword.get(opts, :group_id, @default_group_id)
     discovery_scope = parse_discovery_scope(Keyword.get(opts, :discovery_scope))
     discovery_port = Keyword.get(opts, :discovery_port, @default_discovery_port)
-    multicast_address_type = parse_multicast_address_type(Keyword.get(opts, :multicast_address_type))
+
+    multicast_address_type =
+      parse_multicast_address_type(Keyword.get(opts, :multicast_address_type))
+
     data_port = Keyword.get(opts, :data_port, @default_data_port)
     allowed_interfaces = Keyword.get(opts, :allowed_interfaces, [])
     ignored_interfaces = Keyword.get(opts, :ignored_interfaces, [])
@@ -588,10 +591,11 @@ defmodule RNS.Interfaces.AutoInterface do
         echoes = Map.put(acc.multicast_echoes, ifname, System.system_time(:second))
         addrs = [link_local_addr | acc.link_local_addresses]
 
-        acc = %{acc |
-          adopted_interfaces: adopted,
-          multicast_echoes: echoes,
-          link_local_addresses: addrs
+        acc = %{
+          acc
+          | adopted_interfaces: adopted,
+            multicast_echoes: echoes,
+            link_local_addresses: addrs
         }
 
         # Set up discovery sockets for this interface
@@ -603,7 +607,10 @@ defmodule RNS.Interfaces.AutoInterface do
       state = setup_data_listeners(state)
       %{state | receives: true, online: true}
     else
-      Logger.warning("#{state} could not autoconfigure. This interface currently provides no connectivity.")
+      Logger.warning(
+        "#{state} could not autoconfigure. This interface currently provides no connectivity."
+      )
+
       state
     end
   end
@@ -624,24 +631,34 @@ defmodule RNS.Interfaces.AutoInterface do
               # Schedule announce loop for this interface
               schedule_announce(state, ifname)
 
-              %{state |
-                discovery_sockets: discovery_sockets,
-                unicast_discovery_sockets: unicast_sockets
+              %{
+                state
+                | discovery_sockets: discovery_sockets,
+                  unicast_discovery_sockets: unicast_sockets
               }
 
             {:error, reason} ->
-              Logger.error("Could not open unicast discovery socket for #{ifname}: #{inspect(reason)}")
+              Logger.error(
+                "Could not open unicast discovery socket for #{ifname}: #{inspect(reason)}"
+              )
+
               :gen_udp.close(mcast_socket)
               state
           end
 
         {:error, reason} ->
-          Logger.error("Could not open multicast discovery socket for #{ifname}: #{inspect(reason)}")
+          Logger.error(
+            "Could not open multicast discovery socket for #{ifname}: #{inspect(reason)}"
+          )
+
           state
       end
     rescue
       e ->
-        Logger.error("Could not configure interface #{ifname} for #{state}: #{Exception.message(e)}")
+        Logger.error(
+          "Could not configure interface #{ifname} for #{state}: #{Exception.message(e)}"
+        )
+
         state
     end
   end
@@ -666,7 +683,13 @@ defmodule RNS.Interfaces.AutoInterface do
       {:ok, socket} ->
         # Join multicast group
         mcast_addr = parse_ipv6!(state.mcast_discovery_address)
-        mcast_group = mcast_addr |> Tuple.to_list() |> Enum.map(fn x -> <<x::16>> end) |> IO.iodata_to_binary()
+
+        mcast_group =
+          mcast_addr
+          |> Tuple.to_list()
+          |> Enum.map(fn x -> <<x::16>> end)
+          |> IO.iodata_to_binary()
+
         if_struct = <<if_index::native-unsigned-32>>
         group_req = mcast_group <> if_struct
 
@@ -730,7 +753,10 @@ defmodule RNS.Interfaces.AutoInterface do
       if peering_hash == expected_hash do
         do_add_peer(state, addr, nil)
       else
-        Logger.debug("#{state} received peering packet from #{addr}, but authentication hash was incorrect.")
+        Logger.debug(
+          "#{state} received peering packet from #{addr}, but authentication hash was incorrect."
+        )
+
         state
       end
     else
@@ -761,11 +787,12 @@ defmodule RNS.Interfaces.AutoInterface do
         peer_ifname = ifname || find_ifname_for_peer(state, addr)
 
         # Create peer entry: [ifname, last_heard, last_outbound]
-        peers = Map.put(state.peers, addr, %{
-          ifname: peer_ifname,
-          last_heard: now,
-          last_outbound: now
-        })
+        peers =
+          Map.put(state.peers, addr, %{
+            ifname: peer_ifname,
+            last_heard: now,
+            last_outbound: now
+          })
 
         # Create spawned interface
         spawned = %RNS.Interfaces.AutoInterfacePeer{
@@ -788,10 +815,7 @@ defmodule RNS.Interfaces.AutoInterface do
 
         Logger.debug("#{state} added peer #{addr} on #{peer_ifname}")
 
-        %{state |
-          peers: peers,
-          spawned_interfaces: spawned_interfaces
-        }
+        %{state | peers: peers, spawned_interfaces: spawned_interfaces}
       else
         # Refresh existing peer
         do_refresh_peer(state, addr)
@@ -801,7 +825,9 @@ defmodule RNS.Interfaces.AutoInterface do
 
   defp do_refresh_peer(state, addr) do
     case Map.get(state.peers, addr) do
-      nil -> state
+      nil ->
+        state
+
       peer ->
         peers = Map.put(state.peers, addr, %{peer | last_heard: System.system_time(:second)})
         %{state | peers: peers}
@@ -917,7 +943,9 @@ defmodule RNS.Interfaces.AutoInterface do
             timed_out = Map.get(state.timed_out_interfaces, ifname)
 
             if timed_out != true do
-              Logger.warning("#{state} Detected possible carrier loss on #{ifname}: #{inspect(reason)}")
+              Logger.warning(
+                "#{state} Detected possible carrier loss on #{ifname}: #{inspect(reason)}"
+              )
             end
         end
       end
@@ -941,12 +969,16 @@ defmodule RNS.Interfaces.AutoInterface do
             :gen_udp.close(socket)
 
           {:error, reason} ->
-            Logger.error("Could not send reverse peering packet to #{peer_addr} on #{ifname}: #{inspect(reason)}")
+            Logger.error(
+              "Could not send reverse peering packet to #{peer_addr} on #{ifname}: #{inspect(reason)}"
+            )
         end
       end
     rescue
       e ->
-        Logger.error("Could not send reverse peering packet to #{peer_addr} on #{ifname}: #{Exception.message(e)}")
+        Logger.error(
+          "Could not send reverse peering packet to #{peer_addr} on #{ifname}: #{Exception.message(e)}"
+        )
     end
   end
 
@@ -960,12 +992,13 @@ defmodule RNS.Interfaces.AutoInterface do
       :gen_udp.close(state.outbound_udp_socket)
     end
 
-    %{state |
-      online: false,
-      discovery_sockets: %{},
-      unicast_discovery_sockets: %{},
-      interface_servers: %{},
-      outbound_udp_socket: nil
+    %{
+      state
+      | online: false,
+        discovery_sockets: %{},
+        unicast_discovery_sockets: %{},
+        interface_servers: %{},
+        outbound_udp_socket: nil
     }
   end
 

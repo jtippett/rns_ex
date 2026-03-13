@@ -80,9 +80,9 @@ defmodule RNS.Buffer.StreamDataMessage do
 
   def pack(%__MODULE__{} = msg) do
     header_val =
-      (0x3FFF &&& msg.stream_id)
-      ||| if(msg.eof, do: 0x8000, else: 0x0000)
-      ||| if(msg.compressed, do: 0x4000, else: 0x0000)
+      (0x3FFF &&& msg.stream_id) |||
+        if(msg.eof, do: 0x8000, else: 0x0000) |||
+        if(msg.compressed, do: 0x4000, else: 0x0000)
 
     <<header_val::unsigned-big-16>> <> (msg.data || <<>>)
   end
@@ -154,7 +154,9 @@ defmodule RNS.Buffer.RawChannelReader do
   def read(agent, size) do
     Agent.get_and_update(agent, fn state ->
       result = binary_part(state.buffer, 0, min(size, byte_size(state.buffer)))
-      remaining = binary_part(state.buffer, byte_size(result), byte_size(state.buffer) - byte_size(result))
+
+      remaining =
+        binary_part(state.buffer, byte_size(result), byte_size(state.buffer) - byte_size(result))
 
       if byte_size(result) > 0 do
         {result, %{state | buffer: remaining}}
@@ -319,12 +321,13 @@ defmodule RNS.Buffer.RawChannelWriter do
           {binary_part(data, 0, actual_len), actual_len}
         end
 
-      message = StreamDataMessage.new(
-        stream_id: writer.stream_id,
-        data: chunk,
-        eof: writer.eof,
-        compressed: comp_success
-      )
+      message =
+        StreamDataMessage.new(
+          stream_id: writer.stream_id,
+          data: chunk,
+          eof: writer.eof,
+          compressed: comp_success
+        )
 
       {:ok, channel, _envelope} = Channel.send(channel, message)
       {processed_length, channel}
@@ -347,11 +350,12 @@ defmodule RNS.Buffer.RawChannelWriter do
   def close(%__MODULE__{} = writer, %Channel{} = channel) do
     writer = %{writer | eof: true}
 
-    message = StreamDataMessage.new(
-      stream_id: writer.stream_id,
-      data: <<>>,
-      eof: true
-    )
+    message =
+      StreamDataMessage.new(
+        stream_id: writer.stream_id,
+        data: <<>>,
+        eof: true
+      )
 
     case Channel.send(channel, message) do
       {:ok, channel, _envelope} ->

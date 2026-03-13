@@ -55,7 +55,11 @@ defmodule RNS.ReticulumTest do
     end
 
     test "IFAC salt is the correct 32-byte value" do
-      expected = Base.decode16!("ADF54D882C9A9B80771EB4995D702D4A3E733391B2A0F53F416D9F907E55CFF8", case: :upper)
+      expected =
+        Base.decode16!("ADF54D882C9A9B80771EB4995D702D4A3E733391B2A0F53F416D9F907E55CFF8",
+          case: :upper
+        )
+
       assert Reticulum.ifac_salt() == expected
       assert byte_size(Reticulum.ifac_salt()) == 32
     end
@@ -114,8 +118,9 @@ defmodule RNS.ReticulumTest do
       # On a clean system, /etc/reticulum won't exist, so it should fall back
       result = Reticulum.determine_configdir(nil)
       assert is_binary(result)
+
       assert String.ends_with?(result, ".reticulum") or
-             String.contains?(result, "reticulum")
+               String.contains?(result, "reticulum")
     end
   end
 
@@ -200,31 +205,34 @@ defmodule RNS.ReticulumTest do
     end
 
     test "applies transport enabled" do
-      {:ok, config} = ConfigObj.parse("""
-      [reticulum]
-      enable_transport = yes
-      """)
+      {:ok, config} =
+        ConfigObj.parse("""
+        [reticulum]
+        enable_transport = yes
+        """)
 
       result = Reticulum.apply_config(config)
       assert result.transport_enabled == true
     end
 
     test "applies share_instance = no" do
-      {:ok, config} = ConfigObj.parse("""
-      [reticulum]
-      share_instance = no
-      """)
+      {:ok, config} =
+        ConfigObj.parse("""
+        [reticulum]
+        share_instance = no
+        """)
 
       result = Reticulum.apply_config(config)
       assert result.share_instance == false
     end
 
     test "applies custom ports" do
-      {:ok, config} = ConfigObj.parse("""
-      [reticulum]
-      shared_instance_port = 55905
-      instance_control_port = 55906
-      """)
+      {:ok, config} =
+        ConfigObj.parse("""
+        [reticulum]
+        shared_instance_port = 55905
+        instance_control_port = 55906
+        """)
 
       result = Reticulum.apply_config(config)
       assert result.local_interface_port == 55905
@@ -232,151 +240,168 @@ defmodule RNS.ReticulumTest do
     end
 
     test "applies use_implicit_proof = false" do
-      {:ok, config} = ConfigObj.parse("""
-      [reticulum]
-      use_implicit_proof = false
-      """)
+      {:ok, config} =
+        ConfigObj.parse("""
+        [reticulum]
+        use_implicit_proof = false
+        """)
 
       result = Reticulum.apply_config(config)
       assert result.use_implicit_proof == false
     end
 
     test "applies respond_to_probes" do
-      {:ok, config} = ConfigObj.parse("""
-      [reticulum]
-      respond_to_probes = yes
-      """)
+      {:ok, config} =
+        ConfigObj.parse("""
+        [reticulum]
+        respond_to_probes = yes
+        """)
 
       result = Reticulum.apply_config(config)
       assert result.allow_probes == true
     end
 
     test "applies panic_on_interface_error" do
-      {:ok, config} = ConfigObj.parse("""
-      [reticulum]
-      panic_on_interface_error = yes
-      """)
+      {:ok, config} =
+        ConfigObj.parse("""
+        [reticulum]
+        panic_on_interface_error = yes
+        """)
 
       result = Reticulum.apply_config(config)
       assert result.panic_on_interface_error == true
     end
 
     test "applies link_mtu_discovery = false" do
-      {:ok, config} = ConfigObj.parse("""
-      [reticulum]
-      link_mtu_discovery = false
-      """)
+      {:ok, config} =
+        ConfigObj.parse("""
+        [reticulum]
+        link_mtu_discovery = false
+        """)
 
       result = Reticulum.apply_config(config)
       assert result.link_mtu_discovery == false
     end
 
     test "applies enable_remote_management" do
-      {:ok, config} = ConfigObj.parse("""
-      [reticulum]
-      enable_remote_management = yes
-      """)
+      {:ok, config} =
+        ConfigObj.parse("""
+        [reticulum]
+        enable_remote_management = yes
+        """)
 
       result = Reticulum.apply_config(config)
       assert result.remote_management_enabled == true
     end
 
     test "applies discover_interfaces" do
-      {:ok, config} = ConfigObj.parse("""
-      [reticulum]
-      discover_interfaces = yes
-      """)
+      {:ok, config} =
+        ConfigObj.parse("""
+        [reticulum]
+        discover_interfaces = yes
+        """)
 
       result = Reticulum.apply_config(config)
       assert result.discover_interfaces == true
     end
 
     test "applies required_discovery_value" do
-      {:ok, config} = ConfigObj.parse("""
-      [reticulum]
-      required_discovery_value = 5
-      """)
+      {:ok, config} =
+        ConfigObj.parse("""
+        [reticulum]
+        required_discovery_value = 5
+        """)
 
       result = Reticulum.apply_config(config)
       assert result.required_discovery_value == 5
     end
 
     test "required_discovery_value 0 maps to nil" do
-      {:ok, config} = ConfigObj.parse("""
-      [reticulum]
-      required_discovery_value = 0
-      """)
+      {:ok, config} =
+        ConfigObj.parse("""
+        [reticulum]
+        required_discovery_value = 0
+        """)
 
       result = Reticulum.apply_config(config)
       assert result.required_discovery_value == nil
     end
 
     test "applies publish_blackhole" do
-      {:ok, config} = ConfigObj.parse("""
-      [reticulum]
-      publish_blackhole = yes
-      """)
+      {:ok, config} =
+        ConfigObj.parse("""
+        [reticulum]
+        publish_blackhole = yes
+        """)
 
       result = Reticulum.apply_config(config)
       assert result.publish_blackhole == true
     end
 
     test "applies blackhole_sources" do
-      {:ok, config} = ConfigObj.parse("""
-      [reticulum]
-      blackhole_sources = 521c87a83afb8f29e4455e77930b973b
-      """)
+      {:ok, config} =
+        ConfigObj.parse("""
+        [reticulum]
+        blackhole_sources = 521c87a83afb8f29e4455e77930b973b
+        """)
 
       result = Reticulum.apply_config(config)
       assert length(result.blackhole_sources) == 1
-      assert hd(result.blackhole_sources) == Base.decode16!("521c87a83afb8f29e4455e77930b973b", case: :lower)
+
+      assert hd(result.blackhole_sources) ==
+               Base.decode16!("521c87a83afb8f29e4455e77930b973b", case: :lower)
     end
 
     test "applies autoconnect_discovered_interfaces" do
-      {:ok, config} = ConfigObj.parse("""
-      [reticulum]
-      autoconnect_discovered_interfaces = 3
-      """)
+      {:ok, config} =
+        ConfigObj.parse("""
+        [reticulum]
+        autoconnect_discovered_interfaces = 3
+        """)
 
       result = Reticulum.apply_config(config)
       assert result.autoconnect_discovered_interfaces == 3
     end
 
     test "applies force_shared_instance_bitrate" do
-      {:ok, config} = ConfigObj.parse("""
-      [reticulum]
-      force_shared_instance_bitrate = 115200
-      """)
+      {:ok, config} =
+        ConfigObj.parse("""
+        [reticulum]
+        force_shared_instance_bitrate = 115200
+        """)
 
       result = Reticulum.apply_config(config)
       assert result.force_shared_instance_bitrate == 115_200
     end
 
     test "applies shared_instance_type = tcp" do
-      {:ok, config} = ConfigObj.parse("""
-      [reticulum]
-      shared_instance_type = tcp
-      """)
+      {:ok, config} =
+        ConfigObj.parse("""
+        [reticulum]
+        shared_instance_type = tcp
+        """)
 
       result = Reticulum.apply_config(config)
       assert result.shared_instance_type == "tcp"
     end
 
     test "applies rpc_key" do
-      {:ok, config} = ConfigObj.parse("""
-      [reticulum]
-      rpc_key = deadbeefcafebabe1234567890abcdef
-      """)
+      {:ok, config} =
+        ConfigObj.parse("""
+        [reticulum]
+        rpc_key = deadbeefcafebabe1234567890abcdef
+        """)
 
       result = Reticulum.apply_config(config)
       assert result.rpc_key == Base.decode16!("deadbeefcafebabe1234567890abcdef", case: :lower)
     end
 
     test "invalid rpc_key falls back to nil" do
-      {:ok, config} = ConfigObj.parse("""
-      [reticulum]
-      rpc_key = not_valid_hex_here
-      """)
+      {:ok, config} =
+        ConfigObj.parse("""
+        [reticulum]
+        rpc_key = not_valid_hex_here
+        """)
 
       result = Reticulum.apply_config(config)
       assert result.rpc_key == nil
@@ -387,10 +412,11 @@ defmodule RNS.ReticulumTest do
 
   describe "apply_logging_config/4" do
     test "applies loglevel from config when no override" do
-      {:ok, config} = ConfigObj.parse("""
-      [logging]
-      loglevel = 6
-      """)
+      {:ok, config} =
+        ConfigObj.parse("""
+        [logging]
+        loglevel = 6
+        """)
 
       state = %{}
       result = Reticulum.apply_logging_config(config, state, nil, nil)
@@ -398,10 +424,11 @@ defmodule RNS.ReticulumTest do
     end
 
     test "applies verbosity addition" do
-      {:ok, config} = ConfigObj.parse("""
-      [logging]
-      loglevel = 4
-      """)
+      {:ok, config} =
+        ConfigObj.parse("""
+        [logging]
+        loglevel = 4
+        """)
 
       state = %{}
       result = Reticulum.apply_logging_config(config, state, nil, 2)
@@ -409,10 +436,11 @@ defmodule RNS.ReticulumTest do
     end
 
     test "clamps loglevel to 0-7 range" do
-      {:ok, config} = ConfigObj.parse("""
-      [logging]
-      loglevel = 5
-      """)
+      {:ok, config} =
+        ConfigObj.parse("""
+        [logging]
+        loglevel = 5
+        """)
 
       state = %{}
       result = Reticulum.apply_logging_config(config, state, nil, 10)
@@ -420,10 +448,11 @@ defmodule RNS.ReticulumTest do
     end
 
     test "skips config loglevel when requested_loglevel provided" do
-      {:ok, config} = ConfigObj.parse("""
-      [logging]
-      loglevel = 6
-      """)
+      {:ok, config} =
+        ConfigObj.parse("""
+        [logging]
+        loglevel = 6
+        """)
 
       state = %{}
       result = Reticulum.apply_logging_config(config, state, 3, nil)
@@ -432,10 +461,11 @@ defmodule RNS.ReticulumTest do
     end
 
     test "handles missing logging section" do
-      {:ok, config} = ConfigObj.parse("""
-      [reticulum]
-      enable_transport = no
-      """)
+      {:ok, config} =
+        ConfigObj.parse("""
+        [reticulum]
+        enable_transport = no
+        """)
 
       state = %{some: :data}
       result = Reticulum.apply_logging_config(config, state, nil, nil)
@@ -724,10 +754,11 @@ defmodule RNS.ReticulumTest do
     end
 
     test "handles config with only logging section" do
-      {:ok, config} = ConfigObj.parse("""
-      [logging]
-      loglevel = 2
-      """)
+      {:ok, config} =
+        ConfigObj.parse("""
+        [logging]
+        loglevel = 2
+        """)
 
       result = Reticulum.apply_config(config)
       assert result.transport_enabled == false
@@ -735,30 +766,33 @@ defmodule RNS.ReticulumTest do
     end
 
     test "handles config with only reticulum section" do
-      {:ok, config} = ConfigObj.parse("""
-      [reticulum]
-      enable_transport = yes
-      """)
+      {:ok, config} =
+        ConfigObj.parse("""
+        [reticulum]
+        enable_transport = yes
+        """)
 
       result = Reticulum.apply_config(config)
       assert result.transport_enabled == true
     end
 
     test "multiple blackhole sources" do
-      {:ok, config} = ConfigObj.parse("""
-      [reticulum]
-      blackhole_sources = 521c87a83afb8f29e4455e77930b973b, a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6
-      """)
+      {:ok, config} =
+        ConfigObj.parse("""
+        [reticulum]
+        blackhole_sources = 521c87a83afb8f29e4455e77930b973b, a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6
+        """)
 
       result = Reticulum.apply_config(config)
       assert length(result.blackhole_sources) == 2
     end
 
     test "raises on invalid hash length in blackhole_sources" do
-      {:ok, config} = ConfigObj.parse("""
-      [reticulum]
-      blackhole_sources = tooshort
-      """)
+      {:ok, config} =
+        ConfigObj.parse("""
+        [reticulum]
+        blackhole_sources = tooshort
+        """)
 
       assert_raise RuntimeError, ~r/invalid/, fn ->
         Reticulum.apply_config(config)
@@ -810,11 +844,13 @@ defmodule RNS.ReticulumTest do
     end
 
     test "identitypath returns correct path", %{name: name, configdir: configdir} do
-      assert GenServer.call(name, :identitypath) == Path.join([configdir, "storage", "identities"])
+      assert GenServer.call(name, :identitypath) ==
+               Path.join([configdir, "storage", "identities"])
     end
 
     test "blackholepath returns correct path", %{name: name, configdir: configdir} do
-      assert GenServer.call(name, :blackholepath) == Path.join([configdir, "storage", "blackhole"])
+      assert GenServer.call(name, :blackholepath) ==
+               Path.join([configdir, "storage", "blackhole"])
     end
 
     test "interfacepath returns correct path", %{name: name, configdir: configdir} do
@@ -849,7 +885,9 @@ defmodule RNS.ReticulumTest do
           |> Section.put_scalar("interface_mode", mode_str)
 
         params = Reticulum.extract_interface_params(section, Interface.mode_full(), "test")
-        assert params.interface_mode == expected_mode, "Mode '#{mode_str}' should be #{expected_mode}"
+
+        assert params.interface_mode == expected_mode,
+               "Mode '#{mode_str}' should be #{expected_mode}"
       end
     end
 

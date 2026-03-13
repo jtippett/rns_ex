@@ -75,7 +75,8 @@ defmodule RNS.LinkTest do
       # MDU = floor((MTU - IFAC_MIN_SIZE - HEADER_MINSIZE - TOKEN_OVERHEAD) / AES128_BLOCKSIZE) * AES128_BLOCKSIZE - 1
       mtu = 500
       ifac_min = 1
-      header_min = 19  # 2 + 1 + 16
+      # 2 + 1 + 16
+      header_min = 19
       token_overhead = 48
       blocksize = 16
       expected = div(mtu - ifac_min - header_min - token_overhead, blocksize) * blocksize - 1
@@ -134,7 +135,7 @@ defmodule RNS.LinkTest do
       mtu = 500
       bytes = Link.signalling_bytes(mtu, Link.mode_aes256_cbc())
       <<b0, b1, b2>> = bytes
-      recovered = ((b0 <<< 16) + (b1 <<< 8) + b2) &&& Link.mtu_bytemask()
+      recovered = (b0 <<< 16) + (b1 <<< 8) + b2 &&& Link.mtu_bytemask()
       assert recovered == mtu
     end
 
@@ -618,7 +619,8 @@ defmodule RNS.LinkTest do
       [timestamp, path_hash, data] = unpacked
       assert is_number(timestamp)
       assert is_binary(path_hash)
-      assert byte_size(path_hash) == 16  # truncated hash
+      # truncated hash
+      assert byte_size(path_hash) == 16
       assert data == "data"
     end
 
@@ -794,8 +796,10 @@ defmodule RNS.LinkTest do
 
   describe "String.Chars" do
     test "represents link as hex of link_id" do
-      link_id = <<0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
-                  0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10>>
+      link_id =
+        <<0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E,
+          0x0F, 0x10>>
+
       link = %Link{Link.new() | link_id: link_id}
       result = to_string(link)
       assert is_binary(result)
@@ -819,7 +823,7 @@ defmodule RNS.LinkTest do
 
       request_data =
         X25519.public_key(initiator_x25519) <>
-        Ed25519.public_key(initiator_ed25519)
+          Ed25519.public_key(initiator_ed25519)
 
       assert byte_size(request_data) == Link.ecpubsize()
 
@@ -867,8 +871,8 @@ defmodule RNS.LinkTest do
 
       request_data =
         X25519.public_key(initiator_x25519) <>
-        Ed25519.public_key(initiator_ed25519) <>
-        signalling
+          Ed25519.public_key(initiator_ed25519) <>
+          signalling
 
       assert byte_size(request_data) == Link.ecpubsize() + Link.link_mtu_size()
 
@@ -905,8 +909,8 @@ defmodule RNS.LinkTest do
 
       _request_data =
         X25519.public_key(initiator_x25519) <>
-        Ed25519.public_key(initiator_ed25519) <>
-        signalling
+          Ed25519.public_key(initiator_ed25519) <>
+          signalling
 
       # Compute the link_id from a simulated link request packet
       hashable_part = :crypto.strong_rand_bytes(40)
@@ -931,8 +935,11 @@ defmodule RNS.LinkTest do
 
       # Responder signs: link_id + pub_bytes + sig_pub_bytes + signalling
       resp_pub_bytes = X25519.public_key(responder_x25519)
-      resp_sig_pub_bytes = Identity.get_public_key(responder_identity)
-                           |> binary_part(32, 32)
+
+      resp_sig_pub_bytes =
+        Identity.get_public_key(responder_identity)
+        |> binary_part(32, 32)
+
       signed_data = link_id <> resp_pub_bytes <> resp_sig_pub_bytes <> signalling
       signature = Identity.sign(responder_identity, signed_data)
 
@@ -990,8 +997,10 @@ defmodule RNS.LinkTest do
 
       responder_x25519 = X25519.generate_keypair()
       resp_pub_bytes = X25519.public_key(responder_x25519)
-      resp_sig_pub_bytes = Identity.get_public_key(responder_identity)
-                           |> binary_part(32, 32)
+
+      resp_sig_pub_bytes =
+        Identity.get_public_key(responder_identity)
+        |> binary_part(32, 32)
 
       signed_data = link_id <> resp_pub_bytes <> resp_sig_pub_bytes <> signalling
       # Sign with WRONG identity

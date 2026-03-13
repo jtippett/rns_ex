@@ -56,11 +56,13 @@ defmodule RNS.Interfaces.PipeInterfaceTest do
 
   describe "start_link" do
     test "starts with a command that exits immediately (cat /dev/null)" do
-      {:ok, pid} = PipeInterface.start_link(
-        name: "test_pipe",
-        command: "cat /dev/null",
-        owner: self()
-      )
+      {:ok, pid} =
+        PipeInterface.start_link(
+          name: "test_pipe",
+          command: "cat /dev/null",
+          owner: self()
+        )
+
       assert Process.alive?(pid)
       state = PipeInterface.get_state(pid)
       assert state.name == "test_pipe"
@@ -72,11 +74,13 @@ defmodule RNS.Interfaces.PipeInterfaceTest do
     end
 
     test "starts with echo subprocess" do
-      {:ok, pid} = PipeInterface.start_link(
-        name: "echo_pipe",
-        command: "cat",
-        owner: self()
-      )
+      {:ok, pid} =
+        PipeInterface.start_link(
+          name: "echo_pipe",
+          command: "cat",
+          owner: self()
+        )
+
       assert Process.alive?(pid)
       state = PipeInterface.get_state(pid)
       assert state.online == true
@@ -86,63 +90,71 @@ defmodule RNS.Interfaces.PipeInterfaceTest do
 
     test "requires command option" do
       Process.flag(:trap_exit, true)
-      result = PipeInterface.start_link(
-        name: "no_cmd"
-      )
+      result = PipeInterface.start_link(name: "no_cmd")
       assert {:error, _} = result
     end
 
     test "sets bitrate to BITRATE_GUESS" do
-      {:ok, pid} = PipeInterface.start_link(
-        name: "bitrate_pipe",
-        command: "cat",
-        owner: self()
-      )
+      {:ok, pid} =
+        PipeInterface.start_link(
+          name: "bitrate_pipe",
+          command: "cat",
+          owner: self()
+        )
+
       state = PipeInterface.get_state(pid)
       assert state.bitrate == 1_000_000
       PipeInterface.stop(pid)
     end
 
     test "sets hw_mtu to 1064" do
-      {:ok, pid} = PipeInterface.start_link(
-        name: "mtu_pipe",
-        command: "cat",
-        owner: self()
-      )
+      {:ok, pid} =
+        PipeInterface.start_link(
+          name: "mtu_pipe",
+          command: "cat",
+          owner: self()
+        )
+
       state = PipeInterface.get_state(pid)
       assert state.hw_mtu == 1064
       PipeInterface.stop(pid)
     end
 
     test "accepts custom respawn_delay" do
-      {:ok, pid} = PipeInterface.start_link(
-        name: "respawn_pipe",
-        command: "cat",
-        respawn_delay: 10_000,
-        owner: self()
-      )
+      {:ok, pid} =
+        PipeInterface.start_link(
+          name: "respawn_pipe",
+          command: "cat",
+          respawn_delay: 10_000,
+          owner: self()
+        )
+
       state = PipeInterface.get_state(pid)
       assert state.respawn_delay == 10_000
       PipeInterface.stop(pid)
     end
 
     test "accepts server_name registration" do
-      {:ok, pid} = PipeInterface.start_link(
-        name: "named_pipe",
-        command: "cat",
-        server_name: :test_pipe_iface,
-        owner: self()
-      )
+      {:ok, pid} =
+        PipeInterface.start_link(
+          name: "named_pipe",
+          command: "cat",
+          server_name: :test_pipe_iface,
+          owner: self()
+        )
+
       assert Process.whereis(:test_pipe_iface) == pid
       PipeInterface.stop(pid)
     end
 
     test "computes interface hash on init" do
-      {:ok, pid} = PipeInterface.start_link(
-        name: "hash_pipe",
-        command: "cat",
-        owner: self()
-      )
+      {:ok, pid} =
+        PipeInterface.start_link(
+          name: "hash_pipe",
+          command: "cat",
+          owner: self()
+        )
+
       state = PipeInterface.get_state(pid)
       assert is_binary(state.hash)
       assert byte_size(state.hash) == 32
@@ -154,11 +166,12 @@ defmodule RNS.Interfaces.PipeInterfaceTest do
 
   describe "HDLC framing roundtrip via pipe" do
     test "send and receive simple data through cat subprocess" do
-      {:ok, pid} = PipeInterface.start_link(
-        name: "hdlc_pipe",
-        command: "cat",
-        owner: self()
-      )
+      {:ok, pid} =
+        PipeInterface.start_link(
+          name: "hdlc_pipe",
+          command: "cat",
+          owner: self()
+        )
 
       data = "Hello, Pipe!"
       :ok = PipeInterface.send_data(pid, data)
@@ -168,11 +181,12 @@ defmodule RNS.Interfaces.PipeInterfaceTest do
     end
 
     test "send and receive binary data" do
-      {:ok, pid} = PipeInterface.start_link(
-        name: "binary_pipe",
-        command: "cat",
-        owner: self()
-      )
+      {:ok, pid} =
+        PipeInterface.start_link(
+          name: "binary_pipe",
+          command: "cat",
+          owner: self()
+        )
 
       data = <<0x01, 0x02, 0xFF, 0xFE, 0x00, 0xAB>>
       :ok = PipeInterface.send_data(pid, data)
@@ -182,11 +196,12 @@ defmodule RNS.Interfaces.PipeInterfaceTest do
     end
 
     test "send and receive data with HDLC special bytes (FLAG and ESC)" do
-      {:ok, pid} = PipeInterface.start_link(
-        name: "special_pipe",
-        command: "cat",
-        owner: self()
-      )
+      {:ok, pid} =
+        PipeInterface.start_link(
+          name: "special_pipe",
+          command: "cat",
+          owner: self()
+        )
 
       # Data containing HDLC FLAG (0x7E) and ESC (0x7D) bytes
       data = <<0x7E, 0x7D, 0x01, 0x7E, 0x7D>>
@@ -197,11 +212,12 @@ defmodule RNS.Interfaces.PipeInterfaceTest do
     end
 
     test "send and receive multiple frames" do
-      {:ok, pid} = PipeInterface.start_link(
-        name: "multi_pipe",
-        command: "cat",
-        owner: self()
-      )
+      {:ok, pid} =
+        PipeInterface.start_link(
+          name: "multi_pipe",
+          command: "cat",
+          owner: self()
+        )
 
       data1 = "frame one"
       data2 = "frame two"
@@ -218,11 +234,12 @@ defmodule RNS.Interfaces.PipeInterfaceTest do
     end
 
     test "oversized frames are dropped" do
-      {:ok, pid} = PipeInterface.start_link(
-        name: "oversize_pipe",
-        command: "cat",
-        owner: self()
-      )
+      {:ok, pid} =
+        PipeInterface.start_link(
+          name: "oversize_pipe",
+          command: "cat",
+          owner: self()
+        )
 
       # Data larger than HW_MTU (1064)
       big_data = :crypto.strong_rand_bytes(1100)
@@ -239,11 +256,12 @@ defmodule RNS.Interfaces.PipeInterfaceTest do
     end
 
     test "empty frames are ignored" do
-      {:ok, pid} = PipeInterface.start_link(
-        name: "empty_pipe",
-        command: "cat",
-        owner: self()
-      )
+      {:ok, pid} =
+        PipeInterface.start_link(
+          name: "empty_pipe",
+          command: "cat",
+          owner: self()
+        )
 
       # Send an actual data frame after to verify processing continues
       data = "after_empty"
@@ -257,11 +275,12 @@ defmodule RNS.Interfaces.PipeInterfaceTest do
 
   describe "process_outgoing" do
     test "updates txb counter" do
-      {:ok, pid} = PipeInterface.start_link(
-        name: "txb_pipe",
-        command: "cat",
-        owner: self()
-      )
+      {:ok, pid} =
+        PipeInterface.start_link(
+          name: "txb_pipe",
+          command: "cat",
+          owner: self()
+        )
 
       data = "test data"
       :ok = PipeInterface.send_data(pid, data)
@@ -274,11 +293,12 @@ defmodule RNS.Interfaces.PipeInterfaceTest do
     end
 
     test "returns error when offline" do
-      {:ok, pid} = PipeInterface.start_link(
-        name: "offline_pipe",
-        command: "cat",
-        owner: self()
-      )
+      {:ok, pid} =
+        PipeInterface.start_link(
+          name: "offline_pipe",
+          command: "cat",
+          owner: self()
+        )
 
       # Detach to go offline
       PipeInterface.stop(pid)
@@ -292,11 +312,12 @@ defmodule RNS.Interfaces.PipeInterfaceTest do
 
   describe "process_incoming and owner callbacks" do
     test "updates rxb counter" do
-      {:ok, pid} = PipeInterface.start_link(
-        name: "rxb_pipe",
-        command: "cat",
-        owner: self()
-      )
+      {:ok, pid} =
+        PipeInterface.start_link(
+          name: "rxb_pipe",
+          command: "cat",
+          owner: self()
+        )
 
       data = "incoming test"
       :ok = PipeInterface.send_data(pid, data)
@@ -308,11 +329,12 @@ defmodule RNS.Interfaces.PipeInterfaceTest do
     end
 
     test "notifies owner pid with :pipe_interface_data message" do
-      {:ok, pid} = PipeInterface.start_link(
-        name: "owner_pid_pipe",
-        command: "cat",
-        owner: self()
-      )
+      {:ok, pid} =
+        PipeInterface.start_link(
+          name: "owner_pid_pipe",
+          command: "cat",
+          owner: self()
+        )
 
       data = "notify me"
       :ok = PipeInterface.send_data(pid, data)
@@ -323,15 +345,17 @@ defmodule RNS.Interfaces.PipeInterfaceTest do
 
     test "notifies owner function callback" do
       test_pid = self()
+
       callback = fn data, iface ->
         send(test_pid, {:callback_data, data, iface})
       end
 
-      {:ok, pid} = PipeInterface.start_link(
-        name: "owner_fn_pipe",
-        command: "cat",
-        owner: callback
-      )
+      {:ok, pid} =
+        PipeInterface.start_link(
+          name: "owner_fn_pipe",
+          command: "cat",
+          owner: callback
+        )
 
       data = "callback test"
       :ok = PipeInterface.send_data(pid, data)
@@ -343,11 +367,12 @@ defmodule RNS.Interfaces.PipeInterfaceTest do
       {:ok, agent} = Agent.start_link(fn -> [] end)
 
       # We'll use a pid-based approach since we can't define a module callback easily
-      {:ok, pid} = PipeInterface.start_link(
-        name: "mfa_pipe",
-        command: "cat",
-        owner: self()
-      )
+      {:ok, pid} =
+        PipeInterface.start_link(
+          name: "mfa_pipe",
+          command: "cat",
+          owner: self()
+        )
 
       data = "mfa test"
       :ok = PipeInterface.send_data(pid, data)
@@ -362,12 +387,13 @@ defmodule RNS.Interfaces.PipeInterfaceTest do
   describe "respawn" do
     test "attempts respawn when subprocess exits" do
       # Use a command that will exit immediately
-      {:ok, pid} = PipeInterface.start_link(
-        name: "respawn_test",
-        command: "echo hello",
-        respawn_delay: 100,
-        owner: self()
-      )
+      {:ok, pid} =
+        PipeInterface.start_link(
+          name: "respawn_test",
+          command: "echo hello",
+          respawn_delay: 100,
+          owner: self()
+        )
 
       # The echo command exits immediately, triggering respawn logic
       # Just verify the GenServer survives the subprocess exit
@@ -381,11 +407,12 @@ defmodule RNS.Interfaces.PipeInterfaceTest do
 
   describe "detach" do
     test "marks interface as offline and detached" do
-      {:ok, pid} = PipeInterface.start_link(
-        name: "detach_pipe",
-        command: "cat",
-        owner: self()
-      )
+      {:ok, pid} =
+        PipeInterface.start_link(
+          name: "detach_pipe",
+          command: "cat",
+          owner: self()
+        )
 
       state_before = PipeInterface.get_state(pid)
       assert state_before.online == true
@@ -441,11 +468,12 @@ defmodule RNS.Interfaces.PipeInterfaceTest do
 
   describe "byte counters" do
     test "tracks txb and rxb correctly" do
-      {:ok, pid} = PipeInterface.start_link(
-        name: "counter_pipe",
-        command: "cat",
-        owner: self()
-      )
+      {:ok, pid} =
+        PipeInterface.start_link(
+          name: "counter_pipe",
+          command: "cat",
+          owner: self()
+        )
 
       data = "counter test"
       :ok = PipeInterface.send_data(pid, data)

@@ -253,15 +253,39 @@ defmodule RNS.Utilities.RNStatusTest do
   describe "sort_interfaces/3" do
     setup do
       interfaces = [
-        %{"name" => "A", "bitrate" => 100, "rxb" => 500, "txb" => 200, "rxs" => 10, "txs" => 5,
-          "incoming_announce_frequency" => 2, "outgoing_announce_frequency" => 3,
-          "held_announces" => 1},
-        %{"name" => "B", "bitrate" => 200, "rxb" => 100, "txb" => 800, "rxs" => 20, "txs" => 15,
-          "incoming_announce_frequency" => 5, "outgoing_announce_frequency" => 1,
-          "held_announces" => 3},
-        %{"name" => "C", "bitrate" => 50, "rxb" => 300, "txb" => 300, "rxs" => 5, "txs" => 25,
-          "incoming_announce_frequency" => 1, "outgoing_announce_frequency" => 8,
-          "held_announces" => 0}
+        %{
+          "name" => "A",
+          "bitrate" => 100,
+          "rxb" => 500,
+          "txb" => 200,
+          "rxs" => 10,
+          "txs" => 5,
+          "incoming_announce_frequency" => 2,
+          "outgoing_announce_frequency" => 3,
+          "held_announces" => 1
+        },
+        %{
+          "name" => "B",
+          "bitrate" => 200,
+          "rxb" => 100,
+          "txb" => 800,
+          "rxs" => 20,
+          "txs" => 15,
+          "incoming_announce_frequency" => 5,
+          "outgoing_announce_frequency" => 1,
+          "held_announces" => 3
+        },
+        %{
+          "name" => "C",
+          "bitrate" => 50,
+          "rxb" => 300,
+          "txb" => 300,
+          "rxs" => 5,
+          "txs" => 25,
+          "incoming_announce_frequency" => 1,
+          "outgoing_announce_frequency" => 8,
+          "held_announces" => 0
+        }
       ]
 
       %{interfaces: interfaces}

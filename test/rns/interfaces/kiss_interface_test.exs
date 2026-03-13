@@ -258,9 +258,7 @@ defmodule RNS.Interfaces.KISSInterfaceTest do
       Process.flag(:trap_exit, true)
 
       result =
-        KISSInterface.start_link(
-          name: "test_no_port"
-        )
+        KISSInterface.start_link(name: "test_no_port")
 
       assert {:error, {:error, :no_port_specified}} = result
     end
@@ -451,7 +449,13 @@ defmodule RNS.Interfaces.KISSInterfaceTest do
     end
 
     test "queues data when interface_ready is false" do
-      state = %KISSInterface{name: "queue_test", online: true, skip_open: true, interface_ready: false}
+      state = %KISSInterface{
+        name: "queue_test",
+        online: true,
+        skip_open: true,
+        interface_ready: false
+      }
+
       {:ok, updated} = KISSInterface.process_outgoing(state, "queued data")
       assert :queue.len(updated.packet_queue) == 1
       assert updated.txb == 0
@@ -469,7 +473,13 @@ defmodule RNS.Interfaces.KISSInterfaceTest do
     end
 
     test "process_queue sends next packet" do
-      state = %KISSInterface{name: "pq_test", online: true, skip_open: true, interface_ready: false}
+      state = %KISSInterface{
+        name: "pq_test",
+        online: true,
+        skip_open: true,
+        interface_ready: false
+      }
+
       state = KISSInterface.queue_packet(state, "queued")
       updated = KISSInterface.process_queue(state)
       assert updated.interface_ready == true
@@ -477,7 +487,13 @@ defmodule RNS.Interfaces.KISSInterfaceTest do
     end
 
     test "process_queue sets interface_ready when empty" do
-      state = %KISSInterface{name: "pq_empty", online: true, skip_open: true, interface_ready: false}
+      state = %KISSInterface{
+        name: "pq_empty",
+        online: true,
+        skip_open: true,
+        interface_ready: false
+      }
+
       updated = KISSInterface.process_queue(state)
       assert updated.interface_ready == true
       assert :queue.is_empty(updated.packet_queue)

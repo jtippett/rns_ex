@@ -230,7 +230,9 @@ defmodule RNS.Interfaces.LocalClientInterface do
           }
 
           case do_connect(state) do
-            {:ok, connected_state} -> connected_state
+            {:ok, connected_state} ->
+              connected_state
+
             {:error, _reason} ->
               Process.send_after(self(), :reconnect, @reconnect_wait * 1000)
               state
@@ -238,7 +240,8 @@ defmodule RNS.Interfaces.LocalClientInterface do
 
         # TCP port on localhost
         target_port != nil ->
-          target_port = if is_binary(target_port), do: String.to_integer(target_port), else: target_port
+          target_port =
+            if is_binary(target_port), do: String.to_integer(target_port), else: target_port
 
           state = %{
             state
@@ -248,7 +251,9 @@ defmodule RNS.Interfaces.LocalClientInterface do
           }
 
           case do_connect(state) do
-            {:ok, connected_state} -> connected_state
+            {:ok, connected_state} ->
+              connected_state
+
             {:error, _reason} ->
               Process.send_after(self(), :reconnect, @reconnect_wait * 1000)
               state
@@ -323,7 +328,10 @@ defmodule RNS.Interfaces.LocalClientInterface do
             {:noreply, connected_state}
 
           {:error, reason} ->
-            Logger.debug("Connection attempt for #{format_name(state)} failed: #{inspect(reason)}")
+            Logger.debug(
+              "Connection attempt for #{format_name(state)} failed: #{inspect(reason)}"
+            )
+
             Process.send_after(self(), :reconnect, @reconnect_wait * 1000)
             {:noreply, state}
         end
@@ -377,7 +385,11 @@ defmodule RNS.Interfaces.LocalClientInterface do
     cond do
       state.socket_path != nil ->
         # Unix domain socket connection
-        case :gen_tcp.connect({:local, state.socket_path}, 0, [:binary, active: true, packet: :raw]) do
+        case :gen_tcp.connect({:local, state.socket_path}, 0, [
+               :binary,
+               active: true,
+               packet: :raw
+             ]) do
           {:ok, socket} ->
             {:ok,
              %{
@@ -758,7 +770,14 @@ defmodule RNS.Interfaces.LocalServerInterface do
     end)
 
     {:reply, :ok,
-     %{state | online: false, detached: true, listen_socket: nil, spawned_interfaces: [], clients: 0}}
+     %{
+       state
+       | online: false,
+         detached: true,
+         listen_socket: nil,
+         spawned_interfaces: [],
+         clients: 0
+     }}
   end
 
   @impl GenServer
@@ -858,9 +877,7 @@ defmodule RNS.Interfaces.LocalServerInterface do
         }
 
       {:error, reason} ->
-        Logger.error(
-          "Could not bind local Unix socket at #{socket_path}: #{inspect(reason)}"
-        )
+        Logger.error("Could not bind local Unix socket at #{socket_path}: #{inspect(reason)}")
 
         state
     end

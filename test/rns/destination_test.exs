@@ -181,7 +181,9 @@ defmodule RNS.DestinationTest do
   describe "hash/3" do
     test "is an alias for compute_hash" do
       id = Identity.new()
-      assert Destination.hash(id, "myapp", ["svc"]) == Destination.compute_hash(id, "myapp", ["svc"])
+
+      assert Destination.hash(id, "myapp", ["svc"]) ==
+               Destination.compute_hash(id, "myapp", ["svc"])
     end
   end
 
@@ -208,7 +210,9 @@ defmodule RNS.DestinationTest do
 
   describe "new/5 — SINGLE IN" do
     test "creates destination with auto-generated identity" do
-      dest = Destination.new(nil, Destination.direction_in(), Destination.single(), "myapp", ["svc"])
+      dest =
+        Destination.new(nil, Destination.direction_in(), Destination.single(), "myapp", ["svc"])
+
       assert dest.type == Destination.single()
       assert dest.direction == Destination.direction_in()
       assert dest.identity != nil
@@ -219,13 +223,18 @@ defmodule RNS.DestinationTest do
     end
 
     test "name includes identity hexhash" do
-      dest = Destination.new(nil, Destination.direction_in(), Destination.single(), "myapp", ["svc"])
+      dest =
+        Destination.new(nil, Destination.direction_in(), Destination.single(), "myapp", ["svc"])
+
       assert String.contains?(dest.name, dest.identity.hexhash)
     end
 
     test "creates destination with provided identity" do
       id = Identity.new()
-      dest = Destination.new(id, Destination.direction_in(), Destination.single(), "myapp", ["svc"])
+
+      dest =
+        Destination.new(id, Destination.direction_in(), Destination.single(), "myapp", ["svc"])
+
       assert dest.identity == id
     end
 
@@ -245,7 +254,10 @@ defmodule RNS.DestinationTest do
   describe "new/5 — SINGLE OUT" do
     test "creates destination with provided identity" do
       id = Identity.new()
-      dest = Destination.new(id, Destination.direction_out(), Destination.single(), "myapp", ["svc"])
+
+      dest =
+        Destination.new(id, Destination.direction_out(), Destination.single(), "myapp", ["svc"])
+
       assert dest.type == Destination.single()
       assert dest.direction == Destination.direction_out()
       assert dest.identity == id
@@ -260,7 +272,9 @@ defmodule RNS.DestinationTest do
 
   describe "new/5 — PLAIN" do
     test "creates PLAIN IN without identity" do
-      dest = Destination.new(nil, Destination.direction_in(), Destination.plain(), "myapp", ["svc"])
+      dest =
+        Destination.new(nil, Destination.direction_in(), Destination.plain(), "myapp", ["svc"])
+
       assert dest.type == Destination.plain()
       assert dest.identity == nil
     end
@@ -303,7 +317,9 @@ defmodule RNS.DestinationTest do
 
     test "raises on dots in aspects" do
       assert_raise ArgumentError, ~r/Dots/i, fn ->
-        Destination.new(nil, Destination.direction_in(), Destination.plain(), "myapp", ["bad.aspect"])
+        Destination.new(nil, Destination.direction_in(), Destination.plain(), "myapp", [
+          "bad.aspect"
+        ])
       end
     end
 
@@ -324,13 +340,17 @@ defmodule RNS.DestinationTest do
     test "hash matches static compute_hash for SINGLE with provided identity" do
       id = Identity.new()
       # When identity is provided, hexhash is NOT appended to aspects
-      dest = Destination.new(id, Destination.direction_in(), Destination.single(), "myapp", ["svc"])
+      dest =
+        Destination.new(id, Destination.direction_in(), Destination.single(), "myapp", ["svc"])
+
       expected = Destination.compute_hash(id, "myapp", ["svc"])
       assert dest.hash == expected
     end
 
     test "hash matches static compute_hash for PLAIN" do
-      dest = Destination.new(nil, Destination.direction_in(), Destination.plain(), "myapp", ["svc"])
+      dest =
+        Destination.new(nil, Destination.direction_in(), Destination.plain(), "myapp", ["svc"])
+
       expected = Destination.compute_hash(nil, "myapp", ["svc"])
       assert dest.hash == expected
     end
@@ -343,7 +363,9 @@ defmodule RNS.DestinationTest do
     test "auto-generated identity appends hexhash to aspects for hash" do
       # When identity is nil for SINGLE IN, a new identity is created
       # and its hexhash is appended to aspects
-      dest = Destination.new(nil, Destination.direction_in(), Destination.single(), "myapp", ["svc"])
+      dest =
+        Destination.new(nil, Destination.direction_in(), Destination.single(), "myapp", ["svc"])
+
       expected = Destination.compute_hash(dest.identity, "myapp", ["svc", dest.identity.hexhash])
       assert dest.hash == expected
     end
@@ -729,7 +751,9 @@ defmodule RNS.DestinationTest do
 
   describe "String.Chars" do
     test "to_string format" do
-      dest = Destination.new(nil, Destination.direction_in(), Destination.plain(), "myapp", ["svc"])
+      dest =
+        Destination.new(nil, Destination.direction_in(), Destination.plain(), "myapp", ["svc"])
+
       str = to_string(dest)
       assert str == "<#{dest.name}:#{dest.hexhash}>"
     end
@@ -1051,6 +1075,7 @@ defmodule RNS.DestinationStoreTest do
       dest = Destination.enable_ratchets(dest, path)
 
       {packet, dest} = Destination.announce(dest, send: false)
+
       # With ratchet: pub_key (64) + name_hash (10) + random_hash (10) + ratchet (32) + signature (64) = 180
       assert byte_size(packet.data) >= 180
       assert packet.context_flag == RNS.Packet.flag_set()

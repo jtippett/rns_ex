@@ -2,7 +2,16 @@ defmodule RNS.Interfaces.WeaveInterfaceTest do
   use ExUnit.Case, async: true
 
   alias RNS.Interfaces.WeaveInterface
-  alias RNS.Interfaces.WeaveInterface.{WDCL, Cmd, Evt, LogFrame, WeaveEndpoint, WeaveDevice, WeaveInterfacePeer}
+
+  alias RNS.Interfaces.WeaveInterface.{
+    WDCL,
+    Cmd,
+    Evt,
+    LogFrame,
+    WeaveEndpoint,
+    WeaveDevice,
+    WeaveInterfacePeer
+  }
 
   # ── WeaveInterface constants ───────────────────────────────────
 
@@ -417,7 +426,7 @@ defmodule RNS.Interfaces.WeaveInterfaceTest do
       frame = LogFrame.new(event: Evt.et_stat_memory(), data: <<0, 1, 0, 0, 0, 2, 0, 0>>)
       device = WeaveDevice.log_handle(device, frame)
       assert device.memory_free == 65536
-      assert device.memory_total == 131072
+      assert device.memory_total == 131_072
       assert device.memory_used == 65536
       assert :queue.len(device.memory_stats) == 1
     end
@@ -451,7 +460,7 @@ defmodule RNS.Interfaces.WeaveInterfaceTest do
       device = WeaveDevice.log_handle(device, frame)
       stats = WeaveDevice.get_memory_stats(device)
       assert stats.unit == "B"
-      assert stats.max == 131072
+      assert stats.max == 131_072
       assert length(stats.values) == 1
     end
   end
@@ -460,11 +469,16 @@ defmodule RNS.Interfaces.WeaveInterfaceTest do
     test "filters to active tasks" do
       device = WeaveDevice.new()
       now = System.system_time(:millisecond) / 1000
-      device = %{device | active_tasks: %{
-        "core" => %{cpu_load: 10, timestamp: now},
-        "IDLE0" => %{cpu_load: 90, timestamp: now},
-        "old_task" => %{cpu_load: 5, timestamp: now - 10}
-      }}
+
+      device = %{
+        device
+        | active_tasks: %{
+            "core" => %{cpu_load: 10, timestamp: now},
+            "IDLE0" => %{cpu_load: 90, timestamp: now},
+            "old_task" => %{cpu_load: 5, timestamp: now - 10}
+          }
+      }
+
       tasks = WeaveDevice.get_active_tasks(device)
       # Should exclude IDLE and old tasks
       assert map_size(tasks) == 1
@@ -544,8 +558,9 @@ defmodule RNS.Interfaces.WeaveInterfaceTest do
         ifac_size: 16,
         bitrate: 250_000,
         hw_mtu: 1024,
-        mode: 0x01,
+        mode: 0x01
       }
+
       ep_addr = <<1, 2, 3, 4, 5, 6, 7, 8>>
       state = WeaveInterface.add_peer(state, ep_addr)
       assert Map.has_key?(state.peers, ep_addr)
@@ -559,8 +574,9 @@ defmodule RNS.Interfaces.WeaveInterfaceTest do
         ifac_size: 16,
         bitrate: 250_000,
         hw_mtu: 1024,
-        mode: 0x01,
+        mode: 0x01
       }
+
       ep_addr = <<1, 2, 3, 4, 5, 6, 7, 8>>
       state = WeaveInterface.add_peer(state, ep_addr)
       t1 = state.peers[ep_addr].last_heard
@@ -577,8 +593,9 @@ defmodule RNS.Interfaces.WeaveInterfaceTest do
         ifac_size: 16,
         bitrate: 250_000,
         hw_mtu: 1024,
-        mode: 0x01,
+        mode: 0x01
       }
+
       assert WeaveInterface.peer_count(state) == 0
       state = WeaveInterface.add_peer(state, <<1::64>>)
       assert WeaveInterface.peer_count(state) == 1
@@ -593,8 +610,9 @@ defmodule RNS.Interfaces.WeaveInterfaceTest do
         ifac_size: 16,
         bitrate: 250_000,
         hw_mtu: 1024,
-        mode: 0x01,
+        mode: 0x01
       }
+
       ep_addr = <<1::64>>
       via = <<0xAA, 0xBB, 0xCC, 0xDD>>
       state = WeaveInterface.add_peer(state, ep_addr)
@@ -609,8 +627,9 @@ defmodule RNS.Interfaces.WeaveInterfaceTest do
     test "first packet not a hit" do
       state = %WeaveInterface{
         mif_deque: :queue.new(),
-        mif_deque_times: :queue.new(),
+        mif_deque_times: :queue.new()
       }
+
       {hit, _state} = WeaveInterface.mif_deque_check(state, "test data")
       assert hit == false
     end
@@ -618,8 +637,9 @@ defmodule RNS.Interfaces.WeaveInterfaceTest do
     test "duplicate packet is a hit" do
       state = %WeaveInterface{
         mif_deque: :queue.new(),
-        mif_deque_times: :queue.new(),
+        mif_deque_times: :queue.new()
       }
+
       {false, state} = WeaveInterface.mif_deque_check(state, "test data")
       {hit, _state} = WeaveInterface.mif_deque_check(state, "test data")
       assert hit == true
@@ -628,8 +648,9 @@ defmodule RNS.Interfaces.WeaveInterfaceTest do
     test "different packets are not hits" do
       state = %WeaveInterface{
         mif_deque: :queue.new(),
-        mif_deque_times: :queue.new(),
+        mif_deque_times: :queue.new()
       }
+
       {false, state} = WeaveInterface.mif_deque_check(state, "data1")
       {hit, _state} = WeaveInterface.mif_deque_check(state, "data2")
       assert hit == false
@@ -656,13 +677,17 @@ defmodule RNS.Interfaces.WeaveInterfaceTest do
     end
 
     test "server_name registration" do
-      {:ok, pid} = WeaveInterface.start_link(name: "TestWeave", skip_wdcl: true, server_name: :test_weave)
+      {:ok, pid} =
+        WeaveInterface.start_link(name: "TestWeave", skip_wdcl: true, server_name: :test_weave)
+
       assert Process.whereis(:test_weave) == pid
       GenServer.stop(pid)
     end
 
     test "configured_bitrate" do
-      {:ok, pid} = WeaveInterface.start_link(name: "TestWeave", skip_wdcl: true, configured_bitrate: 500_000)
+      {:ok, pid} =
+        WeaveInterface.start_link(name: "TestWeave", skip_wdcl: true, configured_bitrate: 500_000)
+
       state = GenServer.call(pid, :get_state)
       assert state.bitrate == 500_000
       GenServer.stop(pid)

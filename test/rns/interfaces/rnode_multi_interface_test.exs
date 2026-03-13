@@ -334,7 +334,17 @@ defmodule RNS.Interfaces.RNodeMultiInterfaceTest do
 
   describe "handle_command/3" do
     setup do
-      sub = Sub.new(name: "sub0", index: 0, frequency: 868_000_000, bandwidth: 125_000, txpower: 17, sf: 7, cr: 5)
+      sub =
+        Sub.new(
+          name: "sub0",
+          index: 0,
+          frequency: 868_000_000,
+          bandwidth: 125_000,
+          txpower: 17,
+          sf: 7,
+          cr: 5
+        )
+
       state = %Multi{subinterfaces: %{0 => sub}, selected_index: 0}
       {:ok, state: state}
     end
@@ -492,50 +502,58 @@ defmodule RNS.Interfaces.RNodeMultiInterfaceTest do
 
   describe "Sub.validate_radio_params/1" do
     test "valid SX127X params" do
-      sub = Sub.new(
-        interface_type: "SX127X",
-        frequency: 868_000_000,
-        bandwidth: 125_000,
-        txpower: 17,
-        sf: 7,
-        cr: 5
-      )
+      sub =
+        Sub.new(
+          interface_type: "SX127X",
+          frequency: 868_000_000,
+          bandwidth: 125_000,
+          txpower: 17,
+          sf: 7,
+          cr: 5
+        )
+
       assert Sub.validate_radio_params(sub) == :ok
     end
 
     test "valid SX128X params" do
-      sub = Sub.new(
-        interface_type: "SX128X",
-        frequency: 2_400_000_000,
-        bandwidth: 125_000,
-        txpower: 10,
-        sf: 7,
-        cr: 5
-      )
+      sub =
+        Sub.new(
+          interface_type: "SX128X",
+          frequency: 2_400_000_000,
+          bandwidth: 125_000,
+          txpower: 10,
+          sf: 7,
+          cr: 5
+        )
+
       assert Sub.validate_radio_params(sub) == :ok
     end
 
     test "invalid frequency for SX127X" do
-      sub = Sub.new(
-        interface_type: "SX127X",
-        frequency: 50_000_000,
-        bandwidth: 125_000,
-        txpower: 17,
-        sf: 7,
-        cr: 5
-      )
+      sub =
+        Sub.new(
+          interface_type: "SX127X",
+          frequency: 50_000_000,
+          bandwidth: 125_000,
+          txpower: 17,
+          sf: 7,
+          cr: 5
+        )
+
       assert {:error, _} = Sub.validate_radio_params(sub)
     end
 
     test "invalid frequency for SX128X" do
-      sub = Sub.new(
-        interface_type: "SX128X",
-        frequency: 868_000_000,
-        bandwidth: 125_000,
-        txpower: 10,
-        sf: 7,
-        cr: 5
-      )
+      sub =
+        Sub.new(
+          interface_type: "SX128X",
+          frequency: 868_000_000,
+          bandwidth: 125_000,
+          txpower: 10,
+          sf: 7,
+          cr: 5
+        )
+
       assert {:error, _} = Sub.validate_radio_params(sub)
     end
 
@@ -545,27 +563,73 @@ defmodule RNS.Interfaces.RNodeMultiInterfaceTest do
     end
 
     test "invalid bandwidth" do
-      sub = Sub.new(interface_type: "SX127X", frequency: 868_000_000, bandwidth: 5000, txpower: 17, sf: 7, cr: 5)
+      sub =
+        Sub.new(
+          interface_type: "SX127X",
+          frequency: 868_000_000,
+          bandwidth: 5000,
+          txpower: 17,
+          sf: 7,
+          cr: 5
+        )
+
       assert {:error, _} = Sub.validate_radio_params(sub)
     end
 
     test "invalid TX power" do
-      sub = Sub.new(interface_type: "SX127X", frequency: 868_000_000, bandwidth: 125_000, txpower: 50, sf: 7, cr: 5)
+      sub =
+        Sub.new(
+          interface_type: "SX127X",
+          frequency: 868_000_000,
+          bandwidth: 125_000,
+          txpower: 50,
+          sf: 7,
+          cr: 5
+        )
+
       assert {:error, _} = Sub.validate_radio_params(sub)
     end
 
     test "invalid spreading factor" do
-      sub = Sub.new(interface_type: "SX127X", frequency: 868_000_000, bandwidth: 125_000, txpower: 17, sf: 13, cr: 5)
+      sub =
+        Sub.new(
+          interface_type: "SX127X",
+          frequency: 868_000_000,
+          bandwidth: 125_000,
+          txpower: 17,
+          sf: 13,
+          cr: 5
+        )
+
       assert {:error, _} = Sub.validate_radio_params(sub)
     end
 
     test "invalid coding rate" do
-      sub = Sub.new(interface_type: "SX127X", frequency: 868_000_000, bandwidth: 125_000, txpower: 17, sf: 7, cr: 9)
+      sub =
+        Sub.new(
+          interface_type: "SX127X",
+          frequency: 868_000_000,
+          bandwidth: 125_000,
+          txpower: 17,
+          sf: 7,
+          cr: 9
+        )
+
       assert {:error, _} = Sub.validate_radio_params(sub)
     end
 
     test "invalid airtime limits" do
-      sub = Sub.new(interface_type: "SX127X", frequency: 868_000_000, bandwidth: 125_000, txpower: 17, sf: 7, cr: 5, st_alock: 150.0)
+      sub =
+        Sub.new(
+          interface_type: "SX127X",
+          frequency: 868_000_000,
+          bandwidth: 125_000,
+          txpower: 17,
+          sf: 7,
+          cr: 5,
+          st_alock: 150.0
+        )
+
       assert {:error, _} = Sub.validate_radio_params(sub)
     end
   end
@@ -639,20 +703,24 @@ defmodule RNS.Interfaces.RNodeMultiInterfaceTest do
 
   describe "Sub.validate_radio_state/1" do
     test "validates matching state" do
-      sub = Sub.new(
-        frequency: 868_000_000,
-        bandwidth: 125_000,
-        txpower: 17,
-        sf: 7,
-        cr: 5
-      )
-      sub = %{sub |
-        r_frequency: 868_000_000,
-        r_bandwidth: 125_000,
-        r_txpower: 17,
-        r_sf: 7,
-        r_state: 0
+      sub =
+        Sub.new(
+          frequency: 868_000_000,
+          bandwidth: 125_000,
+          txpower: 17,
+          sf: 7,
+          cr: 5
+        )
+
+      sub = %{
+        sub
+        | r_frequency: 868_000_000,
+          r_bandwidth: 125_000,
+          r_txpower: 17,
+          r_sf: 7,
+          r_state: 0
       }
+
       assert Sub.validate_radio_state(sub) == true
     end
 
@@ -738,12 +806,14 @@ defmodule RNS.Interfaces.RNodeMultiInterfaceTest do
     end
 
     test "configures ID callsign" do
-      {:ok, pid} = Multi.start_link(
-        name: "TestMulti",
-        skip_open: true,
-        id_interval: 600,
-        id_callsign: "VK2ABC"
-      )
+      {:ok, pid} =
+        Multi.start_link(
+          name: "TestMulti",
+          skip_open: true,
+          id_interval: 600,
+          id_callsign: "VK2ABC"
+        )
+
       state = GenServer.call(pid, :get_state)
       assert state.should_id == true
       assert state.id_callsign == "VK2ABC"
@@ -766,6 +836,7 @@ defmodule RNS.Interfaces.RNodeMultiInterfaceTest do
       # Add a sub-interface to state
       sub = Sub.new(name: "sub0", index: 0, owner: self())
       sub = %{sub | online: true}
+
       :sys.replace_state(pid, fn state ->
         %{state | subinterfaces: %{0 => sub}}
       end)

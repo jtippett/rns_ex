@@ -574,10 +574,8 @@ defmodule RNS.Interfaces.RNodeInterface do
   @doc "Builds the detect request frame sequence."
   @spec build_detect_frame() :: binary()
   def build_detect_frame do
-    <<@fend, @cmd_detect, @detect_req, @fend,
-      @cmd_fw_version, 0x00, @fend,
-      @cmd_platform, 0x00, @fend,
-      @cmd_mcu, 0x00, @fend>>
+    <<@fend, @cmd_detect, @detect_req, @fend, @cmd_fw_version, 0x00, @fend, @cmd_platform, 0x00,
+      @fend, @cmd_mcu, 0x00, @fend>>
   end
 
   @doc "Builds the leave/disconnect frame."
@@ -667,7 +665,8 @@ defmodule RNS.Interfaces.RNodeInterface do
     {Enum.reverse(frames), remaining}
   end
 
-  defp deframe_acc(<<@fend, rest::binary>>, frames, true, cmd, current) when byte_size(current) > 0 do
+  defp deframe_acc(<<@fend, rest::binary>>, frames, true, cmd, current)
+       when byte_size(current) > 0 do
     frame_data = kiss_unescape(current)
     deframe_acc(rest, [{cmd, frame_data} | frames], false, @cmd_unknown, <<>>)
   end
@@ -784,37 +783,37 @@ defmodule RNS.Interfaces.RNodeInterface do
   end
 
   def handle_command(state, @cmd_stat_chtm, data) when byte_size(data) >= 11 do
-    <<as::unsigned-big-16, al::unsigned-big-16,
-      cls::unsigned-big-16, cll::unsigned-big-16,
+    <<as::unsigned-big-16, al::unsigned-big-16, cls::unsigned-big-16, cll::unsigned-big-16,
       rssi_byte, nf_byte, intf_byte, _rest::binary>> = data
 
     interference =
       if intf_byte == 0xFF, do: nil, else: intf_byte - @rssi_offset
 
-    %{state |
-      r_airtime_short: as / 100.0,
-      r_airtime_long: al / 100.0,
-      r_channel_load_short: cls / 100.0,
-      r_channel_load_long: cll / 100.0,
-      r_current_rssi: rssi_byte - @rssi_offset,
-      r_noise_floor: nf_byte - @rssi_offset,
-      r_interference: interference
+    %{
+      state
+      | r_airtime_short: as / 100.0,
+        r_airtime_long: al / 100.0,
+        r_channel_load_short: cls / 100.0,
+        r_channel_load_long: cll / 100.0,
+        r_current_rssi: rssi_byte - @rssi_offset,
+        r_noise_floor: nf_byte - @rssi_offset,
+        r_interference: interference
     }
   end
 
   def handle_command(state, @cmd_stat_phyprm, data) when byte_size(data) >= 12 do
-    <<sym_time::unsigned-big-16, sym_rate::unsigned-big-16,
-      pre_sym::unsigned-big-16, pre_time::unsigned-big-16,
-      csma_slot::unsigned-big-16, csma_difs::unsigned-big-16,
+    <<sym_time::unsigned-big-16, sym_rate::unsigned-big-16, pre_sym::unsigned-big-16,
+      pre_time::unsigned-big-16, csma_slot::unsigned-big-16, csma_difs::unsigned-big-16,
       _rest::binary>> = data
 
-    %{state |
-      r_symbol_time_ms: sym_time / 1000.0,
-      r_symbol_rate: sym_rate,
-      r_preamble_symbols: pre_sym,
-      r_preamble_time_ms: pre_time,
-      r_csma_slot_time_ms: csma_slot,
-      r_csma_difs_ms: csma_difs
+    %{
+      state
+      | r_symbol_time_ms: sym_time / 1000.0,
+        r_symbol_rate: sym_rate,
+        r_preamble_symbols: pre_sym,
+        r_preamble_time_ms: pre_time,
+        r_csma_slot_time_ms: csma_slot,
+        r_csma_difs_ms: csma_difs
     }
   end
 
@@ -927,12 +926,21 @@ defmodule RNS.Interfaces.RNodeInterface do
   """
   @spec reset_radio_state(t()) :: t()
   def reset_radio_state(state) do
-    %{state |
-      r_frequency: nil, r_bandwidth: nil, r_txpower: nil,
-      r_sf: nil, r_cr: nil, r_state: nil, r_lock: nil,
-      r_stat_rx: nil, r_stat_tx: nil, r_stat_rssi: nil,
-      r_stat_snr: nil, r_stat_q: nil,
-      detected: false
+    %{
+      state
+      | r_frequency: nil,
+        r_bandwidth: nil,
+        r_txpower: nil,
+        r_sf: nil,
+        r_cr: nil,
+        r_state: nil,
+        r_lock: nil,
+        r_stat_rx: nil,
+        r_stat_tx: nil,
+        r_stat_rssi: nil,
+        r_stat_snr: nil,
+        r_stat_q: nil,
+        detected: false
     }
   end
 
@@ -1291,7 +1299,9 @@ defmodule RNS.Interfaces.RNodeInterface do
         ]
 
         case Circuits.UART.open(pid, state.port, uart_opts) do
-          :ok -> {:ok, %{state | uart_pid: pid}}
+          :ok ->
+            {:ok, %{state | uart_pid: pid}}
+
           {:error, reason} ->
             Circuits.UART.stop(pid)
             {:error, reason}
@@ -1366,7 +1376,8 @@ defmodule RNS.Interfaces.RNodeInterface do
     end)
   end
 
-  defp dispatch_frame(state, @cmd_data, data) when byte_size(data) > 0 and byte_size(data) <= @hw_mtu do
+  defp dispatch_frame(state, @cmd_data, data)
+       when byte_size(data) > 0 and byte_size(data) <= @hw_mtu do
     {:ok, updated} = process_incoming(state, data)
     updated
   end

@@ -206,8 +206,10 @@ defmodule RNS.Utilities.RNPathTest do
       hex = String.duplicate("ab", 16)
       assert {:ok, hash} = RNPath.parse_hash(hex)
       assert byte_size(hash) == 16
-      assert hash == <<0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB,
-                        0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB>>
+
+      assert hash ==
+               <<0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB, 0xAB,
+                 0xAB, 0xAB, 0xAB>>
     end
 
     test "accepts mixed case hex" do
@@ -243,8 +245,10 @@ defmodule RNS.Utilities.RNPathTest do
     test "all-ff hash is valid" do
       hex = String.duplicate("ff", 16)
       assert {:ok, hash} = RNPath.parse_hash(hex)
-      assert hash == <<0xFF::8, 0xFF::8, 0xFF::8, 0xFF::8, 0xFF::8, 0xFF::8, 0xFF::8, 0xFF::8,
-                        0xFF::8, 0xFF::8, 0xFF::8, 0xFF::8, 0xFF::8, 0xFF::8, 0xFF::8, 0xFF::8>>
+
+      assert hash ==
+               <<0xFF::8, 0xFF::8, 0xFF::8, 0xFF::8, 0xFF::8, 0xFF::8, 0xFF::8, 0xFF::8, 0xFF::8,
+                 0xFF::8, 0xFF::8, 0xFF::8, 0xFF::8, 0xFF::8, 0xFF::8, 0xFF::8>>
     end
   end
 
@@ -353,6 +357,7 @@ defmodule RNS.Utilities.RNPathTest do
     test "drops existing path" do
       # Insert a path entry, then drop it
       hash = :crypto.strong_rand_bytes(16)
+
       entry = %RNS.Transport.PathEntry{
         timestamp: System.system_time(:second),
         next_hop: :crypto.strong_rand_bytes(16),
@@ -386,6 +391,7 @@ defmodule RNS.Utilities.RNPathTest do
       # Insert paths via the target transport
       for _ <- 1..3 do
         hash = :crypto.strong_rand_bytes(16)
+
         entry = %RNS.Transport.PathEntry{
           timestamp: System.system_time(:second),
           next_hop: via_hash,
@@ -401,6 +407,7 @@ defmodule RNS.Utilities.RNPathTest do
 
       # Insert a path via a different transport
       other_path_hash = :crypto.strong_rand_bytes(16)
+
       other_entry = %RNS.Transport.PathEntry{
         timestamp: System.system_time(:second),
         next_hop: other_hash,
@@ -440,6 +447,7 @@ defmodule RNS.Utilities.RNPathTest do
 
     test "returns interface name for existing path" do
       hash = :crypto.strong_rand_bytes(16)
+
       entry = %RNS.Transport.PathEntry{
         timestamp: System.system_time(:second),
         next_hop: :crypto.strong_rand_bytes(16),

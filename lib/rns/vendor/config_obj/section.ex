@@ -92,12 +92,13 @@ defmodule RNS.Vendor.ConfigObj.Section do
     # Remove from sections if it was one (shouldn't happen, but be safe)
     new_sections = List.delete(section.sections, key)
 
-    %{section |
-      data: Map.put(section.data, key, value),
-      scalars: new_scalars,
-      sections: new_sections,
-      order: new_order,
-      scalar_comments: Map.put(section.scalar_comments, key, {comments, inline_comment})
+    %{
+      section
+      | data: Map.put(section.data, key, value),
+        scalars: new_scalars,
+        sections: new_sections,
+        order: new_order,
+        scalar_comments: Map.put(section.scalar_comments, key, {comments, inline_comment})
     }
   end
 
@@ -117,11 +118,12 @@ defmodule RNS.Vendor.ConfigObj.Section do
 
     child = %{child | path: section.path ++ [key]}
 
-    %{section |
-      data: Map.put(section.data, key, child),
-      sections: new_sections,
-      scalars: new_scalars,
-      order: new_order
+    %{
+      section
+      | data: Map.put(section.data, key, child),
+        sections: new_sections,
+        scalars: new_scalars,
+        order: new_order
     }
   end
 
@@ -158,8 +160,12 @@ defmodule RNS.Vendor.ConfigObj.Section do
     val = get(section, key)
 
     cond do
-      val == true -> true
-      val == false -> false
+      val == true ->
+        true
+
+      val == false ->
+        false
+
       is_binary(val) ->
         case Map.get(@bools, String.downcase(val)) do
           nil -> raise ArgumentError, "Value #{inspect(val)} is neither True nor False"
@@ -188,8 +194,12 @@ defmodule RNS.Vendor.ConfigObj.Section do
     val = get(section, key)
 
     cond do
-      is_float(val) -> val
-      is_integer(val) -> val / 1
+      is_float(val) ->
+        val
+
+      is_integer(val) ->
+        val / 1
+
       is_binary(val) ->
         case Float.parse(val) do
           {f, _} -> f

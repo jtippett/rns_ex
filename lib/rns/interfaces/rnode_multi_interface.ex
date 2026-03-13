@@ -126,10 +126,18 @@ defmodule RNS.Interfaces.RNodeMultiInterface do
 
   # Data commands list for matching
   @data_commands [
-    @cmd_int0_data, @cmd_int1_data, @cmd_int2_data,
-    @cmd_int3_data, @cmd_int4_data, @cmd_int5_data,
-    @cmd_int6_data, @cmd_int7_data, @cmd_int8_data,
-    @cmd_int9_data, @cmd_int10_data, @cmd_int11_data
+    @cmd_int0_data,
+    @cmd_int1_data,
+    @cmd_int2_data,
+    @cmd_int3_data,
+    @cmd_int4_data,
+    @cmd_int5_data,
+    @cmd_int6_data,
+    @cmd_int7_data,
+    @cmd_int8_data,
+    @cmd_int9_data,
+    @cmd_int10_data,
+    @cmd_int11_data
   ]
 
   # ── Struct ─────────────────────────────────────────────────────────
@@ -191,7 +199,7 @@ defmodule RNS.Interfaces.RNodeMultiInterface do
                 owner: nil,
                 server_name: nil,
                 skip_open: false,
-                test_mode: false,
+                test_mode: false
               ]
 
   # ── Public API ─────────────────────────────────────────────────────
@@ -210,7 +218,7 @@ defmodule RNS.Interfaces.RNodeMultiInterface do
       cmd_sel_int: @cmd_sel_int,
       cmd_interfaces: @cmd_interfaces,
       fb_pixel_width: @fb_pixel_width,
-      fb_bytes_per_line: @fb_bytes_per_line,
+      fb_bytes_per_line: @fb_bytes_per_line
     }
   end
 
@@ -258,8 +266,13 @@ defmodule RNS.Interfaces.RNodeMultiInterface do
   end
 
   defp do_kiss_unescape(<<>>, acc), do: acc
-  defp do_kiss_unescape(<<@fesc, @tfend, rest::binary>>, acc), do: do_kiss_unescape(rest, acc <> <<@fend>>)
-  defp do_kiss_unescape(<<@fesc, @tfesc, rest::binary>>, acc), do: do_kiss_unescape(rest, acc <> <<@fesc>>)
+
+  defp do_kiss_unescape(<<@fesc, @tfend, rest::binary>>, acc),
+    do: do_kiss_unescape(rest, acc <> <<@fend>>)
+
+  defp do_kiss_unescape(<<@fesc, @tfesc, rest::binary>>, acc),
+    do: do_kiss_unescape(rest, acc <> <<@fesc>>)
+
   defp do_kiss_unescape(<<@fesc, rest::binary>>, acc), do: do_kiss_unescape(rest, acc)
   defp do_kiss_unescape(<<byte, rest::binary>>, acc), do: do_kiss_unescape(rest, acc <> <<byte>>)
 
@@ -287,12 +300,14 @@ defmodule RNS.Interfaces.RNodeMultiInterface do
     {Enum.reverse(frames), remaining}
   end
 
-  defp do_deframe(<<@fend, rest::binary>>, frames, true, cmd, data, _escape) when cmd in @data_commands do
+  defp do_deframe(<<@fend, rest::binary>>, frames, true, cmd, data, _escape)
+       when cmd in @data_commands do
     frames = [{cmd, data} | frames]
     do_deframe(<<@fend, rest::binary>>, frames, false, @cmd_unknown, <<>>, false)
   end
 
-  defp do_deframe(<<@fend, rest::binary>>, frames, true, cmd, data, _escape) when cmd != @cmd_unknown and byte_size(data) > 0 do
+  defp do_deframe(<<@fend, rest::binary>>, frames, true, cmd, data, _escape)
+       when cmd != @cmd_unknown and byte_size(data) > 0 do
     frames = [{cmd, data} | frames]
     do_deframe(rest, frames, true, @cmd_unknown, <<>>, false)
   end
@@ -325,7 +340,8 @@ defmodule RNS.Interfaces.RNodeMultiInterface do
     do_deframe(rest, frames, true, cmd, data <> <<byte>>, false)
   end
 
-  defp do_deframe(<<byte, rest::binary>>, frames, true, cmd, data, false) when byte_size(data) < @hw_mtu do
+  defp do_deframe(<<byte, rest::binary>>, frames, true, cmd, data, false)
+       when byte_size(data) < @hw_mtu do
     do_deframe(rest, frames, true, cmd, data <> <<byte>>, false)
   end
 
@@ -344,11 +360,8 @@ defmodule RNS.Interfaces.RNodeMultiInterface do
   @doc "Build the detect frame for device identification."
   @spec build_detect_frame() :: binary()
   def build_detect_frame do
-    <<@fend, @cmd_detect, @detect_req, @fend,
-      @cmd_fw_version, 0x00, @fend,
-      @cmd_platform, 0x00, @fend,
-      @cmd_mcu, 0x00, @fend,
-      @cmd_interfaces, 0x00, @fend>>
+    <<@fend, @cmd_detect, @detect_req, @fend, @cmd_fw_version, 0x00, @fend, @cmd_platform, 0x00,
+      @fend, @cmd_mcu, 0x00, @fend, @cmd_interfaces, 0x00, @fend>>
   end
 
   @doc "Build the leave frame."
@@ -434,7 +447,8 @@ defmodule RNS.Interfaces.RNodeMultiInterface do
   end
 
   def handle_command(state, @cmd_frequency, <<c1, c2, c3, c4>>) do
-    freq = (c1 <<< 24) ||| (c2 <<< 16) ||| (c3 <<< 8) ||| c4
+    freq = c1 <<< 24 ||| c2 <<< 16 ||| c3 <<< 8 ||| c4
+
     update_subinterface(state, state.selected_index, fn sub ->
       sub = %{sub | r_frequency: freq}
       RNS.Interfaces.RNodeSubInterface.update_bitrate(sub)
@@ -442,7 +456,8 @@ defmodule RNS.Interfaces.RNodeMultiInterface do
   end
 
   def handle_command(state, @cmd_bandwidth, <<c1, c2, c3, c4>>) do
-    bw = (c1 <<< 24) ||| (c2 <<< 16) ||| (c3 <<< 8) ||| c4
+    bw = c1 <<< 24 ||| c2 <<< 16 ||| c3 <<< 8 ||| c4
+
     update_subinterface(state, state.selected_index, fn sub ->
       sub = %{sub | r_bandwidth: bw}
       RNS.Interfaces.RNodeSubInterface.update_bitrate(sub)
@@ -451,6 +466,7 @@ defmodule RNS.Interfaces.RNodeMultiInterface do
 
   def handle_command(state, @cmd_txpower, <<txp>>) do
     txpower = if txp > 127, do: txp - 256, else: txp
+
     update_subinterface(state, state.selected_index, fn sub ->
       %{sub | r_txpower: txpower}
     end)
@@ -489,7 +505,8 @@ defmodule RNS.Interfaces.RNodeMultiInterface do
   end
 
   def handle_command(state, @cmd_stat_snr, <<snr_byte>>) do
-    snr = (if snr_byte > 127, do: snr_byte - 256, else: snr_byte) * 0.25
+    snr = if(snr_byte > 127, do: snr_byte - 256, else: snr_byte) * 0.25
+
     update_subinterface(state, state.selected_index, fn sub ->
       quality = RNS.Interfaces.RNodeSubInterface.calculate_quality(snr, sub.r_sf)
       %{sub | r_stat_snr: snr, r_stat_q: quality}
@@ -497,48 +514,52 @@ defmodule RNS.Interfaces.RNodeMultiInterface do
   end
 
   def handle_command(state, @cmd_st_alock, <<c1, c2>>) do
-    at = ((c1 <<< 8) ||| c2) / 100.0
+    at = (c1 <<< 8 ||| c2) / 100.0
+
     update_subinterface(state, state.selected_index, fn sub ->
       %{sub | r_st_alock: at}
     end)
   end
 
   def handle_command(state, @cmd_lt_alock, <<c1, c2>>) do
-    at = ((c1 <<< 8) ||| c2) / 100.0
+    at = (c1 <<< 8 ||| c2) / 100.0
+
     update_subinterface(state, state.selected_index, fn sub ->
       %{sub | r_lt_alock: at}
     end)
   end
 
   def handle_command(state, @cmd_stat_chtm, <<c1, c2, c3, c4, c5, c6, c7, c8>>) do
-    ats = ((c1 <<< 8) ||| c2) / 100.0
-    atl = ((c3 <<< 8) ||| c4) / 100.0
-    cus = ((c5 <<< 8) ||| c6) / 100.0
-    cul = ((c7 <<< 8) ||| c8) / 100.0
+    ats = (c1 <<< 8 ||| c2) / 100.0
+    atl = (c3 <<< 8 ||| c4) / 100.0
+    cus = (c5 <<< 8 ||| c6) / 100.0
+    cul = (c7 <<< 8 ||| c8) / 100.0
 
-    %{state |
-      r_airtime_short: ats,
-      r_airtime_long: atl,
-      r_channel_load_short: cus,
-      r_channel_load_long: cul
+    %{
+      state
+      | r_airtime_short: ats,
+        r_airtime_long: atl,
+        r_channel_load_short: cus,
+        r_channel_load_long: cul
     }
   end
 
   def handle_command(state, @cmd_stat_phyprm, data) when byte_size(data) == 10 do
     <<s1, s2, s3, s4, s5, s6, s7, s8, s9, s10>> = data
-    lst = ((s1 <<< 8) ||| s2) / 1000.0
-    lsr = (s3 <<< 8) ||| s4
-    prs = (s5 <<< 8) ||| s6
-    prt = (s7 <<< 8) ||| s8
-    cst = (s9 <<< 8) ||| s10
+    lst = (s1 <<< 8 ||| s2) / 1000.0
+    lsr = s3 <<< 8 ||| s4
+    prs = s5 <<< 8 ||| s6
+    prt = s7 <<< 8 ||| s8
+    cst = s9 <<< 8 ||| s10
 
     update_subinterface(state, state.selected_index, fn sub ->
-      %{sub |
-        r_symbol_time_ms: lst,
-        r_symbol_rate: lsr,
-        r_preamble_symbols: prs,
-        r_preamble_time_ms: prt,
-        r_csma_slot_time_ms: cst
+      %{
+        sub
+        | r_symbol_time_ms: lst,
+          r_symbol_rate: lsr,
+          r_preamble_symbols: prs,
+          r_preamble_time_ms: prt,
+          r_csma_slot_time_ms: cst
       }
     end)
   end
@@ -550,12 +571,17 @@ defmodule RNS.Interfaces.RNodeMultiInterface do
   def handle_command(state, @cmd_error, <<error_byte>>) do
     case error_byte do
       @error_initradio ->
-        Logger.error("#{state.name} hardware initialisation error (code #{RNS.hexrep(<<error_byte>>)})")
+        Logger.error(
+          "#{state.name} hardware initialisation error (code #{RNS.hexrep(<<error_byte>>)})"
+        )
+
       @error_txfailed ->
         Logger.error("#{state.name} hardware TX error (code #{RNS.hexrep(<<error_byte>>)})")
+
       _ ->
         Logger.error("#{state.name} hardware error (code #{RNS.hexrep(<<error_byte>>)})")
     end
+
     state
   end
 
@@ -563,6 +589,7 @@ defmodule RNS.Interfaces.RNodeMultiInterface do
     if state.platform == @platform_esp32 and state.online do
       Logger.error("Detected reset while device was online, reinitialising device...")
     end
+
     state
   end
 
@@ -578,7 +605,9 @@ defmodule RNS.Interfaces.RNodeMultiInterface do
 
   defp update_subinterface(state, index, fun) do
     case Map.get(state.subinterfaces, index) do
-      nil -> state
+      nil ->
+        state
+
       sub ->
         updated_sub = fun.(sub)
         %{state | subinterfaces: Map.put(state.subinterfaces, index, updated_sub)}
@@ -624,6 +653,7 @@ defmodule RNS.Interfaces.RNodeMultiInterface do
     {should_id, id_callsign_bytes} =
       if id_interval != nil and id_callsign != nil do
         encoded = if is_binary(id_callsign), do: id_callsign, else: to_string(id_callsign)
+
         if byte_size(encoded) <= @callsign_max_len do
           {true, encoded}
         else
@@ -650,7 +680,7 @@ defmodule RNS.Interfaces.RNodeMultiInterface do
       ifac_size: @default_ifac_size,
       hw_mtu: @hw_mtu,
       online: false,
-      created: System.system_time(:second),
+      created: System.system_time(:second)
     }
 
     if skip_open do
@@ -768,7 +798,9 @@ defmodule RNS.Interfaces.RNodeMultiInterface do
         index = index_for_data_command(command) || acc.selected_index
 
         case Map.get(acc.subinterfaces, index) do
-          nil -> acc
+          nil ->
+            acc
+
           sub ->
             updated_sub = RNS.Interfaces.RNodeSubInterface.process_incoming(sub, frame_data)
             notify_owner(acc, frame_data, index)
@@ -1000,7 +1032,7 @@ defmodule RNS.Interfaces.RNodeSubInterface do
                 packet_queue: :queue.new(),
 
                 # Owner for callbacks
-                owner: nil,
+                owner: nil
               ]
 
   @doc "Returns the RSSI offset constant."
@@ -1019,7 +1051,7 @@ defmodule RNS.Interfaces.RNodeSubInterface do
       q_snr_max: @q_snr_max,
       q_snr_step: @q_snr_step,
       hw_mtu: @hw_mtu,
-      default_ifac_size: @default_ifac_size,
+      default_ifac_size: @default_ifac_size
     }
   end
 
@@ -1063,7 +1095,7 @@ defmodule RNS.Interfaces.RNodeSubInterface do
       hw_mtu: @hw_mtu,
       online: false,
       interface_ready: false,
-      created: System.system_time(:second),
+      created: System.system_time(:second)
     }
   end
 

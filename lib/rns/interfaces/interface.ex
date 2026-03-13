@@ -755,7 +755,8 @@ defmodule RNS.Interfaces.Interface do
       {Enum.reverse(frames), remaining}
     end
 
-    defp deframe_acc(<<@fend, rest::binary>>, frames, true, cmd, current) when byte_size(current) > 0 do
+    defp deframe_acc(<<@fend, rest::binary>>, frames, true, cmd, current)
+         when byte_size(current) > 0 do
       # End of frame with data
       frame_data = unescape(current)
       deframe_acc(rest, [{cmd, frame_data} | frames], false, @cmd_unknown, <<>>)

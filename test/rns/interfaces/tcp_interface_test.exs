@@ -356,7 +356,9 @@ defmodule RNS.Interfaces.TCPInterfaceTest do
   describe "pre-connected socket" do
     test "wraps an existing connected socket" do
       # Create a simple TCP pair
-      {:ok, listen} = :gen_tcp.listen(0, [:binary, active: false, reuseaddr: true, ip: {127, 0, 0, 1}])
+      {:ok, listen} =
+        :gen_tcp.listen(0, [:binary, active: false, reuseaddr: true, ip: {127, 0, 0, 1}])
+
       {:ok, port} = :inet.port(listen)
 
       {:ok, client_sock} = :gen_tcp.connect({127, 0, 0, 1}, port, [:binary, active: false])
@@ -389,7 +391,9 @@ defmodule RNS.Interfaces.TCPInterfaceTest do
     end
 
     test "wraps socket with KISS framing" do
-      {:ok, listen} = :gen_tcp.listen(0, [:binary, active: false, reuseaddr: true, ip: {127, 0, 0, 1}])
+      {:ok, listen} =
+        :gen_tcp.listen(0, [:binary, active: false, reuseaddr: true, ip: {127, 0, 0, 1}])
+
       {:ok, port} = :inet.port(listen)
 
       {:ok, client_sock} = :gen_tcp.connect({127, 0, 0, 1}, port, [:binary, active: false])
@@ -422,7 +426,9 @@ defmodule RNS.Interfaces.TCPInterfaceTest do
 
   describe "TCPClientInterface detach" do
     test "closes socket and marks offline" do
-      {:ok, listen} = :gen_tcp.listen(0, [:binary, active: false, reuseaddr: true, ip: {127, 0, 0, 1}])
+      {:ok, listen} =
+        :gen_tcp.listen(0, [:binary, active: false, reuseaddr: true, ip: {127, 0, 0, 1}])
+
       {:ok, port} = :inet.port(listen)
 
       {:ok, client_sock} = :gen_tcp.connect({127, 0, 0, 1}, port, [:binary, active: false])
@@ -620,7 +626,9 @@ defmodule RNS.Interfaces.TCPInterfaceTest do
     test "frames with special bytes are correctly handled" do
       test_pid = self()
 
-      {:ok, listen} = :gen_tcp.listen(0, [:binary, active: false, reuseaddr: true, ip: {127, 0, 0, 1}])
+      {:ok, listen} =
+        :gen_tcp.listen(0, [:binary, active: false, reuseaddr: true, ip: {127, 0, 0, 1}])
+
       {:ok, port} = :inet.port(listen)
 
       {:ok, client_sock} = :gen_tcp.connect({127, 0, 0, 1}, port, [:binary, active: false])
@@ -648,7 +656,9 @@ defmodule RNS.Interfaces.TCPInterfaceTest do
     test "small frames below HEADER_MINSIZE are filtered" do
       test_pid = self()
 
-      {:ok, listen} = :gen_tcp.listen(0, [:binary, active: false, reuseaddr: true, ip: {127, 0, 0, 1}])
+      {:ok, listen} =
+        :gen_tcp.listen(0, [:binary, active: false, reuseaddr: true, ip: {127, 0, 0, 1}])
+
       {:ok, port} = :inet.port(listen)
 
       {:ok, client_sock} = :gen_tcp.connect({127, 0, 0, 1}, port, [:binary, active: false])
@@ -684,10 +694,14 @@ defmodule RNS.Interfaces.TCPInterfaceTest do
     test "handles fragmented TCP delivery" do
       test_pid = self()
 
-      {:ok, listen} = :gen_tcp.listen(0, [:binary, active: false, reuseaddr: true, ip: {127, 0, 0, 1}])
+      {:ok, listen} =
+        :gen_tcp.listen(0, [:binary, active: false, reuseaddr: true, ip: {127, 0, 0, 1}])
+
       {:ok, port} = :inet.port(listen)
 
-      {:ok, client_sock} = :gen_tcp.connect({127, 0, 0, 1}, port, [:binary, active: false, nodelay: true])
+      {:ok, client_sock} =
+        :gen_tcp.connect({127, 0, 0, 1}, port, [:binary, active: false, nodelay: true])
+
       {:ok, server_sock} = :gen_tcp.accept(listen)
 
       {:ok, iface} =
@@ -723,7 +737,9 @@ defmodule RNS.Interfaces.TCPInterfaceTest do
     test "frames with special bytes are correctly handled" do
       test_pid = self()
 
-      {:ok, listen} = :gen_tcp.listen(0, [:binary, active: false, reuseaddr: true, ip: {127, 0, 0, 1}])
+      {:ok, listen} =
+        :gen_tcp.listen(0, [:binary, active: false, reuseaddr: true, ip: {127, 0, 0, 1}])
+
       {:ok, port} = :inet.port(listen)
 
       {:ok, client_sock} = :gen_tcp.connect({127, 0, 0, 1}, port, [:binary, active: false])
@@ -754,7 +770,9 @@ defmodule RNS.Interfaces.TCPInterfaceTest do
 
   describe "fixed_mtu option" do
     test "overrides HW_MTU when set" do
-      {:ok, listen} = :gen_tcp.listen(0, [:binary, active: false, reuseaddr: true, ip: {127, 0, 0, 1}])
+      {:ok, listen} =
+        :gen_tcp.listen(0, [:binary, active: false, reuseaddr: true, ip: {127, 0, 0, 1}])
+
       {:ok, port} = :inet.port(listen)
 
       {:ok, client_sock} = :gen_tcp.connect({127, 0, 0, 1}, port, [:binary, active: false])
@@ -876,7 +894,9 @@ defmodule RNS.Interfaces.TCPInterfaceTest do
         send(test_pid, {:callback_received, data})
       end
 
-      {:ok, listen} = :gen_tcp.listen(0, [:binary, active: false, reuseaddr: true, ip: {127, 0, 0, 1}])
+      {:ok, listen} =
+        :gen_tcp.listen(0, [:binary, active: false, reuseaddr: true, ip: {127, 0, 0, 1}])
+
       {:ok, port} = :inet.port(listen)
 
       {:ok, client_sock} = :gen_tcp.connect({127, 0, 0, 1}, port, [:binary, active: false])
@@ -905,7 +925,9 @@ defmodule RNS.Interfaces.TCPInterfaceTest do
 
   describe "socket closure" do
     test "non-initiator teardown on remote close" do
-      {:ok, listen} = :gen_tcp.listen(0, [:binary, active: false, reuseaddr: true, ip: {127, 0, 0, 1}])
+      {:ok, listen} =
+        :gen_tcp.listen(0, [:binary, active: false, reuseaddr: true, ip: {127, 0, 0, 1}])
+
       {:ok, port} = :inet.port(listen)
 
       {:ok, client_sock} = :gen_tcp.connect({127, 0, 0, 1}, port, [:binary, active: false])

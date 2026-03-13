@@ -206,7 +206,9 @@ defmodule RNS.Interfaces.RNodeInterfaceTest do
 
     test "roundtrip with escape" do
       original = <<0xC0, 0xDB, 0x01, 0xC0, 0xDB>>
-      assert original == original |> RNodeInterface.kiss_escape() |> RNodeInterface.kiss_unescape()
+
+      assert original ==
+               original |> RNodeInterface.kiss_escape() |> RNodeInterface.kiss_unescape()
     end
   end
 
@@ -892,10 +894,17 @@ defmodule RNS.Interfaces.RNodeInterfaceTest do
     end
 
     test "get_battery_state_string/1" do
-      assert RNodeInterface.get_battery_state_string(%RNodeInterface{r_battery_state: 0x01}) == "discharging"
-      assert RNodeInterface.get_battery_state_string(%RNodeInterface{r_battery_state: 0x02}) == "charging"
-      assert RNodeInterface.get_battery_state_string(%RNodeInterface{r_battery_state: 0x03}) == "charged"
-      assert RNodeInterface.get_battery_state_string(%RNodeInterface{r_battery_state: 0x00}) == "unknown"
+      assert RNodeInterface.get_battery_state_string(%RNodeInterface{r_battery_state: 0x01}) ==
+               "discharging"
+
+      assert RNodeInterface.get_battery_state_string(%RNodeInterface{r_battery_state: 0x02}) ==
+               "charging"
+
+      assert RNodeInterface.get_battery_state_string(%RNodeInterface{r_battery_state: 0x03}) ==
+               "charged"
+
+      assert RNodeInterface.get_battery_state_string(%RNodeInterface{r_battery_state: 0x00}) ==
+               "unknown"
     end
 
     test "get_battery_percent/1" do

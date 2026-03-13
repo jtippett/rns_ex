@@ -315,7 +315,9 @@ defmodule RNS.Interfaces.InterfaceTest do
       fast = new_interface(%{ia_freq_deque: [now - 2, now - 1, now]})
       # Slow: 10 seconds apart
       slow = new_interface(%{ia_freq_deque: [now - 20, now - 10, now]})
-      assert Interface.incoming_announce_frequency(fast) > Interface.incoming_announce_frequency(slow)
+
+      assert Interface.incoming_announce_frequency(fast) >
+               Interface.incoming_announce_frequency(slow)
     end
   end
 

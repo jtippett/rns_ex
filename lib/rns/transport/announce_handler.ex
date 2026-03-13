@@ -220,7 +220,7 @@ defmodule RNS.Transport.AnnounceHandler do
             # Equal or better hop count
             path_timebase = timebase_from_random_blobs(existing_blobs)
 
-            not (random_blob in existing_blobs) and announce_emitted > path_timebase
+            random_blob not in existing_blobs and announce_emitted > path_timebase
           else
             # Worse hop count — only add under specific conditions
             now = System.system_time(:second)
@@ -234,11 +234,11 @@ defmodule RNS.Transport.AnnounceHandler do
             cond do
               # Path expired
               now >= path_expires ->
-                not (random_blob in existing_blobs)
+                random_blob not in existing_blobs
 
               # More recent emission
               announce_emitted > path_announce_emitted ->
-                not (random_blob in existing_blobs)
+                random_blob not in existing_blobs
 
               # Same emission but path is unresponsive
               announce_emitted == path_announce_emitted ->
@@ -282,10 +282,7 @@ defmodule RNS.Transport.AnnounceHandler do
           # Retransmit timeout reached — increment retries and queue retransmission
           now > entry.retransmit_timeout ->
             new_timeout = now + Transport.pathfinder_g() + trunc(Transport.pathfinder_rw())
-            updated_entry = %{entry |
-              retransmit_timeout: new_timeout,
-              retries: entry.retries + 1
-            }
+            updated_entry = %{entry | retransmit_timeout: new_timeout, retries: entry.retries + 1}
 
             :ets.insert(@announce_table, {destination_hash, updated_entry})
 
@@ -378,19 +375,24 @@ defmodule RNS.Transport.AnnounceHandler do
   defp build_retransmit_packet(destination_hash, entry) do
     announce_context =
       if entry.block_rebroadcasts do
-        0x0B  # PATH_RESPONSE
+        # PATH_RESPONSE
+        0x0B
       else
-        0x00  # NONE
+        # NONE
+        0x00
       end
 
     %{
       destination_hash: destination_hash,
       data: entry.packet.data,
-      packet_type: 0x01,  # ANNOUNCE
+      # ANNOUNCE
+      packet_type: 0x01,
       context: announce_context,
       context_flag: Map.get(entry.packet, :context_flag, 0x00),
-      header_type: 0x01,  # HEADER_2
-      transport_type: 0x01,  # TRANSPORT
+      # HEADER_2
+      header_type: 0x01,
+      # TRANSPORT
+      transport_type: 0x01,
       hops: entry.hops,
       attached_interface: entry.attached_interface
     }

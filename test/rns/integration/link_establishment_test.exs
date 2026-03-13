@@ -48,13 +48,15 @@ defmodule RNS.Integration.LinkEstablishmentTest do
     test "complete handshake produces matching encryption keys" do
       # === Setup: create server identity and destination ===
       server_identity = Identity.new()
-      server_dest = Destination.new(
-        server_identity,
-        Destination.direction_in(),
-        Destination.single(),
-        "testapp",
-        ["linktest"]
-      )
+
+      server_dest =
+        Destination.new(
+          server_identity,
+          Destination.direction_in(),
+          Destination.single(),
+          "testapp",
+          ["linktest"]
+        )
 
       # === Step 1: Initiator creates link request ===
       initiator_prv = X25519.generate_keypair()
@@ -66,23 +68,27 @@ defmodule RNS.Integration.LinkEstablishmentTest do
       link_request_data = initiator_pub <> initiator_sig_pub
 
       # Build a proper link request packet
-      link_request_packet = Packet.new(server_dest, link_request_data,
-        packet_type: Packet.linkrequest(),
-        create_receipt: false
-      )
+      link_request_packet =
+        Packet.new(server_dest, link_request_data,
+          packet_type: Packet.linkrequest(),
+          create_receipt: false
+        )
+
       link_request_packet = Packet.pack(link_request_packet)
       hashable_part = Packet.get_hashable_part(link_request_packet)
       link_request_packet = Map.put(link_request_packet, :get_hashable_part, hashable_part)
 
       # === Step 2: Responder validates and creates proof ===
-      {:ok, responder_link} = Link.validate_request(server_dest, link_request_data, link_request_packet)
+      {:ok, responder_link} =
+        Link.validate_request(server_dest, link_request_data, link_request_packet)
 
       assert responder_link.status == Link.handshake()
       assert responder_link.peer_pub_bytes == initiator_pub
       assert responder_link.peer_sig_pub_bytes == initiator_sig_pub
       assert responder_link.shared_key != nil
       assert responder_link.derived_key != nil
-      assert byte_size(responder_link.derived_key) == 64  # AES256_CBC
+      # AES256_CBC
+      assert byte_size(responder_link.derived_key) == 64
 
       # Responder generates proof
       {proof_data, _updated_responder} = Link.prove(responder_link)
@@ -174,25 +180,28 @@ defmodule RNS.Integration.LinkEstablishmentTest do
 
       # Start a local server
       port = Enum.random(40000..49999)
-      {:ok, server_pid} = RNS.Interfaces.LocalServerInterface.start_link(
-        name: "TestServer",
-        owner: fn data, _iface ->
-          send(test_pid, {:server_received, data})
-        end,
-        bindport: port
-      )
+
+      {:ok, server_pid} =
+        RNS.Interfaces.LocalServerInterface.start_link(
+          name: "TestServer",
+          owner: fn data, _iface ->
+            send(test_pid, {:server_received, data})
+          end,
+          bindport: port
+        )
 
       # Give server time to start listening
       Process.sleep(50)
 
       # Start a local client
-      {:ok, client_pid} = RNS.Interfaces.LocalClientInterface.start_link(
-        name: "TestClient",
-        owner: fn data, _iface ->
-          send(test_pid, {:client_received, data})
-        end,
-        target_port: port
-      )
+      {:ok, client_pid} =
+        RNS.Interfaces.LocalClientInterface.start_link(
+          name: "TestClient",
+          owner: fn data, _iface ->
+            send(test_pid, {:client_received, data})
+          end,
+          target_port: port
+        )
 
       Process.sleep(100)
 
@@ -295,12 +304,13 @@ defmodule RNS.Integration.LinkEstablishmentTest do
       now = System.system_time(:second)
       {link, _} = make_handshaken_pair()
 
-      active = %{link |
-        status: Link.active(),
-        activated_at: now - 100,
-        last_inbound: now - 10,
-        last_outbound: now - 5,
-        last_data: now - 15
+      active = %{
+        link
+        | status: Link.active(),
+          activated_at: now - 100,
+          last_inbound: now - 10,
+          last_outbound: now - 5,
+          last_data: now - 15
       }
 
       assert Link.get_age(active) >= 100
@@ -318,23 +328,27 @@ defmodule RNS.Integration.LinkEstablishmentTest do
       stale_time = Link.stale_factor() * Link.keepalive_max()
 
       # Link with recent activity — inactive_for < stale_time
-      fresh = %{link |
-        status: Link.active(),
-        activated_at: now - 10,
-        last_inbound: now - 5,
-        last_outbound: now - 3,
-        last_data: now - 5
+      fresh = %{
+        link
+        | status: Link.active(),
+          activated_at: now - 10,
+          last_inbound: now - 5,
+          last_outbound: now - 3,
+          last_data: now - 5
       }
+
       assert Link.inactive_for(fresh) < stale_time
 
       # Link with no activity for longer than stale_time
-      stale = %{link |
-        status: Link.active(),
-        activated_at: now - 1000,
-        last_inbound: now - 800,
-        last_outbound: now - 800,
-        last_data: now - 800
+      stale = %{
+        link
+        | status: Link.active(),
+          activated_at: now - 1000,
+          last_inbound: now - 800,
+          last_outbound: now - 800,
+          last_data: now - 800
       }
+
       assert Link.inactive_for(stale) > stale_time
     end
   end
@@ -345,13 +359,15 @@ defmodule RNS.Integration.LinkEstablishmentTest do
     test "after announce, destination hash can be used to create link request" do
       # Server side creates identity and destination
       server_identity = Identity.new()
-      server_dest = Destination.new(
-        server_identity,
-        Destination.direction_in(),
-        Destination.single(),
-        "testapp",
-        ["linkflow"]
-      )
+
+      server_dest =
+        Destination.new(
+          server_identity,
+          Destination.direction_in(),
+          Destination.single(),
+          "testapp",
+          ["linkflow"]
+        )
 
       # Don't register destination — simulate client side receiving an announce
       # from a remote server (client doesn't have the destination registered)
@@ -391,13 +407,15 @@ defmodule RNS.Integration.LinkEstablishmentTest do
   defp make_handshaken_pair do
     # Create server identity and destination
     server_identity = Identity.new()
-    server_dest = Destination.new(
-      server_identity,
-      Destination.direction_in(),
-      Destination.single(),
-      "testapp",
-      ["handshake"]
-    )
+
+    server_dest =
+      Destination.new(
+        server_identity,
+        Destination.direction_in(),
+        Destination.single(),
+        "testapp",
+        ["handshake"]
+      )
 
     # Initiator keys
     initiator_prv = X25519.generate_keypair()
@@ -408,10 +426,12 @@ defmodule RNS.Integration.LinkEstablishmentTest do
     link_request_data = initiator_pub <> initiator_sig_pub
 
     # Build a proper link request packet using Packet.pack
-    link_request_packet = Packet.new(server_dest, link_request_data,
-      packet_type: Packet.linkrequest(),
-      create_receipt: false
-    )
+    link_request_packet =
+      Packet.new(server_dest, link_request_data,
+        packet_type: Packet.linkrequest(),
+        create_receipt: false
+      )
+
     link_request_packet = Packet.pack(link_request_packet)
 
     # Compute hashable part and attach it to the packet
@@ -419,7 +439,9 @@ defmodule RNS.Integration.LinkEstablishmentTest do
     link_request_packet = Map.put(link_request_packet, :get_hashable_part, hashable_part)
 
     # Responder validates
-    {:ok, responder_link} = Link.validate_request(server_dest, link_request_data, link_request_packet)
+    {:ok, responder_link} =
+      Link.validate_request(server_dest, link_request_data, link_request_packet)
+
     {proof_data, updated_responder} = Link.prove(responder_link)
 
     # Initiator validates proof

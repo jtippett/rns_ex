@@ -642,7 +642,12 @@ defmodule RNS.ResourceTest do
       hashmap = List.duplicate(nil, total_parts)
       map_data = :crypto.strong_rand_bytes(total_parts * Resource.maphash_len())
 
-      resource = %{resource | hashmap: hashmap, total_parts: total_parts, status: Resource.status_none()}
+      resource = %{
+        resource
+        | hashmap: hashmap,
+          total_parts: total_parts,
+          status: Resource.status_none()
+      }
 
       resource = Resource.hashmap_update(resource, 0, map_data)
 
@@ -808,11 +813,12 @@ defmodule RNS.ResourceTest do
                ]
 
         # Should have send_part actions
-        send_parts = Enum.filter(actions, fn
-          {:send_part, _} -> true
-          {:resend_part, _} -> true
-          _ -> false
-        end)
+        send_parts =
+          Enum.filter(actions, fn
+            {:send_part, _} -> true
+            {:resend_part, _} -> true
+            _ -> false
+          end)
 
         assert length(send_parts) > 0
       end
@@ -879,13 +885,16 @@ defmodule RNS.ResourceTest do
       {:ok, receiver} = Resource.accept(unpacked, link)
 
       # Feed corrupted parts
-      corrupted_parts = sender.parts |> Enum.map(fn p -> %{p | data: :crypto.strong_rand_bytes(byte_size(p.data))} end)
+      corrupted_parts =
+        sender.parts
+        |> Enum.map(fn p -> %{p | data: :crypto.strong_rand_bytes(byte_size(p.data))} end)
 
       receiver =
         Enum.reduce(corrupted_parts, receiver, fn part, acc ->
           # We need to match the map hash, so create parts with correct hashes
           # Just put data directly
           idx = Enum.find_index(acc.parts, &(&1 == nil))
+
           if idx != nil do
             parts = List.replace_at(acc.parts, idx, part.data)
             %{acc | parts: parts, received_count: acc.received_count + 1}
@@ -1149,7 +1158,13 @@ defmodule RNS.ResourceTest do
       link = plain_link(rtt: 0.001)
       data = :crypto.strong_rand_bytes(200)
       resource = Resource.new(data, link)
-      resource = %{resource | status: Resource.status_transferring(), last_activity: 0, rtt: 0.001}
+
+      resource = %{
+        resource
+        | status: Resource.status_transferring(),
+          last_activity: 0,
+          rtt: 0.001
+      }
 
       {result, action} = Resource.watchdog_check(resource)
 

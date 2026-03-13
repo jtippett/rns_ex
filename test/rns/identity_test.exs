@@ -287,7 +287,9 @@ defmodule RNS.IdentityTest do
 
       # Encrypt for receiver (using receiver's public key)
       receiver_pub_only = Identity.new(create_keys: false)
-      receiver_pub_only = Identity.load_public_key(receiver_pub_only, Identity.get_public_key(receiver_id))
+
+      receiver_pub_only =
+        Identity.load_public_key(receiver_pub_only, Identity.get_public_key(receiver_id))
 
       ciphertext = Identity.encrypt(receiver_pub_only, "secret message")
       assert Identity.decrypt(receiver_id, ciphertext) == "secret message"
@@ -428,7 +430,9 @@ defmodule RNS.IdentityTest do
       ciphertext = Identity.encrypt(id, plaintext)
 
       # Decrypt with enforce_ratchets and a wrong ratchet
-      wrong_ratchet = RNS.Cryptography.X25519.private_bytes(RNS.Cryptography.X25519.generate_keypair())
+      wrong_ratchet =
+        RNS.Cryptography.X25519.private_bytes(RNS.Cryptography.X25519.generate_keypair())
+
       result = Identity.decrypt(id, ciphertext, ratchets: [wrong_ratchet], enforce_ratchets: true)
       assert result == nil
     end

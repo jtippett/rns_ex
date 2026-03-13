@@ -67,7 +67,8 @@ defmodule RNS.Packet do
   @identity_keysize 512
   @aes128_blocksize 16
 
-  @encrypted_mdu div(@mdu - @token_overhead - div(@identity_keysize, 16), @aes128_blocksize) * @aes128_blocksize - 1
+  @encrypted_mdu div(@mdu - @token_overhead - div(@identity_keysize, 16), @aes128_blocksize) *
+                   @aes128_blocksize - 1
   @plain_mdu @mdu
 
   @timeout_per_hop 6
@@ -372,11 +373,11 @@ defmodule RNS.Packet do
         Map.get(packet.destination, :type, @dest_single)
       end
 
-    (packet.header_type <<< 6)
-    ||| (packet.context_flag <<< 5)
-    ||| (packet.transport_type <<< 4)
-    ||| (dest_type <<< 2)
-    ||| packet.packet_type
+    packet.header_type <<< 6 |||
+      packet.context_flag <<< 5 |||
+      packet.transport_type <<< 4 |||
+      dest_type <<< 2 |||
+      packet.packet_type
   end
 
   # ── Pack ─────────────────────────────────────────────────────────
@@ -409,14 +410,15 @@ defmodule RNS.Packet do
       raise "Packet size of #{byte_size(raw)} exceeds MTU of #{packet.mtu} bytes"
     end
 
-    packet = %{packet |
-      destination_hash: destination_hash,
-      header: header,
-      flags: flags,
-      ciphertext: ciphertext,
-      raw: raw,
-      packed: true,
-      ratchet_id: ratchet_id
+    packet = %{
+      packet
+      | destination_hash: destination_hash,
+        header: header,
+        flags: flags,
+        ciphertext: ciphertext,
+        raw: raw,
+        packed: true,
+        ratchet_id: ratchet_id
     }
 
     update_hash(packet)
@@ -506,30 +508,33 @@ defmodule RNS.Packet do
       context_flag = (flags &&& 0b00100000) >>> 5
       transport_type = (flags &&& 0b00010000) >>> 4
       destination_type = (flags &&& 0b00001100) >>> 2
-      packet_type = (flags &&& 0b00000011)
+      packet_type = flags &&& 0b00000011
 
       {transport_id, destination_hash, context, data} =
         if header_type == @header_2 do
-          <<tid::binary-size(@dst_len), dhash::binary-size(@dst_len), ctx::8, payload::binary>> = rest
+          <<tid::binary-size(@dst_len), dhash::binary-size(@dst_len), ctx::8, payload::binary>> =
+            rest
+
           {tid, dhash, ctx, payload}
         else
           <<dhash::binary-size(@dst_len), ctx::8, payload::binary>> = rest
           {nil, dhash, ctx, payload}
         end
 
-      packet = %{packet |
-        flags: flags,
-        hops: hops,
-        header_type: header_type,
-        context_flag: context_flag,
-        transport_type: transport_type,
-        destination_type: destination_type,
-        packet_type: packet_type,
-        transport_id: transport_id,
-        destination_hash: destination_hash,
-        context: context,
-        data: data,
-        packed: false
+      packet = %{
+        packet
+        | flags: flags,
+          hops: hops,
+          header_type: header_type,
+          context_flag: context_flag,
+          transport_type: transport_type,
+          destination_type: destination_type,
+          packet_type: packet_type,
+          transport_id: transport_id,
+          destination_hash: destination_hash,
+          context: context,
+          data: data,
+          packed: false
       }
 
       update_hash(packet)
@@ -674,7 +679,11 @@ defmodule RNS.Packet do
         :ok
 
       true ->
-        RNS.log("Could not prove packet associated with neither a destination nor a link", RNS.log_error())
+        RNS.log(
+          "Could not prove packet associated with neither a destination nor a link",
+          RNS.log_error()
+        )
+
         :error
     end
   end

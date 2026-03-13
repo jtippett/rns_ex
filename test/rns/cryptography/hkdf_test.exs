@@ -184,17 +184,21 @@ defmodule RNS.Cryptography.HKDFTest do
 
   describe "property-based tests" do
     property "output length always matches requested length" do
-      check all ikm <- StreamData.binary(min_length: 1, max_length: 64),
-                length <- StreamData.integer(1..128) do
+      check all(
+              ikm <- StreamData.binary(min_length: 1, max_length: 64),
+              length <- StreamData.integer(1..128)
+            ) do
         result = HKDF.derive_key(ikm, length, nil, nil)
         assert byte_size(result) == length
       end
     end
 
     property "deterministic for same inputs" do
-      check all ikm <- StreamData.binary(min_length: 1, max_length: 64),
-                salt <- StreamData.binary(min_length: 0, max_length: 32),
-                info <- StreamData.binary(min_length: 0, max_length: 32) do
+      check all(
+              ikm <- StreamData.binary(min_length: 1, max_length: 64),
+              salt <- StreamData.binary(min_length: 0, max_length: 32),
+              info <- StreamData.binary(min_length: 0, max_length: 32)
+            ) do
         r1 = HKDF.derive_key(ikm, 32, salt, info)
         r2 = HKDF.derive_key(ikm, 32, salt, info)
         assert r1 == r2

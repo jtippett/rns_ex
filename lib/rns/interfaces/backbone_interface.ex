@@ -762,9 +762,7 @@ defmodule RNS.Interfaces.BackboneClientInterface do
   end
 
   def handle_info({:tcp_error, _socket, reason}, state) do
-    Logger.warning(
-      "An interface error occurred for #{format_name(state)}: #{inspect(reason)}"
-    )
+    Logger.warning("An interface error occurred for #{format_name(state)}: #{inspect(reason)}")
 
     state = %{state | online: false}
 

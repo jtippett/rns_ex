@@ -272,7 +272,8 @@ defmodule RNS.Destination do
     * `aspects` - List of aspect strings (no dots allowed)
 
   """
-  @spec new(Identity.t() | nil, non_neg_integer(), non_neg_integer(), String.t(), [String.t()]) :: t()
+  @spec new(Identity.t() | nil, non_neg_integer(), non_neg_integer(), String.t(), [String.t()]) ::
+          t()
   def new(identity, direction, type, app_name, aspects \\ []) do
     if String.contains?(app_name, ".") do
       raise ArgumentError, "Dots are not allowed in app names"
@@ -642,7 +643,10 @@ defmodule RNS.Destination do
   @spec decrypt(t(), binary()) :: binary() | nil
   def decrypt(%__MODULE__{type: @plain}, ciphertext), do: ciphertext
 
-  def decrypt(%__MODULE__{type: @single, identity: identity, ratchets: ratchets} = dest, ciphertext)
+  def decrypt(
+        %__MODULE__{type: @single, identity: identity, ratchets: ratchets} = dest,
+        ciphertext
+      )
       when identity != nil and is_list(ratchets) do
     Identity.decrypt(identity, ciphertext,
       ratchets: ratchets,
@@ -652,9 +656,7 @@ defmodule RNS.Destination do
 
   def decrypt(%__MODULE__{type: @single, identity: identity} = dest, ciphertext)
       when identity != nil do
-    Identity.decrypt(identity, ciphertext,
-      enforce_ratchets: dest.enforce_ratchets
-    )
+    Identity.decrypt(identity, ciphertext, enforce_ratchets: dest.enforce_ratchets)
   end
 
   def decrypt(%__MODULE__{type: @group, prv: nil}, _ciphertext) do

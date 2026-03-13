@@ -521,7 +521,9 @@ defmodule RNS.ChannelTest do
 
       # Build raw message with sequence 0
       data = "received"
-      raw = <<0x0001::unsigned-big-16, 0::unsigned-big-16, byte_size(data)::unsigned-big-16>> <> data
+
+      raw =
+        <<0x0001::unsigned-big-16, 0::unsigned-big-16, byte_size(data)::unsigned-big-16>> <> data
 
       channel = Channel.receive_raw(channel, raw)
 
@@ -592,7 +594,9 @@ defmodule RNS.ChannelTest do
       channel = Channel.add_message_handler(channel, handler)
 
       data = "dup"
-      raw = <<0x0001::unsigned-big-16, 0::unsigned-big-16, byte_size(data)::unsigned-big-16>> <> data
+
+      raw =
+        <<0x0001::unsigned-big-16, 0::unsigned-big-16, byte_size(data)::unsigned-big-16>> <> data
 
       channel = Channel.receive_raw(channel, raw)
       _channel = Channel.receive_raw(channel, raw)
@@ -610,7 +614,9 @@ defmodule RNS.ChannelTest do
       channel = %{channel | next_rx_sequence: 10}
 
       data = "old"
-      raw = <<0x0001::unsigned-big-16, 5::unsigned-big-16, byte_size(data)::unsigned-big-16>> <> data
+
+      raw =
+        <<0x0001::unsigned-big-16, 5::unsigned-big-16, byte_size(data)::unsigned-big-16>> <> data
 
       received = :ets.new(:received, [:set, :public])
       :ets.insert(received, {:count, 0})
@@ -651,7 +657,9 @@ defmodule RNS.ChannelTest do
       channel = Channel.add_message_handler(channel, handler2)
 
       data = "test"
-      raw = <<0x0001::unsigned-big-16, 0::unsigned-big-16, byte_size(data)::unsigned-big-16>> <> data
+
+      raw =
+        <<0x0001::unsigned-big-16, 0::unsigned-big-16, byte_size(data)::unsigned-big-16>> <> data
 
       _channel = Channel.receive_raw(channel, raw)
 
@@ -682,7 +690,9 @@ defmodule RNS.ChannelTest do
       channel = Channel.add_message_handler(channel, handler2)
 
       data = "test"
-      raw = <<0x0001::unsigned-big-16, 0::unsigned-big-16, byte_size(data)::unsigned-big-16>> <> data
+
+      raw =
+        <<0x0001::unsigned-big-16, 0::unsigned-big-16, byte_size(data)::unsigned-big-16>> <> data
 
       _channel = Channel.receive_raw(channel, raw)
 
@@ -708,7 +718,9 @@ defmodule RNS.ChannelTest do
       # Don't register any message types
 
       data = "test"
-      raw = <<0x0001::unsigned-big-16, 0::unsigned-big-16, byte_size(data)::unsigned-big-16>> <> data
+
+      raw =
+        <<0x0001::unsigned-big-16, 0::unsigned-big-16, byte_size(data)::unsigned-big-16>> <> data
 
       channel2 = Channel.receive_raw(channel, raw)
       assert channel2.next_rx_sequence == 0

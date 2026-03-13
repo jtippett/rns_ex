@@ -580,9 +580,9 @@ defmodule RNS.Resource do
        when attempt < 10 do
     result =
       Enum.reduce_while(0..(total_parts - 1), {[], <<>>, MapSet.new()}, fn i,
-                                                                            {parts_acc,
-                                                                             hashmap_acc,
-                                                                             guard_set} ->
+                                                                           {parts_acc,
+                                                                            hashmap_acc,
+                                                                            guard_set} ->
         start_pos = i * sdu
         end_pos = min((i + 1) * sdu, byte_size(encrypted_data))
         part_data = binary_part(encrypted_data, start_pos, end_pos - start_pos)
@@ -784,8 +784,7 @@ defmodule RNS.Resource do
 
     {updated_hashmap, new_height} =
       Enum.reduce(0..(hashes - 1), {resource.hashmap, resource.hashmap_height}, fn i,
-                                                                                    {hmap,
-                                                                                     height} ->
+                                                                                   {hmap, height} ->
         idx = i + segment * seg_len
         hash = binary_part(hashmap, i * @maphash_len, @maphash_len)
 
@@ -842,7 +841,11 @@ defmodule RNS.Resource do
       if resource.req_resp == nil and resource.req_sent != 0 do
         rtt = now - resource.req_sent
 
-        resource = %{resource | req_resp: now, part_timeout_factor: @part_timeout_factor_after_rtt}
+        resource = %{
+          resource
+          | req_resp: now,
+            part_timeout_factor: @part_timeout_factor_after_rtt
+        }
 
         resource =
           cond do
@@ -1055,9 +1058,9 @@ defmodule RNS.Resource do
 
     {requested_hashes, outstanding, hashmap_exhausted} =
       Enum.reduce_while(0..(search_size - 1), {<<>>, 0, @hashmap_is_not_exhausted}, fn offset,
-                                                                                         {hashes,
-                                                                                          out,
-                                                                                          exhausted} ->
+                                                                                       {hashes,
+                                                                                        out,
+                                                                                        exhausted} ->
         idx = search_start + offset
 
         if idx >= length(resource.parts) do
@@ -1153,7 +1156,9 @@ defmodule RNS.Resource do
       end
 
     hash_len = div(Identity.hashlength(), 8)
-    requested_hashes_bin = binary_part(request_data, pad + hash_len, byte_size(request_data) - pad - hash_len)
+
+    requested_hashes_bin =
+      binary_part(request_data, pad + hash_len, byte_size(request_data) - pad - hash_len)
 
     # Parse requested hashes
     map_hashes =
@@ -1165,7 +1170,12 @@ defmodule RNS.Resource do
 
     # Search scope
     search_start = resource.receiver_min_consecutive_height
-    search_end = min(search_start + RNS.Resource.Advertisement.collision_guard_size(), length(resource.parts))
+
+    search_end =
+      min(
+        search_start + RNS.Resource.Advertisement.collision_guard_size(),
+        length(resource.parts)
+      )
 
     search_scope = Enum.slice(resource.parts, search_start..(search_end - 1)//1)
 
@@ -1217,8 +1227,7 @@ defmodule RNS.Resource do
 
         resource = %{
           resource
-          | receiver_min_consecutive_height:
-              max(part_index - 1 - @window_max, 0)
+          | receiver_min_consecutive_height: max(part_index - 1 - @window_max, 0)
         }
 
         hashmap_max_len = RNS.Resource.Advertisement.hashmap_max_len()
@@ -1500,7 +1509,10 @@ defmodule RNS.Resource do
         acc + (r + 1) * @per_retry_delay
       end)
 
-    max_wait = rtt * resource.timeout_factor * resource.max_retries + resource.sender_grace_time + max_extra_wait
+    max_wait =
+      rtt * resource.timeout_factor * resource.max_retries + resource.sender_grace_time +
+        max_extra_wait
+
     sleep_time = resource.last_activity + max_wait - now
 
     if sleep_time < 0 do

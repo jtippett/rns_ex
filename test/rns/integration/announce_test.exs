@@ -46,7 +46,11 @@ defmodule RNS.Integration.AnnounceTest do
   describe "announce generation" do
     test "creates a valid announce packet for a SINGLE IN destination" do
       identity = Identity.new()
-      dest = Destination.new(identity, Destination.direction_in(), Destination.single(), "testapp", ["announce"])
+
+      dest =
+        Destination.new(identity, Destination.direction_in(), Destination.single(), "testapp", [
+          "announce"
+        ])
 
       {announce_packet, _updated_dest} = Destination.announce(dest, send: false)
 
@@ -54,16 +58,23 @@ defmodule RNS.Integration.AnnounceTest do
       assert announce_packet.packet_type == Packet.announce()
       assert announce_packet.destination == dest
       assert is_binary(announce_packet.data)
+
       # Announce data layout: public_key(64) + name_hash(10) + random_hash(10) + signature(64) [+ app_data]
       assert byte_size(announce_packet.data) >= 64 + 10 + 10 + 64
     end
 
     test "announce includes app_data when provided" do
       identity = Identity.new()
-      dest = Destination.new(identity, Destination.direction_in(), Destination.single(), "testapp", ["announce"])
+
+      dest =
+        Destination.new(identity, Destination.direction_in(), Destination.single(), "testapp", [
+          "announce"
+        ])
+
       app_data = "Hello from Elixir RNS"
 
-      {announce_packet, _updated_dest} = Destination.announce(dest, send: false, app_data: app_data)
+      {announce_packet, _updated_dest} =
+        Destination.announce(dest, send: false, app_data: app_data)
 
       assert is_binary(announce_packet.data)
       # Data should be longer when app_data is included
@@ -75,11 +86,19 @@ defmodule RNS.Integration.AnnounceTest do
       identity = Identity.new()
 
       # OUT direction should raise
-      dest_out = Destination.new(identity, Destination.direction_out(), Destination.single(), "testapp", ["announce"])
+      dest_out =
+        Destination.new(identity, Destination.direction_out(), Destination.single(), "testapp", [
+          "announce"
+        ])
+
       assert_raise ArgumentError, fn -> Destination.announce(dest_out, send: false) end
 
       # PLAIN type should raise
-      dest_plain = Destination.new(nil, Destination.direction_in(), Destination.plain(), "testapp", ["announce"])
+      dest_plain =
+        Destination.new(nil, Destination.direction_in(), Destination.plain(), "testapp", [
+          "announce"
+        ])
+
       assert_raise ArgumentError, fn -> Destination.announce(dest_plain, send: false) end
     end
   end
@@ -89,7 +108,11 @@ defmodule RNS.Integration.AnnounceTest do
   describe "announce processing through Transport" do
     test "inbound announce creates path table entry" do
       identity = Identity.new()
-      dest = Destination.new(identity, Destination.direction_in(), Destination.single(), "testapp", ["path"])
+
+      dest =
+        Destination.new(identity, Destination.direction_in(), Destination.single(), "testapp", [
+          "path"
+        ])
 
       # Generate announce but don't send via Transport (send: false)
       {announce_packet, _updated_dest} = Destination.announce(dest, send: false)
@@ -113,10 +136,17 @@ defmodule RNS.Integration.AnnounceTest do
 
     test "inbound announce with app_data creates path entry" do
       identity = Identity.new()
-      dest = Destination.new(identity, Destination.direction_in(), Destination.single(), "testapp", ["appdata"])
+
+      dest =
+        Destination.new(identity, Destination.direction_in(), Destination.single(), "testapp", [
+          "appdata"
+        ])
+
       app_data = "test-node-v1.0"
 
-      {announce_packet, _updated_dest} = Destination.announce(dest, send: false, app_data: app_data)
+      {announce_packet, _updated_dest} =
+        Destination.announce(dest, send: false, app_data: app_data)
+
       packed = Packet.pack(announce_packet)
 
       mock_interface = %{name: "TestInterface", out: true, mode: nil, ifac_identity: nil}
@@ -127,7 +157,11 @@ defmodule RNS.Integration.AnnounceTest do
 
     test "duplicate announce with same random blob is deduplicated" do
       identity = Identity.new()
-      dest = Destination.new(identity, Destination.direction_in(), Destination.single(), "testapp", ["dedup"])
+
+      dest =
+        Destination.new(identity, Destination.direction_in(), Destination.single(), "testapp", [
+          "dedup"
+        ])
 
       {announce_packet, _updated_dest} = Destination.announce(dest, send: false)
       packed = Packet.pack(announce_packet)
@@ -149,8 +183,15 @@ defmodule RNS.Integration.AnnounceTest do
       identity1 = Identity.new()
       identity2 = Identity.new()
 
-      dest1 = Destination.new(identity1, Destination.direction_in(), Destination.single(), "testapp", ["multi1"])
-      dest2 = Destination.new(identity2, Destination.direction_in(), Destination.single(), "testapp", ["multi2"])
+      dest1 =
+        Destination.new(identity1, Destination.direction_in(), Destination.single(), "testapp", [
+          "multi1"
+        ])
+
+      dest2 =
+        Destination.new(identity2, Destination.direction_in(), Destination.single(), "testapp", [
+          "multi2"
+        ])
 
       {ann1, _} = Destination.announce(dest1, send: false)
       {ann2, _} = Destination.announce(dest2, send: false)
@@ -185,7 +226,11 @@ defmodule RNS.Integration.AnnounceTest do
       Transport.register_announce_handler(handler)
 
       identity = Identity.new()
-      dest = Destination.new(identity, Destination.direction_in(), Destination.single(), "testapp", ["handler"])
+
+      dest =
+        Destination.new(identity, Destination.direction_in(), Destination.single(), "testapp", [
+          "handler"
+        ])
 
       {announce_packet, _} = Destination.announce(dest, send: false, app_data: "handler-test")
       packed = Packet.pack(announce_packet)
@@ -223,7 +268,11 @@ defmodule RNS.Integration.AnnounceTest do
   describe "destination registration" do
     test "destination can be registered and queried" do
       identity = Identity.new()
-      dest = Destination.new(identity, Destination.direction_in(), Destination.single(), "testapp", ["reg"])
+
+      dest =
+        Destination.new(identity, Destination.direction_in(), Destination.single(), "testapp", [
+          "reg"
+        ])
 
       :ok = Transport.register_destination(dest)
       assert Transport.destination_registered?(dest.hash)
@@ -234,7 +283,11 @@ defmodule RNS.Integration.AnnounceTest do
 
     test "destination can be deregistered" do
       identity = Identity.new()
-      dest = Destination.new(identity, Destination.direction_in(), Destination.single(), "testapp", ["dereg"])
+
+      dest =
+        Destination.new(identity, Destination.direction_in(), Destination.single(), "testapp", [
+          "dereg"
+        ])
 
       :ok = Transport.register_destination(dest)
       assert Transport.destination_registered?(dest.hash)
@@ -245,7 +298,11 @@ defmodule RNS.Integration.AnnounceTest do
 
     test "duplicate destination registration returns error" do
       identity = Identity.new()
-      dest = Destination.new(identity, Destination.direction_in(), Destination.single(), "testapp", ["dup"])
+
+      dest =
+        Destination.new(identity, Destination.direction_in(), Destination.single(), "testapp", [
+          "dup"
+        ])
 
       :ok = Transport.register_destination(dest)
       assert {:error, :already_registered} = Transport.register_destination(dest)
@@ -314,7 +371,11 @@ defmodule RNS.Integration.AnnounceTest do
       :ok = Transport.register_interface(interface)
 
       identity = Identity.new()
-      dest = Destination.new(identity, Destination.direction_in(), Destination.single(), "testapp", ["bcast"])
+
+      dest =
+        Destination.new(identity, Destination.direction_in(), Destination.single(), "testapp", [
+          "bcast"
+        ])
 
       # Generate, pack, and send via Transport.outbound
       {announce_packet, _} = Destination.announce(dest, send: false)
@@ -355,7 +416,11 @@ defmodule RNS.Integration.AnnounceTest do
 
       # Create identity and destination
       identity = Identity.new()
-      dest = Destination.new(identity, Destination.direction_in(), Destination.single(), "testapp", ["roundtrip"])
+
+      dest =
+        Destination.new(identity, Destination.direction_in(), Destination.single(), "testapp", [
+          "roundtrip"
+        ])
 
       # Generate and broadcast announce
       {announce_packet, _} = Destination.announce(dest, send: false)
@@ -367,7 +432,14 @@ defmodule RNS.Integration.AnnounceTest do
       assert_receive {:sent_data, raw_data}, 1000
 
       # Now simulate receiving this data on a "receiver" interface
-      receiver = %{name: "ReceiverInterface", out: false, in: true, online: true, mode: nil, ifac_identity: nil}
+      receiver = %{
+        name: "ReceiverInterface",
+        out: false,
+        in: true,
+        online: true,
+        mode: nil,
+        ifac_identity: nil
+      }
 
       # Feed the captured data back into Transport as if received from network
       result = Transport.inbound(raw_data, receiver)
@@ -383,7 +455,11 @@ defmodule RNS.Integration.AnnounceTest do
   describe "identity recall after announce" do
     test "identity can be recalled from announce destination hash via path table" do
       identity = Identity.new()
-      dest = Destination.new(identity, Destination.direction_in(), Destination.single(), "testapp", ["recall"])
+
+      dest =
+        Destination.new(identity, Destination.direction_in(), Destination.single(), "testapp", [
+          "recall"
+        ])
 
       {announce_packet, _} = Destination.announce(dest, send: false)
       packed = Packet.pack(announce_packet)
@@ -405,7 +481,11 @@ defmodule RNS.Integration.AnnounceTest do
   describe "path management with announces" do
     test "path expiry marks path as stale (timestamp zeroed)" do
       identity = Identity.new()
-      dest = Destination.new(identity, Destination.direction_in(), Destination.single(), "testapp", ["expire"])
+
+      dest =
+        Destination.new(identity, Destination.direction_in(), Destination.single(), "testapp", [
+          "expire"
+        ])
 
       {announce_packet, _} = Destination.announce(dest, send: false)
       packed = Packet.pack(announce_packet)
@@ -426,7 +506,11 @@ defmodule RNS.Integration.AnnounceTest do
 
     test "multiple announces from same destination update path" do
       identity = Identity.new()
-      dest = Destination.new(identity, Destination.direction_in(), Destination.single(), "testapp", ["update"])
+
+      dest =
+        Destination.new(identity, Destination.direction_in(), Destination.single(), "testapp", [
+          "update"
+        ])
 
       # First announce
       {ann1, updated_dest} = Destination.announce(dest, send: false)

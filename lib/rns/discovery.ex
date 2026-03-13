@@ -132,7 +132,8 @@ defmodule RNS.Discovery do
   def is_hostname(""), do: false
 
   def is_hostname(hostname) do
-    hostname = if String.ends_with?(hostname, "."), do: String.slice(hostname, 0..-2//1), else: hostname
+    hostname =
+      if String.ends_with?(hostname, "."), do: String.slice(hostname, 0..-2//1), else: hostname
 
     if String.length(hostname) > 253 do
       false
@@ -210,7 +211,8 @@ defmodule RNS.Discovery.InterfaceAnnounceHandler do
   def new(opts \\ []) do
     %__MODULE__{
       aspect_filter: Discovery.app_name() <> ".discovery.interface",
-      required_value: Keyword.get(opts, :required_value, RNS.Discovery.InterfaceAnnouncer.default_stamp_value()),
+      required_value:
+        Keyword.get(opts, :required_value, RNS.Discovery.InterfaceAnnouncer.default_stamp_value()),
       callback: Keyword.get(opts, :callback),
       stamper: nil
     }
@@ -296,7 +298,8 @@ defmodule RNS.Discovery.InterfaceAnnounceHandler do
     end
   end
 
-  defp add_type_specific_info(info, unpacked, type) when type in ["BackboneInterface", "TCPServerInterface"] do
+  defp add_type_specific_info(info, unpacked, type)
+       when type in ["BackboneInterface", "TCPServerInterface"] do
     backbone_support = not RNS.Vendor.PlatformUtils.is_windows?()
     reachable_on = unpacked[Discovery.reachable_on_field()]
     port = unpacked[Discovery.port_field()]
@@ -306,7 +309,9 @@ defmodule RNS.Discovery.InterfaceAnnounceHandler do
       |> Map.put("reachable_on", reachable_on)
       |> Map.put("port", port)
 
-    connection_interface = if backbone_support, do: "BackboneInterface", else: "TCPClientInterface"
+    connection_interface =
+      if backbone_support, do: "BackboneInterface", else: "TCPClientInterface"
+
     remote_str = if backbone_support, do: "remote", else: "target_host"
 
     cfg_name = info["name"]
@@ -499,7 +504,8 @@ defmodule RNS.Discovery.InterfaceAnnouncer do
         Discovery.interface_type_field() => effective_type,
         Discovery.transport_field() => ctx.transport_enabled,
         Discovery.transport_id_field() => ctx.transport_identity_hash,
-        Discovery.name_field() => Discovery.sanitize(Map.get(interface, :discovery_name, interface.name)),
+        Discovery.name_field() =>
+          Discovery.sanitize(Map.get(interface, :discovery_name, interface.name)),
         Discovery.latitude_field() => Map.get(interface, :discovery_latitude),
         Discovery.longitude_field() => Map.get(interface, :discovery_longitude),
         Discovery.height_field() => Map.get(interface, :discovery_height)
@@ -514,8 +520,14 @@ defmodule RNS.Discovery.InterfaceAnnouncer do
         # Add IFAC info if configured
         if Map.get(interface, :discovery_publish_ifac) == true do
           info
-          |> Map.put(Discovery.ifac_netname_field(), Discovery.sanitize(Map.get(interface, :ifac_netname, "")))
-          |> Map.put(Discovery.ifac_netkey_field(), Discovery.sanitize(Map.get(interface, :ifac_netkey, "")))
+          |> Map.put(
+            Discovery.ifac_netname_field(),
+            Discovery.sanitize(Map.get(interface, :ifac_netname, ""))
+          )
+          |> Map.put(
+            Discovery.ifac_netkey_field(),
+            Discovery.sanitize(Map.get(interface, :ifac_netkey, ""))
+          )
         else
           info
         end
@@ -553,7 +565,8 @@ defmodule RNS.Discovery.InterfaceAnnouncer do
   defp get_type_name(%{__struct__: mod}), do: mod |> Module.split() |> List.last()
   defp get_type_name(_), do: "Unknown"
 
-  defp add_type_params(info, interface, type) when type in ["BackboneInterface", "TCPServerInterface"] do
+  defp add_type_params(info, interface, type)
+       when type in ["BackboneInterface", "TCPServerInterface"] do
     reachable_on = Discovery.sanitize(Map.get(interface, :reachable_on, ""))
 
     unless Discovery.is_ip_address(reachable_on) or Discovery.is_hostname(reachable_on) do
@@ -593,7 +606,10 @@ defmodule RNS.Discovery.InterfaceAnnouncer do
     info
     |> Map.put(Discovery.frequency_field(), Map.get(interface, :discovery_frequency))
     |> Map.put(Discovery.bandwidth_field(), Map.get(interface, :discovery_bandwidth))
-    |> Map.put(Discovery.modulation_field(), Discovery.sanitize(to_string(Map.get(interface, :discovery_modulation, ""))))
+    |> Map.put(
+      Discovery.modulation_field(),
+      Discovery.sanitize(to_string(Map.get(interface, :discovery_modulation, "")))
+    )
   end
 
   defp add_type_params(info, _interface, _type), do: info
@@ -750,11 +766,23 @@ defmodule RNS.Discovery.InterfaceDiscovery do
 
         should_remove =
           cond do
-            heard_delta > @threshold_remove -> true
-            discovery_sources != nil and not Map.has_key?(info, "network_id") -> true
-            discovery_sources != nil and not (Base.decode16!(info["network_id"], case: :mixed) in discovery_sources) -> true
-            Map.has_key?(info, "reachable_on") and not (Discovery.is_ip_address(info["reachable_on"]) or Discovery.is_hostname(info["reachable_on"])) -> true
-            true -> false
+            heard_delta > @threshold_remove ->
+              true
+
+            discovery_sources != nil and not Map.has_key?(info, "network_id") ->
+              true
+
+            discovery_sources != nil and
+                Base.decode16!(info["network_id"], case: :mixed) not in discovery_sources ->
+              true
+
+            Map.has_key?(info, "reachable_on") and
+                not (Discovery.is_ip_address(info["reachable_on"]) or
+                         Discovery.is_hostname(info["reachable_on"])) ->
+              true
+
+            true ->
+              false
           end
 
         if should_remove do
@@ -801,7 +829,7 @@ defmodule RNS.Discovery.InterfaceDiscovery do
   @spec endpoint_hash(map()) :: binary()
   def endpoint_hash(info) do
     endpoint_specifier =
-      (if Map.has_key?(info, "reachable_on"), do: to_string(info["reachable_on"]), else: "") <>
+      if(Map.has_key?(info, "reachable_on"), do: to_string(info["reachable_on"]), else: "") <>
         if Map.has_key?(info, "port"), do: ":" <> to_string(info["port"]), else: ""
 
     RNS.Identity.full_hash(endpoint_specifier)

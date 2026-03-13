@@ -150,15 +150,19 @@ defmodule RNS.Cryptography.HMACTest do
 
   describe "property-based tests" do
     property "HMAC-SHA256 matches :crypto.mac directly" do
-      check all key <- StreamData.binary(min_length: 1, max_length: 64),
-                data <- StreamData.binary(min_length: 0, max_length: 256) do
+      check all(
+              key <- StreamData.binary(min_length: 1, max_length: 64),
+              data <- StreamData.binary(min_length: 0, max_length: 256)
+            ) do
         assert HMAC.digest(key, data, :sha256) == :crypto.mac(:hmac, :sha256, key, data)
       end
     end
 
     property "HMAC-SHA512 matches :crypto.mac directly" do
-      check all key <- StreamData.binary(min_length: 1, max_length: 64),
-                data <- StreamData.binary(min_length: 0, max_length: 256) do
+      check all(
+              key <- StreamData.binary(min_length: 1, max_length: 64),
+              data <- StreamData.binary(min_length: 0, max_length: 256)
+            ) do
         assert HMAC.digest(key, data, :sha512) == :crypto.mac(:hmac, :sha512, key, data)
       end
     end

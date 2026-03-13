@@ -21,12 +21,13 @@ defmodule RNS.RequestReceiptTest do
     test "creates receipt with packet_receipt" do
       packet_receipt = %{truncated_hash: :crypto.strong_rand_bytes(16)}
 
-      receipt = RequestReceipt.new(
-        link: %{},
-        timeout: 30,
-        packet_receipt: packet_receipt,
-        request_size: 100
-      )
+      receipt =
+        RequestReceipt.new(
+          link: %{},
+          timeout: 30,
+          packet_receipt: packet_receipt,
+          request_size: 100
+        )
 
       assert receipt.status == RequestReceipt.sent()
       assert receipt.hash == packet_receipt.truncated_hash
@@ -40,11 +41,12 @@ defmodule RNS.RequestReceiptTest do
     test "creates receipt with resource" do
       resource = %{request_id: :crypto.strong_rand_bytes(16)}
 
-      receipt = RequestReceipt.new(
-        link: %{},
-        timeout: 60,
-        resource: resource
-      )
+      receipt =
+        RequestReceipt.new(
+          link: %{},
+          timeout: 60,
+          resource: resource
+        )
 
       assert receipt.hash == resource.request_id
       assert receipt.started_at == nil
@@ -55,13 +57,14 @@ defmodule RNS.RequestReceiptTest do
       fail_cb = fn _receipt -> :error end
       prog_cb = fn _receipt -> :progress end
 
-      receipt = RequestReceipt.new(
-        link: %{},
-        timeout: 30,
-        response_callback: resp_cb,
-        failed_callback: fail_cb,
-        progress_callback: prog_cb
-      )
+      receipt =
+        RequestReceipt.new(
+          link: %{},
+          timeout: 30,
+          response_callback: resp_cb,
+          failed_callback: fail_cb,
+          progress_callback: prog_cb
+        )
 
       assert receipt.callbacks.response == resp_cb
       assert receipt.callbacks.failed == fail_cb
@@ -160,6 +163,7 @@ defmodule RNS.RequestReceiptTest do
 
     test "invokes failed callback" do
       test_pid = self()
+
       receipt = %RequestReceipt{
         status: RequestReceipt.delivered(),
         callbacks: %RequestReceipt.Callbacks{
@@ -206,6 +210,7 @@ defmodule RNS.RequestReceiptTest do
 
     test "invokes response callback" do
       test_pid = self()
+
       receipt = %RequestReceipt{
         status: RequestReceipt.sent(),
         callbacks: %RequestReceipt.Callbacks{
@@ -219,6 +224,7 @@ defmodule RNS.RequestReceiptTest do
 
     test "invokes progress callback" do
       test_pid = self()
+
       receipt = %RequestReceipt{
         status: RequestReceipt.sent(),
         callbacks: %RequestReceipt.Callbacks{

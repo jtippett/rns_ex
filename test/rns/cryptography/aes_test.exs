@@ -5,9 +5,7 @@ defmodule RNS.Cryptography.AESTest do
 
   # NIST SP 800-38A AES-256-CBC test vector
   # See: https://csrc.nist.gov/publications/detail/sp/800-38a/final
-  @nist_key Base.decode16!(
-              "603DEB1015CA71BE2B73AEF0857D77811F352C073B6108D72D9810A30914DFF4"
-            )
+  @nist_key Base.decode16!("603DEB1015CA71BE2B73AEF0857D77811F352C073B6108D72D9810A30914DFF4")
   @nist_iv Base.decode16!("000102030405060708090A0B0C0D0E0F")
 
   # NIST AES-256-CBC plaintext blocks (4 blocks = 64 bytes)
@@ -133,7 +131,7 @@ defmodule RNS.Cryptography.AESTest do
 
     describe "property-based tests" do
       property "encrypt/decrypt roundtrip with PKCS7 for arbitrary data" do
-        check all data <- StreamData.binary(min_length: 0, max_length: 512) do
+        check all(data <- StreamData.binary(min_length: 0, max_length: 512)) do
           key = :crypto.strong_rand_bytes(32)
           iv = :crypto.strong_rand_bytes(16)
 
@@ -147,7 +145,7 @@ defmodule RNS.Cryptography.AESTest do
       end
 
       property "ciphertext length equals padded plaintext length" do
-        check all data <- StreamData.binary(min_length: 1, max_length: 256) do
+        check all(data <- StreamData.binary(min_length: 1, max_length: 256)) do
           key = :crypto.strong_rand_bytes(32)
           iv = :crypto.strong_rand_bytes(16)
 

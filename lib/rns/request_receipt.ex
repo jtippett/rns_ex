@@ -152,7 +152,11 @@ defmodule RNS.RequestReceipt do
 
   @doc "Returns the response time in seconds, or nil if not ready."
   @spec get_response_time(t()) :: number() | nil
-  def get_response_time(%__MODULE__{status: @ready, response_concluded_at: concluded, started_at: started})
+  def get_response_time(%__MODULE__{
+        status: @ready,
+        response_concluded_at: concluded,
+        started_at: started
+      })
       when concluded != nil and started != nil do
     concluded - started
   end
@@ -170,10 +174,7 @@ defmodule RNS.RequestReceipt do
   @doc "Marks the request as timed out/failed."
   @spec request_timed_out(t()) :: t()
   def request_timed_out(%__MODULE__{status: @delivered} = receipt) do
-    updated = %{receipt |
-      status: @failed,
-      concluded_at: System.system_time(:second)
-    }
+    updated = %{receipt | status: @failed, concluded_at: System.system_time(:second)}
 
     if updated.callbacks && updated.callbacks.failed do
       try do
@@ -196,12 +197,13 @@ defmodule RNS.RequestReceipt do
 
   def response_received(%__MODULE__{status: status} = receipt, response, metadata)
       when status != @failed do
-    updated = %{receipt |
-      progress: 1.0,
-      response: response,
-      metadata: metadata,
-      status: @ready,
-      response_concluded_at: System.system_time(:second)
+    updated = %{
+      receipt
+      | progress: 1.0,
+        response: response,
+        metadata: metadata,
+        status: @ready,
+        response_concluded_at: System.system_time(:second)
     }
 
     if updated.callbacks && updated.callbacks.progress do
@@ -234,10 +236,7 @@ defmodule RNS.RequestReceipt do
   end
 
   def response_resource_progress(%__MODULE__{} = receipt, resource) when resource != nil do
-    updated = %{receipt |
-      status: @receiving,
-      progress: Map.get(resource, :progress, 0.0)
-    }
+    updated = %{receipt | status: @receiving, progress: Map.get(resource, :progress, 0.0)}
 
     if updated.callbacks && updated.callbacks.progress do
       try do
@@ -256,7 +255,8 @@ defmodule RNS.RequestReceipt do
 
   @doc "Checks if the request has timed out and marks it as failed if so."
   @spec check_timeout(t()) :: t()
-  def check_timeout(%__MODULE__{status: @delivered, timeout: timeout} = receipt) when timeout != nil do
+  def check_timeout(%__MODULE__{status: @delivered, timeout: timeout} = receipt)
+      when timeout != nil do
     if receipt.sent_at && System.system_time(:second) > receipt.sent_at + timeout do
       request_timed_out(receipt)
     else

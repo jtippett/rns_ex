@@ -43,6 +43,7 @@ defmodule RNS.Cryptography.PKCS7Test do
       for len <- 0..48 do
         data = :crypto.strong_rand_bytes(len)
         padded = PKCS7.pad(data, @block_size)
+
         assert rem(byte_size(padded), @block_size) == 0,
                "Length #{len} produced non-aligned output of #{byte_size(padded)} bytes"
       end
@@ -93,6 +94,7 @@ defmodule RNS.Cryptography.PKCS7Test do
     test "roundtrip for various lengths" do
       for len <- 0..64 do
         data = :crypto.strong_rand_bytes(len)
+
         assert PKCS7.unpad(PKCS7.pad(data, @block_size), @block_size) == data,
                "Roundtrip failed for length #{len}"
       end
@@ -132,21 +134,23 @@ defmodule RNS.Cryptography.PKCS7Test do
 
     describe "property-based tests" do
       property "pad/unpad roundtrip for arbitrary data and default block size" do
-        check all data <- StreamData.binary(min_length: 0, max_length: 512) do
+        check all(data <- StreamData.binary(min_length: 0, max_length: 512)) do
           assert PKCS7.unpad(PKCS7.pad(data)) == data
         end
       end
 
       property "padded output is always longer than input" do
-        check all data <- StreamData.binary(min_length: 0, max_length: 512) do
+        check all(data <- StreamData.binary(min_length: 0, max_length: 512)) do
           padded = PKCS7.pad(data)
           assert byte_size(padded) > byte_size(data)
         end
       end
 
       property "padded output is always block-aligned" do
-        check all data <- StreamData.binary(min_length: 0, max_length: 512),
-                  bs <- StreamData.member_of([8, 16, 32]) do
+        check all(
+                data <- StreamData.binary(min_length: 0, max_length: 512),
+                bs <- StreamData.member_of([8, 16, 32])
+              ) do
           padded = PKCS7.pad(data, bs)
           assert rem(byte_size(padded), bs) == 0
         end

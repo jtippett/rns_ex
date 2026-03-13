@@ -412,6 +412,7 @@ defmodule RNS.Interfaces.UDPInterfaceTest do
 
     test "process_outgoing/2 returns error when not forwarding" do
       state = %UDPInterface{name: "no_fwd", forwards: false}
+
       assert {:error, :not_configured_for_forwarding} =
                UDPInterface.process_outgoing(state, "test")
     end

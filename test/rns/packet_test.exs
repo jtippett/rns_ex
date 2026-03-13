@@ -202,15 +202,17 @@ defmodule RNS.PacketTest do
 
     test "creates a packet with custom options" do
       dest = make_destination()
-      packet = Packet.new(dest, "test",
-        packet_type: Packet.announce(),
-        context: Packet.context_none(),
-        transport_type: 0x01,
-        header_type: Packet.header_2(),
-        transport_id: :crypto.strong_rand_bytes(16),
-        create_receipt: false,
-        context_flag: Packet.flag_set()
-      )
+
+      packet =
+        Packet.new(dest, "test",
+          packet_type: Packet.announce(),
+          context: Packet.context_none(),
+          transport_type: 0x01,
+          header_type: Packet.header_2(),
+          transport_id: :crypto.strong_rand_bytes(16),
+          create_receipt: false,
+          context_flag: Packet.flag_set()
+        )
 
       assert packet.packet_type == Packet.announce()
       assert packet.transport_type == 0x01
@@ -262,11 +264,13 @@ defmodule RNS.PacketTest do
       # header_type=1, context_flag=0, transport_type=1, dest_type=0 (SINGLE), packet_type=1 (ANNOUNCE)
       # flags = (1 << 6) | (0 << 5) | (1 << 4) | (0 << 2) | 1 = 0x51
       dest = make_destination(type: 0x00)
-      packet = Packet.new(dest, "test",
-        header_type: Packet.header_2(),
-        transport_type: 0x01,
-        packet_type: Packet.announce()
-      )
+
+      packet =
+        Packet.new(dest, "test",
+          header_type: Packet.header_2(),
+          transport_type: 0x01,
+          packet_type: Packet.announce()
+        )
 
       assert Packet.get_packed_flags(packet) == 0x51
     end
@@ -285,10 +289,12 @@ defmodule RNS.PacketTest do
       # header_type=0, context_flag=0, transport_type=0, dest_type=3 (LINK), packet_type=3 (PROOF)
       # flags = (0 << 6) | (0 << 5) | (0 << 4) | (3 << 2) | 3 = 0x0F
       dest = make_destination(type: 0x00)
-      packet = Packet.new(dest, "test",
-        packet_type: Packet.proof(),
-        context: Packet.context_lrproof()
-      )
+
+      packet =
+        Packet.new(dest, "test",
+          packet_type: Packet.proof(),
+          context: Packet.context_lrproof()
+        )
 
       assert Packet.get_packed_flags(packet) == 0x0F
     end
@@ -341,12 +347,14 @@ defmodule RNS.PacketTest do
       transport_id = :crypto.strong_rand_bytes(16)
       dest = make_destination(hash: dest_hash, type: 0x00)
       payload = "transport data"
-      packet = Packet.new(dest, payload,
-        packet_type: Packet.announce(),
-        header_type: Packet.header_2(),
-        transport_type: 0x01,
-        transport_id: transport_id
-      )
+
+      packet =
+        Packet.new(dest, payload,
+          packet_type: Packet.announce(),
+          header_type: Packet.header_2(),
+          transport_type: 0x01,
+          transport_id: transport_id
+        )
 
       packed = Packet.pack(packet)
 
@@ -357,10 +365,12 @@ defmodule RNS.PacketTest do
 
     test "packs a HEADER_2 packet without transport_id raises error" do
       dest = make_destination()
-      packet = Packet.new(dest, "data",
-        header_type: Packet.header_2(),
-        transport_type: 0x01
-      )
+
+      packet =
+        Packet.new(dest, "data",
+          header_type: Packet.header_2(),
+          transport_type: 0x01
+        )
 
       assert_raise RuntimeError, ~r/transport ID/, fn ->
         Packet.pack(packet)
@@ -371,10 +381,12 @@ defmodule RNS.PacketTest do
       link_id = :crypto.strong_rand_bytes(16)
       dest = make_destination(link_id: link_id, type: 0x00)
       proof_data = :crypto.strong_rand_bytes(32)
-      packet = Packet.new(dest, proof_data,
-        packet_type: Packet.proof(),
-        context: Packet.context_lrproof()
-      )
+
+      packet =
+        Packet.new(dest, proof_data,
+          packet_type: Packet.proof(),
+          context: Packet.context_lrproof()
+        )
 
       packed = Packet.pack(packet)
 
@@ -444,6 +456,7 @@ defmodule RNS.PacketTest do
     test "unpacks a HEADER_1 packet" do
       dest_hash = :crypto.strong_rand_bytes(16)
       payload = "some data"
+
       # flags: header_type=0, context_flag=0, transport_type=0, dest_type=0 (SINGLE), packet_type=1 (ANNOUNCE)
       flags = 0x01
       raw = <<flags::8, 3::8>> <> dest_hash <> <<0x00>> <> payload
@@ -469,8 +482,9 @@ defmodule RNS.PacketTest do
       transport_id = :crypto.strong_rand_bytes(16)
       dest_hash = :crypto.strong_rand_bytes(16)
       payload = "transport data"
+
       # flags: header_type=1, context_flag=0, transport_type=1, dest_type=0, packet_type=1 (ANNOUNCE)
-      flags = (1 <<< 6) ||| (0 <<< 5) ||| (1 <<< 4) ||| (0 <<< 2) ||| 1
+      flags = 1 <<< 6 ||| 0 <<< 5 ||| 1 <<< 4 ||| 0 <<< 2 ||| 1
       raw = <<flags::8, 5::8>> <> transport_id <> dest_hash <> <<0x00>> <> payload
 
       packet = Packet.new(nil, raw)
@@ -526,12 +540,14 @@ defmodule RNS.PacketTest do
       dest = make_destination(hash: dest_hash, type: 0x00)
       payload = :crypto.strong_rand_bytes(32)
 
-      packed = Packet.new(dest, payload,
-        packet_type: Packet.announce(),
-        header_type: Packet.header_2(),
-        transport_type: 0x01,
-        transport_id: transport_id
-      ) |> Packet.pack()
+      packed =
+        Packet.new(dest, payload,
+          packet_type: Packet.announce(),
+          header_type: Packet.header_2(),
+          transport_type: 0x01,
+          transport_id: transport_id
+        )
+        |> Packet.pack()
 
       unpacked = Packet.new(nil, packed.raw) |> Packet.unpack()
 
@@ -624,12 +640,14 @@ defmodule RNS.PacketTest do
       transport_id = :crypto.strong_rand_bytes(16)
       dest = make_destination(hash: dest_hash, type: 0x00)
 
-      packet = Packet.new(dest, "test",
-        packet_type: Packet.announce(),
-        header_type: Packet.header_2(),
-        transport_type: 0x01,
-        transport_id: transport_id
-      ) |> Packet.pack()
+      packet =
+        Packet.new(dest, "test",
+          packet_type: Packet.announce(),
+          header_type: Packet.header_2(),
+          transport_type: 0x01,
+          transport_id: transport_id
+        )
+        |> Packet.pack()
 
       hashable = Packet.get_hashable_part(packet)
 
@@ -806,9 +824,11 @@ defmodule RNS.PacketTest do
       packet = Packet.new(dest, "test", packet_type: Packet.announce()) |> Packet.pack()
       receipt = PacketReceipt.new(packet)
       receipt = %{receipt | sent_at: System.system_time(:second) - 100, timeout: 1.0}
-      receipt = PacketReceipt.set_timeout_callback(receipt, fn r ->
-        send(test_pid, {:timeout, r.status})
-      end)
+
+      receipt =
+        PacketReceipt.set_timeout_callback(receipt, fn r ->
+          send(test_pid, {:timeout, r.status})
+        end)
 
       PacketReceipt.check_timeout(receipt)
 
@@ -838,7 +858,8 @@ defmodule RNS.PacketTest do
       proof_dest = ProofDestination.new(packet)
 
       assert byte_size(proof_dest.hash) == 16
-      assert proof_dest.type == 0x00  # SINGLE
+      # SINGLE
+      assert proof_dest.type == 0x00
     end
 
     test "proof destination hash is truncated packet hash" do

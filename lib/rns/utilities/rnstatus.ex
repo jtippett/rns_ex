@@ -149,8 +149,12 @@ defmodule RNS.Utilities.RNStatus do
       |> maybe_add_opt(:verbosity, if(opts.verbosity > 0, do: opts.verbosity))
 
     case start_reticulum(reticulum_opts) do
-      {:ok, _pid} -> :ok
-      {:error, {:already_started, _pid}} -> :ok
+      {:ok, _pid} ->
+        :ok
+
+      {:error, {:already_started, _pid}} ->
+        :ok
+
       {:error, reason} ->
         IO.puts(:stderr, "No shared RNS instance available to get status from")
         if Map.get(opts, :must_exit, true), do: System.halt(1)
@@ -380,7 +384,10 @@ defmodule RNS.Utilities.RNStatus do
     if ifstat["ifac_signature"] != nil do
       sig = ifstat["ifac_signature"]
       sig_bytes = if is_binary(sig), do: sig, else: <<>>
-      last_5 = binary_part(sig_bytes, max(byte_size(sig_bytes) - 5, 0), min(5, byte_size(sig_bytes)))
+
+      last_5 =
+        binary_part(sig_bytes, max(byte_size(sig_bytes) - 5, 0), min(5, byte_size(sig_bytes)))
+
       sigstr = "<…#{RNS.hexrep(last_5, false)}>"
       IO.puts("    Access    : #{ifstat["ifac_size"] * 8}-bit IFAC by #{sigstr}")
     end
@@ -649,6 +656,7 @@ defmodule RNS.Utilities.RNStatus do
   end
 
   defp calculate_frequency(deque) when length(deque) < 2, do: 0
+
   defp calculate_frequency(deque) do
     sorted = Enum.sort(deque)
     first = List.first(sorted)
@@ -665,7 +673,9 @@ defmodule RNS.Utilities.RNStatus do
   defp get_transport_id do
     try do
       case GenServer.whereis(RNS.Transport) do
-        nil -> nil
+        nil ->
+          nil
+
         _pid ->
           state = :sys.get_state(RNS.Transport)
           Map.get(state, :identity_hash)
@@ -678,7 +688,9 @@ defmodule RNS.Utilities.RNStatus do
   defp get_transport_uptime do
     try do
       case GenServer.whereis(RNS.Transport) do
-        nil -> nil
+        nil ->
+          nil
+
         _pid ->
           state = :sys.get_state(RNS.Transport)
           started = Map.get(state, :started_at)

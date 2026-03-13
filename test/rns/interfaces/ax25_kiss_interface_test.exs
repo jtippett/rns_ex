@@ -152,7 +152,7 @@ defmodule RNS.Interfaces.AX25KISSInterfaceTest do
       assert :binary.at(addr, 5) == ?L <<< 1
 
       # Source SSID byte: 0x60 | (ssid << 1) | 0x01
-      expected_ssid = 0x60 ||| (7 <<< 1) ||| 0x01
+      expected_ssid = 0x60 ||| 7 <<< 1 ||| 0x01
       assert :binary.at(addr, 6) == expected_ssid
     end
 

@@ -356,17 +356,13 @@ defmodule RNS.Interfaces.UDPInterface do
           {:ok, %{state | txb: state.txb + byte_size(data)}}
 
         {:error, reason} ->
-          Logger.error(
-            "Could not transmit on UDPInterface[#{state.name}]: #{inspect(reason)}"
-          )
+          Logger.error("Could not transmit on UDPInterface[#{state.name}]: #{inspect(reason)}")
 
           {:error, reason}
       end
     rescue
       e ->
-        Logger.error(
-          "Could not transmit on UDPInterface[#{state.name}]: #{Exception.message(e)}"
-        )
+        Logger.error("Could not transmit on UDPInterface[#{state.name}]: #{Exception.message(e)}")
 
         {:error, :send_failed}
     end

@@ -917,7 +917,8 @@ defmodule RNS.Transport do
 
   @doc "Retrieves a cached packet from disk."
   @spec get_cached_packet(binary(), keyword()) :: map() | nil
-  def get_cached_packet(packet_hash, opts \\ []), do: CacheManagement.get_cached_packet(packet_hash, opts)
+  def get_cached_packet(packet_hash, opts \\ []),
+    do: CacheManagement.get_cached_packet(packet_hash, opts)
 
   @doc "Handles a cache request packet."
   @spec cache_request_packet(map()) :: boolean()
@@ -1172,7 +1173,7 @@ defmodule RNS.Transport do
         _transport_id_hash =
           if transport_identity, do: transport_identity.hash, else: :crypto.strong_rand_bytes(16)
 
-        new_flags = (@header_2 <<< 6) ||| (@transport <<< 4) ||| (packet.flags &&& 0x0F)
+        new_flags = @header_2 <<< 6 ||| @transport <<< 4 ||| (packet.flags &&& 0x0F)
         next_hop_hash = path_entry.next_hop
 
         new_raw =
@@ -1190,7 +1191,7 @@ defmodule RNS.Transport do
         _transport_id_hash =
           if transport_identity, do: transport_identity.hash, else: :crypto.strong_rand_bytes(16)
 
-        new_flags = (@header_2 <<< 6) ||| (@transport <<< 4) ||| (packet.flags &&& 0x0F)
+        new_flags = @header_2 <<< 6 ||| @transport <<< 4 ||| (packet.flags &&& 0x0F)
         next_hop_hash = path_entry.next_hop
 
         new_raw =
@@ -1376,7 +1377,9 @@ defmodule RNS.Transport do
 
           # Calculate expected IFAC
           expected_signature = Identity.sign(interface.ifac_identity, new_raw)
-          expected_ifac = binary_part(expected_signature, byte_size(expected_signature) - ifac_size, ifac_size)
+
+          expected_ifac =
+            binary_part(expected_signature, byte_size(expected_signature) - ifac_size, ifac_size)
 
           if ifac == expected_ifac, do: {:ok, new_raw}, else: :drop
         else
@@ -1548,7 +1551,7 @@ defmodule RNS.Transport do
 
             remaining_hops == 1 ->
               # Strip transport headers, convert back to HEADER_1
-              new_flags = (@header_1 <<< 6) ||| (@broadcast <<< 4) ||| (packet.flags &&& 0x0F)
+              new_flags = @header_1 <<< 6 ||| @broadcast <<< 4 ||| (packet.flags &&& 0x0F)
 
               <<new_flags::8>> <>
                 <<packet.hops::8>> <>
@@ -1691,7 +1694,8 @@ defmodule RNS.Transport do
           # Track rebroadcasts from other transport nodes
           if transport_enabled do
             case get_announce_entry(packet.destination_hash) do
-              nil -> :ok
+              nil ->
+                :ok
 
               entry ->
                 AnnounceHandler.handle_rebroadcast_tracking(
@@ -2267,7 +2271,8 @@ defmodule RNS.Transport do
   end
 
   defp maybe_clean_cache(state, now) do
-    if state.cachepath != nil and now > state.cache_last_cleaned + div(@cache_clean_interval, 1000) do
+    if state.cachepath != nil and
+         now > state.cache_last_cleaned + div(@cache_clean_interval, 1000) do
       CacheManagement.clean_cache(state.cachepath)
       %{state | cache_last_cleaned: now}
     else

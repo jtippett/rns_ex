@@ -401,8 +401,16 @@ defmodule RNS.Transport.CacheManagement do
 
           tunnel_paths =
             Enum.reduce(serialized_paths, %{}, fn serialized_entry, paths ->
-              [destination_hash, timestamp, received_from, hops, path_expires,
-               random_blobs, _path_interface_hash, packet_hash] = serialized_entry
+              [
+                destination_hash,
+                timestamp,
+                received_from,
+                hops,
+                path_expires,
+                random_blobs,
+                _path_interface_hash,
+                packet_hash
+              ] = serialized_entry
 
               random_blobs = Enum.uniq(random_blobs || [])
 

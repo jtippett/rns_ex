@@ -9,30 +9,22 @@ defmodule RNS.Cryptography.HashesTest do
   describe "sha256/1" do
     test "empty input" do
       assert Hashes.sha256("") ==
-               Base.decode16!(
-                 "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
-               )
+               Base.decode16!("E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855")
     end
 
     test "less than block length ('abc')" do
       assert Hashes.sha256("abc") ==
-               Base.decode16!(
-                 "BA7816BF8F01CFEA414140DE5DAE2223B00361A396177A9CB410FF61F20015AD"
-               )
+               Base.decode16!("BA7816BF8F01CFEA414140DE5DAE2223B00361A396177A9CB410FF61F20015AD")
     end
 
     test "exactly one block length (64 bytes of 'a')" do
       assert Hashes.sha256(String.duplicate("a", 64)) ==
-               Base.decode16!(
-                 "FFE054FE7AE0CB6DC65C3AF9B61D5209F439851DB43D0BA5997337DF154668EB"
-               )
+               Base.decode16!("FFE054FE7AE0CB6DC65C3AF9B61D5209F439851DB43D0BA5997337DF154668EB")
     end
 
     test "several blocks (1,000,000 bytes of 'a')" do
       assert Hashes.sha256(String.duplicate("a", 1_000_000)) ==
-               Base.decode16!(
-                 "CDC76E5C9914FB9281A1C7E284D73E67F1809A48A497200E046D39CCC7112CD0"
-               )
+               Base.decode16!("CDC76E5C9914FB9281A1C7E284D73E67F1809A48A497200E046D39CCC7112CD0")
     end
 
     test "returns a 32-byte binary" do
@@ -42,7 +34,7 @@ defmodule RNS.Cryptography.HashesTest do
     end
 
     property "matches :crypto.hash for random data" do
-      check all data <- binary() do
+      check all(data <- binary()) do
         assert Hashes.sha256(data) == :crypto.hash(:sha256, data)
       end
     end
@@ -90,7 +82,7 @@ defmodule RNS.Cryptography.HashesTest do
     end
 
     property "matches :crypto.hash for random data" do
-      check all data <- binary() do
+      check all(data <- binary()) do
         assert Hashes.sha512(data) == :crypto.hash(:sha512, data)
       end
     end
@@ -121,14 +113,14 @@ defmodule RNS.Cryptography.HashesTest do
     end
 
     property "always returns 16 bytes for any input" do
-      check all data <- binary() do
+      check all(data <- binary()) do
         result = Hashes.truncated_hash(data)
         assert byte_size(result) == 16
       end
     end
 
     property "equals first 16 bytes of sha256" do
-      check all data <- binary() do
+      check all(data <- binary()) do
         <<prefix::binary-size(16), _::binary>> = Hashes.sha256(data)
         assert Hashes.truncated_hash(data) == prefix
       end

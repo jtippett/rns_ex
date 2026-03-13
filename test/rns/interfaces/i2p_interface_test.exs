@@ -176,7 +176,9 @@ defmodule RNS.Interfaces.I2PInterfaceTest do
 
     test "format_stream_connect" do
       result = I2PController.format_stream_connect("sess1", "destination_b32.b32.i2p")
-      assert result == "STREAM CONNECT ID=sess1 DESTINATION=destination_b32.b32.i2p SILENT=false\n"
+
+      assert result ==
+               "STREAM CONNECT ID=sess1 DESTINATION=destination_b32.b32.i2p SILENT=false\n"
     end
 
     test "format_stream_accept" do
@@ -589,8 +591,12 @@ defmodule RNS.Interfaces.I2PInterfaceTest do
       # Accept a TCP connection
       Task.async(fn ->
         {:ok, client_socket} = :gen_tcp.accept(listen, 2000)
-        :gen_tcp.send(client_socket, HDLC.frame(<<1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
-          11, 12, 13, 14, 15, 16, 17, 18, 19, 20>>))
+
+        :gen_tcp.send(
+          client_socket,
+          HDLC.frame(<<1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20>>)
+        )
+
         Process.sleep(100)
         :gen_tcp.close(client_socket)
       end)

@@ -286,11 +286,12 @@ defmodule RNS.PacketReceipt do
   defp conclude_delivery(%__MODULE__{} = receipt, proof_packet) do
     now = System.system_time(:second)
 
-    receipt = %{receipt |
-      status: @delivered,
-      proved: true,
-      concluded_at: now,
-      proof_packet: proof_packet
+    receipt = %{
+      receipt
+      | status: @delivered,
+        proved: true,
+        concluded_at: now,
+        proof_packet: proof_packet
     }
 
     if receipt.callbacks.delivery do
@@ -298,7 +299,10 @@ defmodule RNS.PacketReceipt do
         receipt.callbacks.delivery.(receipt)
       rescue
         e ->
-          RNS.log("Error while executing proof validated callback. The contained exception was: #{inspect(e)}", RNS.log_error())
+          RNS.log(
+            "Error while executing proof validated callback. The contained exception was: #{inspect(e)}",
+            RNS.log_error()
+          )
       end
     end
 

@@ -94,6 +94,7 @@ defmodule RNS.Buffer.StreamDataMessageTest do
 
     test "raises when stream_id is nil" do
       msg = StreamDataMessage.new()
+
       assert_raise ArgumentError, fn ->
         StreamDataMessage.pack(msg)
       end
@@ -227,8 +228,11 @@ defmodule RNS.Buffer.RawChannelReaderTest do
       # Simulate receiving a StreamDataMessage
       msg = StreamDataMessage.new(stream_id: 0, data: "hello")
       packed_msg = StreamDataMessage.pack(msg)
-      envelope_raw = <<StreamDataMessage.msgtype()::unsigned-big-16, 0::unsigned-big-16,
-                       byte_size(packed_msg)::unsigned-big-16>> <> packed_msg
+
+      envelope_raw =
+        <<StreamDataMessage.msgtype()::unsigned-big-16, 0::unsigned-big-16,
+          byte_size(packed_msg)::unsigned-big-16>> <> packed_msg
+
       _channel = Channel.receive_raw(channel, envelope_raw)
 
       # Give callback time to execute
@@ -242,8 +246,11 @@ defmodule RNS.Buffer.RawChannelReaderTest do
       %{reader: reader, channel: channel} = setup_reader()
       msg = StreamDataMessage.new(stream_id: 0, data: "hello world")
       packed_msg = StreamDataMessage.pack(msg)
-      envelope_raw = <<StreamDataMessage.msgtype()::unsigned-big-16, 0::unsigned-big-16,
-                       byte_size(packed_msg)::unsigned-big-16>> <> packed_msg
+
+      envelope_raw =
+        <<StreamDataMessage.msgtype()::unsigned-big-16, 0::unsigned-big-16,
+          byte_size(packed_msg)::unsigned-big-16>> <> packed_msg
+
       _channel = Channel.receive_raw(channel, envelope_raw)
       Process.sleep(10)
 
@@ -260,8 +267,11 @@ defmodule RNS.Buffer.RawChannelReaderTest do
       # Send eof
       msg = StreamDataMessage.new(stream_id: 0, eof: true)
       packed_msg = StreamDataMessage.pack(msg)
-      envelope_raw = <<StreamDataMessage.msgtype()::unsigned-big-16, 0::unsigned-big-16,
-                       byte_size(packed_msg)::unsigned-big-16>> <> packed_msg
+
+      envelope_raw =
+        <<StreamDataMessage.msgtype()::unsigned-big-16, 0::unsigned-big-16,
+          byte_size(packed_msg)::unsigned-big-16>> <> packed_msg
+
       _channel = Channel.receive_raw(channel, envelope_raw)
       Process.sleep(10)
 
@@ -274,8 +284,11 @@ defmodule RNS.Buffer.RawChannelReaderTest do
       # Send to stream_id 99, reader is on stream_id 0
       msg = StreamDataMessage.new(stream_id: 99, data: "wrong stream")
       packed_msg = StreamDataMessage.pack(msg)
-      envelope_raw = <<StreamDataMessage.msgtype()::unsigned-big-16, 0::unsigned-big-16,
-                       byte_size(packed_msg)::unsigned-big-16>> <> packed_msg
+
+      envelope_raw =
+        <<StreamDataMessage.msgtype()::unsigned-big-16, 0::unsigned-big-16,
+          byte_size(packed_msg)::unsigned-big-16>> <> packed_msg
+
       _channel = Channel.receive_raw(channel, envelope_raw)
       Process.sleep(10)
 
@@ -292,8 +305,11 @@ defmodule RNS.Buffer.RawChannelReaderTest do
 
       msg = StreamDataMessage.new(stream_id: 0, data: "hello")
       packed_msg = StreamDataMessage.pack(msg)
-      envelope_raw = <<StreamDataMessage.msgtype()::unsigned-big-16, 0::unsigned-big-16,
-                       byte_size(packed_msg)::unsigned-big-16>> <> packed_msg
+
+      envelope_raw =
+        <<StreamDataMessage.msgtype()::unsigned-big-16, 0::unsigned-big-16,
+          byte_size(packed_msg)::unsigned-big-16>> <> packed_msg
+
       _channel = Channel.receive_raw(channel, envelope_raw)
 
       assert_receive {:ready, 5}, 500
@@ -308,8 +324,11 @@ defmodule RNS.Buffer.RawChannelReaderTest do
 
       msg = StreamDataMessage.new(stream_id: 0, data: "hello")
       packed_msg = StreamDataMessage.pack(msg)
-      envelope_raw = <<StreamDataMessage.msgtype()::unsigned-big-16, 0::unsigned-big-16,
-                       byte_size(packed_msg)::unsigned-big-16>> <> packed_msg
+
+      envelope_raw =
+        <<StreamDataMessage.msgtype()::unsigned-big-16, 0::unsigned-big-16,
+          byte_size(packed_msg)::unsigned-big-16>> <> packed_msg
+
       _channel = Channel.receive_raw(channel, envelope_raw)
 
       refute_receive {:ready, _}, 100
@@ -339,8 +358,11 @@ defmodule RNS.Buffer.RawChannelReaderTest do
       %{reader: reader, channel: channel} = setup_reader()
       msg = StreamDataMessage.new(stream_id: 0, eof: true)
       packed_msg = StreamDataMessage.pack(msg)
-      envelope_raw = <<StreamDataMessage.msgtype()::unsigned-big-16, 0::unsigned-big-16,
-                       byte_size(packed_msg)::unsigned-big-16>> <> packed_msg
+
+      envelope_raw =
+        <<StreamDataMessage.msgtype()::unsigned-big-16, 0::unsigned-big-16,
+          byte_size(packed_msg)::unsigned-big-16>> <> packed_msg
+
       _channel = Channel.receive_raw(channel, envelope_raw)
       Process.sleep(10)
 
@@ -456,8 +478,11 @@ defmodule RNS.BufferTest do
       # Deliver data and verify callback fires
       msg = StreamDataMessage.new(stream_id: 0, data: "test")
       packed_msg = StreamDataMessage.pack(msg)
-      envelope_raw = <<StreamDataMessage.msgtype()::unsigned-big-16, 0::unsigned-big-16,
-                       byte_size(packed_msg)::unsigned-big-16>> <> packed_msg
+
+      envelope_raw =
+        <<StreamDataMessage.msgtype()::unsigned-big-16, 0::unsigned-big-16,
+          byte_size(packed_msg)::unsigned-big-16>> <> packed_msg
+
       _channel = Channel.receive_raw(channel, envelope_raw)
       assert_receive {:ready, 4}, 500
     end
@@ -490,8 +515,11 @@ defmodule RNS.BufferTest do
 
       msg = StreamDataMessage.new(stream_id: 0, data: "bidir")
       packed_msg = StreamDataMessage.pack(msg)
-      envelope_raw = <<StreamDataMessage.msgtype()::unsigned-big-16, 0::unsigned-big-16,
-                       byte_size(packed_msg)::unsigned-big-16>> <> packed_msg
+
+      envelope_raw =
+        <<StreamDataMessage.msgtype()::unsigned-big-16, 0::unsigned-big-16,
+          byte_size(packed_msg)::unsigned-big-16>> <> packed_msg
+
       _channel = Channel.receive_raw(channel, envelope_raw)
       assert_receive {:ready, 5}, 500
     end
@@ -597,8 +625,10 @@ defmodule RNS.BufferTest do
       # Simulate receiving on stream 0 (not stream 1, so reader should receive it)
       msg = StreamDataMessage.new(stream_id: 0, data: "from stream 0")
       packed_msg = StreamDataMessage.pack(msg)
-      envelope_raw = <<StreamDataMessage.msgtype()::unsigned-big-16, 0::unsigned-big-16,
-                       byte_size(packed_msg)::unsigned-big-16>> <> packed_msg
+
+      envelope_raw =
+        <<StreamDataMessage.msgtype()::unsigned-big-16, 0::unsigned-big-16,
+          byte_size(packed_msg)::unsigned-big-16>> <> packed_msg
 
       # Deliver the write packet first so channel is ready
       RNS.Channel.TestOutlet.deliver_packet(outlet, packet.id)

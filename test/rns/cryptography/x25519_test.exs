@@ -4,11 +4,23 @@ defmodule RNS.Cryptography.X25519Test do
   alias RNS.Cryptography.X25519
 
   # RFC 7748 Section 6.1 test vectors
-  @alice_private Base.decode16!("77076D0A7318A57D3C16C17251B26645DF4C2F87EBC0992AB177FBA51DB92C2A", case: :upper)
-  @alice_public Base.decode16!("8520F0098930A754748B7DDCB43EF75A0DBF3A0D26381AF4EBA4A98EAA9B4E6A", case: :upper)
-  @bob_private Base.decode16!("5DAB087E624A8A4B79E17F8B83800EE66F3BB1292618B6FD1C2F8B27FF88E0EB", case: :upper)
-  @bob_public Base.decode16!("DE9EDB7D7B7DC1B4D35B61C2ECE435373F8343C85B78674DADFC7E146F882B4F", case: :upper)
-  @shared_secret Base.decode16!("4A5D9D5BA4CE2DE1728E3BF480350F25E07E21C947D19E3376F09B3C1E161742", case: :upper)
+  @alice_private Base.decode16!(
+                   "77076D0A7318A57D3C16C17251B26645DF4C2F87EBC0992AB177FBA51DB92C2A",
+                   case: :upper
+                 )
+  @alice_public Base.decode16!("8520F0098930A754748B7DDCB43EF75A0DBF3A0D26381AF4EBA4A98EAA9B4E6A",
+                  case: :upper
+                )
+  @bob_private Base.decode16!("5DAB087E624A8A4B79E17F8B83800EE66F3BB1292618B6FD1C2F8B27FF88E0EB",
+                 case: :upper
+               )
+  @bob_public Base.decode16!("DE9EDB7D7B7DC1B4D35B61C2ECE435373F8343C85B78674DADFC7E146F882B4F",
+                case: :upper
+              )
+  @shared_secret Base.decode16!(
+                   "4A5D9D5BA4CE2DE1728E3BF480350F25E07E21C947D19E3376F09B3C1E161742",
+                   case: :upper
+                 )
 
   describe "generate_keypair/0" do
     test "returns a keypair struct with private and public keys" do
@@ -139,11 +151,22 @@ defmodule RNS.Cryptography.X25519Test do
     # Single iteration: scalar multiply base point 9 by given scalar
     test "scalar multiplication test vector 1" do
       # Input scalar (private key)
-      scalar = Base.decode16!("A546E36BF0527C9D3B16154B82465EDD62144C0AC1FC5A18506A2244BA449AC4", case: :upper)
+      scalar =
+        Base.decode16!("A546E36BF0527C9D3B16154B82465EDD62144C0AC1FC5A18506A2244BA449AC4",
+          case: :upper
+        )
+
       # Input u-coordinate
-      u_coord = Base.decode16!("E6DB6867583030DB3594C1A424B15F7C726624EC26B3353B10A903A6D0AB1C4C", case: :upper)
+      u_coord =
+        Base.decode16!("E6DB6867583030DB3594C1A424B15F7C726624EC26B3353B10A903A6D0AB1C4C",
+          case: :upper
+        )
+
       # Expected output
-      expected = Base.decode16!("C3DA55379DE9C6908E94EA4DF28D084F32ECCF03491C71F754B4075577A28552", case: :upper)
+      expected =
+        Base.decode16!("C3DA55379DE9C6908E94EA4DF28D084F32ECCF03491C71F754B4075577A28552",
+          case: :upper
+        )
 
       # This tests the raw scalar mult: exchange with a specific u-coordinate as "public key"
       keypair = X25519.from_private_bytes(scalar)
@@ -152,9 +175,20 @@ defmodule RNS.Cryptography.X25519Test do
     end
 
     test "scalar multiplication test vector 2" do
-      scalar = Base.decode16!("4B66E9D4D1B4673C5AD22691957D6AF5C11B6421E0EA01D42CA4169E7918BA0D", case: :upper)
-      u_coord = Base.decode16!("E5210F12786811D3F4B7959D0538AE2C31DBE7106FC03C3EFC4CD549C715A493", case: :upper)
-      expected = Base.decode16!("95CBDE9476E8907D7AADE45CB4B873F88B595A68799FA152E6F8F7647AAC7957", case: :upper)
+      scalar =
+        Base.decode16!("4B66E9D4D1B4673C5AD22691957D6AF5C11B6421E0EA01D42CA4169E7918BA0D",
+          case: :upper
+        )
+
+      u_coord =
+        Base.decode16!("E5210F12786811D3F4B7959D0538AE2C31DBE7106FC03C3EFC4CD549C715A493",
+          case: :upper
+        )
+
+      expected =
+        Base.decode16!("95CBDE9476E8907D7AADE45CB4B873F88B595A68799FA152E6F8F7647AAC7957",
+          case: :upper
+        )
 
       keypair = X25519.from_private_bytes(scalar)
       result = X25519.exchange(keypair, u_coord)

@@ -338,6 +338,7 @@ defmodule RNS do
   @spec prettydistance(number(), String.t()) :: String.t()
   def prettydistance(m, suffix \\ "m") do
     num = m * 1.0e6
+
     units_with_divisors = [
       {"µ", 1000.0},
       {"m", 10.0},
@@ -492,7 +493,10 @@ defmodule RNS do
 
     if value > 0 and (not compact or displayed < 2) do
       suffix = if verbose, do: pluralize(value, long_name), else: short_name
-      label = if verbose, do: "#{format_num(value)} #{suffix}", else: "#{format_num(value)}#{suffix}"
+
+      label =
+        if verbose, do: "#{format_num(value)} #{suffix}", else: "#{format_num(value)}#{suffix}"
+
       [label | acc]
     else
       acc

@@ -279,35 +279,41 @@ defmodule RNS.Interfaces.AutoInterfaceTest do
 
   describe "start_link/1" do
     test "starts with name" do
-      {:ok, pid} = AutoInterface.start_link(
-        name: "TestAuto",
-        allowed_interfaces: ["lo0"],
-        skip_network: true
-      )
+      {:ok, pid} =
+        AutoInterface.start_link(
+          name: "TestAuto",
+          allowed_interfaces: ["lo0"],
+          skip_network: true
+        )
+
       assert Process.alive?(pid)
       AutoInterface.stop(pid)
     end
 
     test "starts with custom group_id" do
-      {:ok, pid} = AutoInterface.start_link(
-        name: "TestAutoGroup",
-        group_id: "my_custom_group",
-        allowed_interfaces: ["lo0"],
-        skip_network: true
-      )
+      {:ok, pid} =
+        AutoInterface.start_link(
+          name: "TestAutoGroup",
+          group_id: "my_custom_group",
+          allowed_interfaces: ["lo0"],
+          skip_network: true
+        )
+
       state = AutoInterface.get_state(pid)
       assert state.group_id == "my_custom_group"
       AutoInterface.stop(pid)
     end
 
     test "starts with custom ports" do
-      {:ok, pid} = AutoInterface.start_link(
-        name: "TestAutoPorts",
-        discovery_port: 30000,
-        data_port: 40000,
-        allowed_interfaces: ["lo0"],
-        skip_network: true
-      )
+      {:ok, pid} =
+        AutoInterface.start_link(
+          name: "TestAutoPorts",
+          discovery_port: 30000,
+          data_port: 40000,
+          allowed_interfaces: ["lo0"],
+          skip_network: true
+        )
+
       state = AutoInterface.get_state(pid)
       assert state.discovery_port == 30000
       assert state.data_port == 40000
@@ -315,35 +321,41 @@ defmodule RNS.Interfaces.AutoInterfaceTest do
     end
 
     test "computes unicast_discovery_port as discovery_port + 1" do
-      {:ok, pid} = AutoInterface.start_link(
-        name: "TestAutoUnicast",
-        discovery_port: 30000,
-        allowed_interfaces: ["lo0"],
-        skip_network: true
-      )
+      {:ok, pid} =
+        AutoInterface.start_link(
+          name: "TestAutoUnicast",
+          discovery_port: 30000,
+          allowed_interfaces: ["lo0"],
+          skip_network: true
+        )
+
       state = AutoInterface.get_state(pid)
       assert state.unicast_discovery_port == 30001
       AutoInterface.stop(pid)
     end
 
     test "starts with custom discovery scope" do
-      {:ok, pid} = AutoInterface.start_link(
-        name: "TestAutoScope",
-        discovery_scope: "site",
-        allowed_interfaces: ["lo0"],
-        skip_network: true
-      )
+      {:ok, pid} =
+        AutoInterface.start_link(
+          name: "TestAutoScope",
+          discovery_scope: "site",
+          allowed_interfaces: ["lo0"],
+          skip_network: true
+        )
+
       state = AutoInterface.get_state(pid)
       assert state.discovery_scope == "5"
       AutoInterface.stop(pid)
     end
 
     test "computes multicast discovery address" do
-      {:ok, pid} = AutoInterface.start_link(
-        name: "TestAutoMcast",
-        allowed_interfaces: ["lo0"],
-        skip_network: true
-      )
+      {:ok, pid} =
+        AutoInterface.start_link(
+          name: "TestAutoMcast",
+          allowed_interfaces: ["lo0"],
+          skip_network: true
+        )
+
       state = AutoInterface.get_state(pid)
       assert is_binary(state.mcast_discovery_address)
       assert String.starts_with?(state.mcast_discovery_address, "ff12:")
@@ -351,12 +363,14 @@ defmodule RNS.Interfaces.AutoInterfaceTest do
     end
 
     test "registers with server_name" do
-      {:ok, pid} = AutoInterface.start_link(
-        name: "TestAutoNamed",
-        allowed_interfaces: ["lo0"],
-        skip_network: true,
-        server_name: :test_auto_named
-      )
+      {:ok, pid} =
+        AutoInterface.start_link(
+          name: "TestAutoNamed",
+          allowed_interfaces: ["lo0"],
+          skip_network: true,
+          server_name: :test_auto_named
+        )
+
       assert Process.whereis(:test_auto_named) == pid
       AutoInterface.stop(pid)
     end
@@ -366,11 +380,13 @@ defmodule RNS.Interfaces.AutoInterfaceTest do
 
   describe "peer management" do
     setup do
-      {:ok, pid} = AutoInterface.start_link(
-        name: "PeerTestAuto",
-        allowed_interfaces: ["lo0"],
-        skip_network: true
-      )
+      {:ok, pid} =
+        AutoInterface.start_link(
+          name: "PeerTestAuto",
+          allowed_interfaces: ["lo0"],
+          skip_network: true
+        )
+
       on_exit(fn -> catch_exit(AutoInterface.stop(pid)) end)
       %{pid: pid}
     end
@@ -417,11 +433,13 @@ defmodule RNS.Interfaces.AutoInterfaceTest do
 
   describe "multicast echo tracking" do
     setup do
-      {:ok, pid} = AutoInterface.start_link(
-        name: "EchoTestAuto",
-        allowed_interfaces: ["lo0"],
-        skip_network: true
-      )
+      {:ok, pid} =
+        AutoInterface.start_link(
+          name: "EchoTestAuto",
+          allowed_interfaces: ["lo0"],
+          skip_network: true
+        )
+
       on_exit(fn -> catch_exit(AutoInterface.stop(pid)) end)
       %{pid: pid}
     end
@@ -448,6 +466,7 @@ defmodule RNS.Interfaces.AutoInterfaceTest do
         hw_mtu: 1196,
         fixed_mtu: true
       }
+
       assert peer.addr == "fe80::dead:beef"
       assert peer.ifname == "en0"
       assert peer.hw_mtu == 1196
@@ -466,6 +485,7 @@ defmodule RNS.Interfaces.AutoInterfaceTest do
         addr: "fe80::dead:beef",
         ifname: "en0"
       }
+
       assert to_string(peer) == "AutoInterfacePeer[en0/fe80::dead:beef]"
     end
   end
@@ -476,9 +496,16 @@ defmodule RNS.Interfaces.AutoInterfaceTest do
     test "mif_deque_check returns false for new data" do
       deque = :queue.new()
       deque_times = :queue.new()
-      {hit, _deque, _times} = AutoInterface.mif_deque_check(
-        <<1, 2, 3>>, deque, deque_times, 48, 0.75
-      )
+
+      {hit, _deque, _times} =
+        AutoInterface.mif_deque_check(
+          <<1, 2, 3>>,
+          deque,
+          deque_times,
+          48,
+          0.75
+        )
+
       refute hit
     end
 
@@ -490,9 +517,15 @@ defmodule RNS.Interfaces.AutoInterfaceTest do
       deque = :queue.in(data_hash, :queue.new())
       deque_times = :queue.in({data_hash, now}, :queue.new())
 
-      {hit, _deque, _times} = AutoInterface.mif_deque_check(
-        data, deque, deque_times, 48, 0.75
-      )
+      {hit, _deque, _times} =
+        AutoInterface.mif_deque_check(
+          data,
+          deque,
+          deque_times,
+          48,
+          0.75
+        )
+
       assert hit
     end
 
@@ -504,9 +537,15 @@ defmodule RNS.Interfaces.AutoInterfaceTest do
       deque = :queue.in(data_hash, :queue.new())
       deque_times = :queue.in({data_hash, old_time}, :queue.new())
 
-      {hit, _deque, _times} = AutoInterface.mif_deque_check(
-        data, deque, deque_times, 48, 0.75
-      )
+      {hit, _deque, _times} =
+        AutoInterface.mif_deque_check(
+          data,
+          deque,
+          deque_times,
+          48,
+          0.75
+        )
+
       refute hit
     end
 
@@ -515,9 +554,14 @@ defmodule RNS.Interfaces.AutoInterfaceTest do
       deque = :queue.new()
       deque_times = :queue.new()
 
-      {false, new_deque, new_times} = AutoInterface.mif_deque_check(
-        data, deque, deque_times, 48, 0.75
-      )
+      {false, new_deque, new_times} =
+        AutoInterface.mif_deque_check(
+          data,
+          deque,
+          deque_times,
+          48,
+          0.75
+        )
 
       assert :queue.len(new_deque) == 1
       assert :queue.len(new_times) == 1
@@ -525,14 +569,23 @@ defmodule RNS.Interfaces.AutoInterfaceTest do
 
     test "mif_deque respects max length" do
       deque = Enum.reduce(1..48, :queue.new(), fn i, q -> :queue.in(<<i>>, q) end)
-      deque_times = Enum.reduce(1..48, :queue.new(), fn i, q ->
-        :queue.in({<<i>>, System.system_time(:millisecond) / 1000}, q)
-      end)
+
+      deque_times =
+        Enum.reduce(1..48, :queue.new(), fn i, q ->
+          :queue.in({<<i>>, System.system_time(:millisecond) / 1000}, q)
+        end)
 
       data = <<99>>
-      {false, new_deque, new_times} = AutoInterface.mif_deque_check(
-        data, deque, deque_times, 48, 0.75
-      )
+
+      {false, new_deque, new_times} =
+        AutoInterface.mif_deque_check(
+          data,
+          deque,
+          deque_times,
+          48,
+          0.75
+        )
+
       assert :queue.len(new_deque) == 48
       assert :queue.len(new_times) == 48
     end
@@ -542,11 +595,13 @@ defmodule RNS.Interfaces.AutoInterfaceTest do
 
   describe "send_data/2" do
     test "is a no-op for AutoInterface parent" do
-      {:ok, pid} = AutoInterface.start_link(
-        name: "OutboundTestAuto",
-        allowed_interfaces: ["lo0"],
-        skip_network: true
-      )
+      {:ok, pid} =
+        AutoInterface.start_link(
+          name: "OutboundTestAuto",
+          allowed_interfaces: ["lo0"],
+          skip_network: true
+        )
+
       assert AutoInterface.send_data(pid, <<1, 2, 3>>) == :ok
       AutoInterface.stop(pid)
     end
@@ -556,11 +611,13 @@ defmodule RNS.Interfaces.AutoInterfaceTest do
 
   describe "stop_interface/1" do
     test "sets interface offline" do
-      {:ok, pid} = AutoInterface.start_link(
-        name: "DetachTestAuto",
-        allowed_interfaces: ["lo0"],
-        skip_network: true
-      )
+      {:ok, pid} =
+        AutoInterface.start_link(
+          name: "DetachTestAuto",
+          allowed_interfaces: ["lo0"],
+          skip_network: true
+        )
+
       AutoInterface.stop_interface(pid)
       state = AutoInterface.get_state(pid)
       refute state.online
@@ -572,11 +629,13 @@ defmodule RNS.Interfaces.AutoInterfaceTest do
 
   describe "String.Chars" do
     test "format matches Python AutoInterface[name]" do
-      {:ok, pid} = AutoInterface.start_link(
-        name: "MyAutoIf",
-        allowed_interfaces: ["lo0"],
-        skip_network: true
-      )
+      {:ok, pid} =
+        AutoInterface.start_link(
+          name: "MyAutoIf",
+          allowed_interfaces: ["lo0"],
+          skip_network: true
+        )
+
       state = AutoInterface.get_state(pid)
       assert to_string(state) == "AutoInterface[MyAutoIf]"
       AutoInterface.stop(pid)
@@ -603,11 +662,13 @@ defmodule RNS.Interfaces.AutoInterfaceTest do
 
   describe "reverse_peering_interval" do
     test "is announce_interval * 3.25" do
-      {:ok, pid} = AutoInterface.start_link(
-        name: "ReverseTestAuto",
-        allowed_interfaces: ["lo0"],
-        skip_network: true
-      )
+      {:ok, pid} =
+        AutoInterface.start_link(
+          name: "ReverseTestAuto",
+          allowed_interfaces: ["lo0"],
+          skip_network: true
+        )
+
       state = AutoInterface.get_state(pid)
       expected = AutoInterface.announce_interval() * 3.25
       assert_in_delta state.reverse_peering_interval, expected, 0.001

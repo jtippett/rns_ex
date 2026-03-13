@@ -70,8 +70,16 @@ defmodule RNS.Transport.PathManagement do
       now = System.system_time(:second)
 
       Enum.each(entries, fn serialized_entry ->
-        [destination_hash, timestamp, received_from, hops, expires, random_blobs,
-         interface_hash, packet_hash] = serialized_entry
+        [
+          destination_hash,
+          timestamp,
+          received_from,
+          hops,
+          expires,
+          random_blobs,
+          interface_hash,
+          packet_hash
+        ] = serialized_entry
 
         # Only restore if the entry hasn't expired
         if now < expires do

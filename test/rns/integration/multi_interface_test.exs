@@ -56,7 +56,12 @@ defmodule RNS.Integration.MultiInterfaceTest do
 
       # Create and pack an announce
       identity = Identity.new()
-      dest = Destination.new(identity, Destination.direction_in(), Destination.single(), "testapp", ["multi"])
+
+      dest =
+        Destination.new(identity, Destination.direction_in(), Destination.single(), "testapp", [
+          "multi"
+        ])
+
       {announce, _} = Destination.announce(dest, send: false)
       packed = Packet.pack(announce)
 
@@ -74,6 +79,7 @@ defmodule RNS.Integration.MultiInterfaceTest do
 
       # One outgoing interface, one inbound-only
       out_iface = make_capture_interface("OutInterface", test_pid, :out_iface)
+
       in_iface = %{
         name: "InOnlyInterface",
         hash: :crypto.strong_rand_bytes(16),
@@ -92,7 +98,12 @@ defmodule RNS.Integration.MultiInterfaceTest do
       :ok = Transport.register_interface(in_iface)
 
       identity = Identity.new()
-      dest = Destination.new(identity, Destination.direction_in(), Destination.single(), "testapp", ["inonly"])
+
+      dest =
+        Destination.new(identity, Destination.direction_in(), Destination.single(), "testapp", [
+          "inonly"
+        ])
+
       {announce, _} = Destination.announce(dest, send: false)
       packed = Packet.pack(announce)
 
@@ -116,7 +127,12 @@ defmodule RNS.Integration.MultiInterfaceTest do
       :ok = Transport.deregister_interface(iface2)
 
       identity = Identity.new()
-      dest = Destination.new(identity, Destination.direction_in(), Destination.single(), "testapp", ["dereg"])
+
+      dest =
+        Destination.new(identity, Destination.direction_in(), Destination.single(), "testapp", [
+          "dereg"
+        ])
+
       {announce, _} = Destination.announce(dest, send: false)
       packed = Packet.pack(announce)
 
@@ -142,7 +158,11 @@ defmodule RNS.Integration.MultiInterfaceTest do
 
       # Create a destination and install a path entry pointing to iface1
       identity = Identity.new()
-      dest = Destination.new(identity, Destination.direction_in(), Destination.single(), "testapp", ["pathroute"])
+
+      dest =
+        Destination.new(identity, Destination.direction_in(), Destination.single(), "testapp", [
+          "pathroute"
+        ])
 
       # Establish path via announce received on iface1
       {announce, _} = Destination.announce(dest, send: false)
@@ -155,10 +175,12 @@ defmodule RNS.Integration.MultiInterfaceTest do
 
       # Now create a data packet to this destination
       # Since path exists with hops=1, Transport.outbound should use path interface
-      data_packet = Packet.new(dest, "Hello via path",
-        packet_type: Packet.data(),
-        create_receipt: false
-      )
+      data_packet =
+        Packet.new(dest, "Hello via path",
+          packet_type: Packet.data(),
+          create_receipt: false
+        )
+
       packed_data = Packet.pack(data_packet)
 
       Transport.outbound(packed_data)
@@ -182,7 +204,16 @@ defmodule RNS.Integration.MultiInterfaceTest do
 
       # Create announce from a remote identity
       remote_identity = Identity.new()
-      remote_dest = Destination.new(remote_identity, Destination.direction_in(), Destination.single(), "remote", ["node"])
+
+      remote_dest =
+        Destination.new(
+          remote_identity,
+          Destination.direction_in(),
+          Destination.single(),
+          "remote",
+          ["node"]
+        )
+
       {announce, _} = Destination.announce(remote_dest, send: false)
       packed = Packet.pack(announce)
 
@@ -203,9 +234,13 @@ defmodule RNS.Integration.MultiInterfaceTest do
 
       # Create multiple remote identities
       ids = for _ <- 1..5, do: Identity.new()
-      dests = for id <- ids do
-        Destination.new(id, Destination.direction_in(), Destination.single(), "remote", ["multi"])
-      end
+
+      dests =
+        for id <- ids do
+          Destination.new(id, Destination.direction_in(), Destination.single(), "remote", [
+            "multi"
+          ])
+        end
 
       # Send announces from each
       for dest <- dests do
@@ -232,24 +267,27 @@ defmodule RNS.Integration.MultiInterfaceTest do
       test_pid = self()
       port = Enum.random(41000..42999)
 
-      {:ok, server_pid} = RNS.Interfaces.LocalServerInterface.start_link(
-        name: "MultiServer",
-        owner: fn data, _iface ->
-          send(test_pid, {:server_got, data})
-        end,
-        bindport: port
-      )
+      {:ok, server_pid} =
+        RNS.Interfaces.LocalServerInterface.start_link(
+          name: "MultiServer",
+          owner: fn data, _iface ->
+            send(test_pid, {:server_got, data})
+          end,
+          bindport: port
+        )
 
       Process.sleep(50)
 
       # Connect multiple clients
       clients =
         for i <- 1..3 do
-          {:ok, pid} = RNS.Interfaces.LocalClientInterface.start_link(
-            name: "Client#{i}",
-            owner: fn _data, _iface -> :ok end,
-            target_port: port
-          )
+          {:ok, pid} =
+            RNS.Interfaces.LocalClientInterface.start_link(
+              name: "Client#{i}",
+              owner: fn _data, _iface -> :ok end,
+              target_port: port
+            )
+
           pid
         end
 
@@ -274,6 +312,7 @@ defmodule RNS.Integration.MultiInterfaceTest do
       for client <- clients do
         RNS.Interfaces.LocalClientInterface.stop(client)
       end
+
       RNS.Interfaces.LocalServerInterface.stop(server_pid)
       Process.sleep(50)
     end
@@ -282,20 +321,22 @@ defmodule RNS.Integration.MultiInterfaceTest do
       port = Enum.random(43000..44999)
 
       # Start server
-      {:ok, server1} = RNS.Interfaces.LocalServerInterface.start_link(
-        name: "ReconnServer",
-        owner: fn _data, _iface -> :ok end,
-        bindport: port
-      )
+      {:ok, server1} =
+        RNS.Interfaces.LocalServerInterface.start_link(
+          name: "ReconnServer",
+          owner: fn _data, _iface -> :ok end,
+          bindport: port
+        )
 
       Process.sleep(50)
 
       # Connect client
-      {:ok, client} = RNS.Interfaces.LocalClientInterface.start_link(
-        name: "ReconnClient",
-        owner: fn _data, _iface -> :ok end,
-        target_port: port
-      )
+      {:ok, client} =
+        RNS.Interfaces.LocalClientInterface.start_link(
+          name: "ReconnClient",
+          owner: fn _data, _iface -> :ok end,
+          target_port: port
+        )
 
       Process.sleep(100)
 
@@ -313,17 +354,18 @@ defmodule RNS.Integration.MultiInterfaceTest do
 
   describe "interface lifecycle" do
     test "interface registration and enumeration" do
-      interfaces = for i <- 1..5 do
-        %{
-          name: "Iface#{i}",
-          hash: :crypto.strong_rand_bytes(16),
-          out: true,
-          in: true,
-          online: true,
-          mode: nil,
-          ifac_identity: nil
-        }
-      end
+      interfaces =
+        for i <- 1..5 do
+          %{
+            name: "Iface#{i}",
+            hash: :crypto.strong_rand_bytes(16),
+            out: true,
+            in: true,
+            online: true,
+            mode: nil,
+            ifac_identity: nil
+          }
+        end
 
       for iface <- interfaces do
         :ok = Transport.register_interface(iface)
@@ -376,7 +418,12 @@ defmodule RNS.Integration.MultiInterfaceTest do
 
       # Remote node announces via radio
       remote_id = Identity.new()
-      remote_dest = Destination.new(remote_id, Destination.direction_in(), Destination.single(), "remote", ["cross"])
+
+      remote_dest =
+        Destination.new(remote_id, Destination.direction_in(), Destination.single(), "remote", [
+          "cross"
+        ])
+
       {announce, _} = Destination.announce(remote_dest, send: false)
       packed_ann = Packet.pack(announce)
 

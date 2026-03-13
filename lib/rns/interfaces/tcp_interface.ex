@@ -287,7 +287,8 @@ defmodule RNS.Interfaces.TCPClientInterface do
 
         # Initiator mode — connect to target
         target_ip != nil and target_port != nil ->
-          target_port = if is_binary(target_port), do: String.to_integer(target_port), else: target_port
+          target_port =
+            if is_binary(target_port), do: String.to_integer(target_port), else: target_port
 
           state = %{
             state
@@ -346,7 +347,10 @@ defmodule RNS.Interfaces.TCPClientInterface do
     state = %{state | online: false, socket: nil}
 
     if state.initiator and not state.detached do
-      Logger.warning("The socket for #{format_name(state)} was closed, attempting to reconnect...")
+      Logger.warning(
+        "The socket for #{format_name(state)} was closed, attempting to reconnect..."
+      )
+
       Process.send_after(self(), :reconnect, @reconnect_wait * 1000)
       {:noreply, %{state | reconnecting: true}}
     else
@@ -356,9 +360,7 @@ defmodule RNS.Interfaces.TCPClientInterface do
   end
 
   def handle_info({:tcp_error, _socket, reason}, state) do
-    Logger.warning(
-      "An interface error occurred for #{format_name(state)}: #{inspect(reason)}"
-    )
+    Logger.warning("An interface error occurred for #{format_name(state)}: #{inspect(reason)}")
 
     state = %{state | online: false}
 
@@ -931,7 +933,8 @@ defmodule RNS.Interfaces.TCPServerInterface do
       end
     end)
 
-    {:reply, :ok, %{state | online: false, detached: true, listen_socket: nil, spawned_interfaces: []}}
+    {:reply, :ok,
+     %{state | online: false, detached: true, listen_socket: nil, spawned_interfaces: []}}
   end
 
   @impl GenServer

@@ -25,7 +25,8 @@ defmodule RNS.IdentityStore do
 
   Entry format: `[timestamp, packet_hash, public_key, app_data]`
   """
-  @spec remember(binary(), binary(), binary(), binary() | nil) :: :ok | {:error, :invalid_public_key}
+  @spec remember(binary(), binary(), binary(), binary() | nil) ::
+          :ok | {:error, :invalid_public_key}
   def remember(packet_hash, destination_hash, public_key, app_data \\ nil) do
     keysize_bytes = div(RNS.Identity.keysize(), 8)
 

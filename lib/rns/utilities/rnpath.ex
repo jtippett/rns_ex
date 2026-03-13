@@ -193,8 +193,12 @@ defmodule RNS.Utilities.RNPath do
       |> maybe_add_opt(:verbosity, if(opts.verbosity > 0, do: opts.verbosity))
 
     case start_reticulum(reticulum_opts) do
-      {:ok, _pid} -> :ok
-      {:error, {:already_started, _pid}} -> :ok
+      {:ok, _pid} ->
+        :ok
+
+      {:error, {:already_started, _pid}} ->
+        :ok
+
       {:error, reason} ->
         IO.puts(:stderr, "Could not start Reticulum: #{inspect(reason)}")
         System.halt(1)
@@ -220,7 +224,9 @@ defmodule RNS.Utilities.RNPath do
     destination_hash =
       if opts.destination do
         case parse_hash(opts.destination) do
-          {:ok, hash} -> hash
+          {:ok, hash} ->
+            hash
+
           {:error, msg} ->
             IO.puts(msg)
             System.halt(1)
@@ -263,7 +269,9 @@ defmodule RNS.Utilities.RNPath do
     destination_hash =
       if opts.destination do
         case parse_hash(opts.destination) do
-          {:ok, hash} -> hash
+          {:ok, hash} ->
+            hash
+
           {:error, msg} ->
             IO.puts(msg)
             System.halt(1)
@@ -280,7 +288,9 @@ defmodule RNS.Utilities.RNPath do
               {Atom.to_string(k), RNS.hexrep(v, false)}
 
             {k, v} when is_binary(v) ->
-              if String.valid?(v), do: {Atom.to_string(k), v}, else: {Atom.to_string(k), RNS.hexrep(v, false)}
+              if String.valid?(v),
+                do: {Atom.to_string(k), v},
+                else: {Atom.to_string(k), RNS.hexrep(v, false)}
 
             {k, v} ->
               {Atom.to_string(k), v}
@@ -357,9 +367,7 @@ defmodule RNS.Utilities.RNPath do
         if drop_path(destination_hash) do
           IO.puts("Dropped path to #{RNS.prettyhexrep(destination_hash)}")
         else
-          IO.puts(
-            "Unable to drop path to #{RNS.prettyhexrep(destination_hash)}. Does it exist?"
-          )
+          IO.puts("Unable to drop path to #{RNS.prettyhexrep(destination_hash)}. Does it exist?")
 
           System.halt(1)
         end

@@ -34,8 +34,7 @@ defmodule RNS.Channel.TestOutlet do
     Agent.update(outlet.agent, fn state ->
       %{
         state
-        | packet_states:
-            Map.put(state.packet_states, packet_id, RNS.Channel.msgstate_delivered())
+        | packet_states: Map.put(state.packet_states, packet_id, RNS.Channel.msgstate_delivered())
       }
     end)
   end

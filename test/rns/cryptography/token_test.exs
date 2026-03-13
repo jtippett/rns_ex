@@ -244,7 +244,7 @@ defmodule RNS.Cryptography.TokenTest do
         key = Token.generate_key()
         token = Token.new(key)
 
-        check all data <- StreamData.binary() do
+        check all(data <- StreamData.binary()) do
           ciphertext = Token.encrypt(token, data)
           assert Token.decrypt(token, ciphertext) == data
         end
@@ -254,7 +254,7 @@ defmodule RNS.Cryptography.TokenTest do
         key = Token.generate_key()
         token = Token.new(key)
 
-        check all data <- StreamData.binary() do
+        check all(data <- StreamData.binary()) do
           ciphertext = Token.encrypt(token, data)
           padded_len = div(byte_size(data), 16) * 16 + 16
           assert byte_size(ciphertext) == padded_len + 48

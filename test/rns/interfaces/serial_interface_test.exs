@@ -173,9 +173,7 @@ defmodule RNS.Interfaces.SerialInterfaceTest do
       Process.flag(:trap_exit, true)
 
       result =
-        SerialInterface.start_link(
-          name: "test_no_port"
-        )
+        SerialInterface.start_link(name: "test_no_port")
 
       assert {:error, {:error, :no_port_specified}} = result
     end

@@ -267,7 +267,7 @@ defmodule RNS.Cryptography.Ed25519Test do
         seed = :crypto.strong_rand_bytes(32)
         keypair = Ed25519.from_private_bytes(seed)
 
-        check all message <- StreamData.binary(min_length: 0, max_length: 1000) do
+        check all(message <- StreamData.binary(min_length: 0, max_length: 1000)) do
           sig = Ed25519.sign(keypair, message)
           assert byte_size(sig) == @sig_length
           assert Ed25519.verify(sig, message, Ed25519.public_key(keypair)) == true
@@ -275,8 +275,10 @@ defmodule RNS.Cryptography.Ed25519Test do
       end
 
       property "cross-validates with Erlang :crypto for arbitrary seeds and messages" do
-        check all seed <- StreamData.binary(length: 32),
-                  message <- StreamData.binary(min_length: 0, max_length: 200) do
+        check all(
+                seed <- StreamData.binary(length: 32),
+                message <- StreamData.binary(min_length: 0, max_length: 200)
+              ) do
           keypair = Ed25519.from_private_bytes(seed)
 
           # Public key matches

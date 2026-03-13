@@ -37,7 +37,8 @@ defmodule RNS.Transport.TunnelManagement do
     truncated_hashlength_bytes = div(Identity.truncated_hashlength(), 8)
     siglength_bytes = div(Identity.siglength(), 8)
 
-    expected_length = keysize_bytes + hashlength_bytes + truncated_hashlength_bytes + siglength_bytes
+    expected_length =
+      keysize_bytes + hashlength_bytes + truncated_hashlength_bytes + siglength_bytes
 
     if byte_size(data) == expected_length do
       try do

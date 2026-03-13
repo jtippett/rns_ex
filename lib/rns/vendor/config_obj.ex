@@ -30,13 +30,15 @@ defmodule RNS.Vendor.ConfigObj do
   end
 
   def parse(lines) when is_list(lines) do
-    lines = Enum.map(lines, fn line ->
-      line
-      |> to_string()
-      |> String.trim_trailing("\r\n")
-      |> String.trim_trailing("\r")
-      |> String.trim_trailing("\n")
-    end)
+    lines =
+      Enum.map(lines, fn line ->
+        line
+        |> to_string()
+        |> String.trim_trailing("\r\n")
+        |> String.trim_trailing("\r")
+        |> String.trim_trailing("\n")
+      end)
+
     do_parse(lines)
   end
 
@@ -63,6 +65,7 @@ defmodule RNS.Vendor.ConfigObj do
   def write(section) do
     lines = write_section(section, 0) ++ write_final_comment(section)
     initial = write_initial_comment(section)
+
     (initial ++ lines)
     |> Enum.join("\n")
     |> Kernel.<>("\n")
@@ -71,12 +74,18 @@ defmodule RNS.Vendor.ConfigObj do
   # --- Private parsing ---
 
   defp strip_bom(<<0xEF, 0xBB, 0xBF, rest::binary>>), do: rest
-  defp strip_bom(<<0xFF, 0xFE, rest::binary>>), do: :unicode.characters_to_binary(rest, :utf16_little)
-  defp strip_bom(<<0xFE, 0xFF, rest::binary>>), do: :unicode.characters_to_binary(rest, :utf16_big)
+
+  defp strip_bom(<<0xFF, 0xFE, rest::binary>>),
+    do: :unicode.characters_to_binary(rest, :utf16_little)
+
+  defp strip_bom(<<0xFE, 0xFF, rest::binary>>),
+    do: :unicode.characters_to_binary(rest, :utf16_big)
+
   defp strip_bom(other), do: other
 
   defp do_parse(lines) do
     root = Section.new(0)
+
     {root, _comment_list, _cur_section, errors} =
       parse_lines(lines, 0, root, root, [], [])
 
@@ -135,8 +144,14 @@ defmodule RNS.Vendor.ConfigObj do
             parse_lines(rest, index + 1, root, new_cur, [], errors)
 
           {:error, reason} ->
-            parse_lines(rest, index + 1, root, cur_section, [],
-              errors ++ [{reason, index + 1, line}])
+            parse_lines(
+              rest,
+              index + 1,
+              root,
+              cur_section,
+              [],
+              errors ++ [{reason, index + 1, line}]
+            )
         end
 
       # Key = value
@@ -171,8 +186,14 @@ defmodule RNS.Vendor.ConfigObj do
 
       # Invalid line
       true ->
-        parse_lines(rest, index + 1, root, cur_section, [],
-          errors ++ [{:parse_error, index + 1, line}])
+        parse_lines(
+          rest,
+          index + 1,
+          root,
+          cur_section,
+          [],
+          errors ++ [{:parse_error, index + 1, line}]
+        )
     end
   end
 
@@ -379,10 +400,13 @@ defmodule RNS.Vendor.ConfigObj do
         if String.contains?(after_open, quot) do
           # Single-line triple-quoted value
           [val | rest_parts] = String.split(after_open, quot, parts: 2)
-          comment = case rest_parts do
-            [c] -> clean_comment(String.trim(c))
-            _ -> nil
-          end
+
+          comment =
+            case rest_parts do
+              [c] -> clean_comment(String.trim(c))
+              _ -> nil
+            end
+
           {:single_line, val, comment}
         else
           {:multiline, quot, after_open}
@@ -407,10 +431,13 @@ defmodule RNS.Vendor.ConfigObj do
       [before_close | after_parts] = String.split(line, quot, parts: 2)
       all_lines = Enum.reverse([before_close | acc])
       value = Enum.join(all_lines, "\n")
-      comment = case after_parts do
-        [c] -> clean_comment(String.trim(c))
-        _ -> nil
-      end
+
+      comment =
+        case after_parts do
+          [c] -> clean_comment(String.trim(c))
+          _ -> nil
+        end
+
       {value, comment, rest, index + 1}
     else
       collect_multiline_lines(quot, rest, index + 1, [line | acc])

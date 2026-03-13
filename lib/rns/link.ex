@@ -300,7 +300,7 @@ defmodule RNS.Link do
   """
   @spec signalling_bytes(non_neg_integer(), non_neg_integer()) :: binary()
   def signalling_bytes(mtu, mode) do
-    signalling_value = (mtu &&& @mtu_bytemask) + (((mode <<< 5) &&& @mode_bytemask) <<< 16)
+    signalling_value = (mtu &&& @mtu_bytemask) + ((mode <<< 5 &&& @mode_bytemask) <<< 16)
     <<_discard, b0, b1, b2>> = <<signalling_value::unsigned-big-32>>
     <<b0, b1, b2>>
   end
@@ -311,7 +311,7 @@ defmodule RNS.Link do
   @spec mtu_from_lr_packet(map()) :: non_neg_integer() | nil
   def mtu_from_lr_packet(%{data: data}) when byte_size(data) == @ecpubsize + @link_mtu_size do
     <<_::binary-size(@ecpubsize), b0, b1, b2>> = data
-    ((b0 <<< 16) + (b1 <<< 8) + b2) &&& @mtu_bytemask
+    (b0 <<< 16) + (b1 <<< 8) + b2 &&& @mtu_bytemask
   end
 
   def mtu_from_lr_packet(_), do: nil
@@ -326,7 +326,7 @@ defmodule RNS.Link do
     if byte_size(data) == expected do
       offset = sig_len + ec_half
       <<_::binary-size(offset), b0, b1, b2>> = data
-      ((b0 <<< 16) + (b1 <<< 8) + b2) &&& @mtu_bytemask
+      (b0 <<< 16) + (b1 <<< 8) + b2 &&& @mtu_bytemask
     else
       nil
     end
@@ -415,8 +415,7 @@ defmodule RNS.Link do
         get_context(link)
       )
 
-    {:ok,
-     %{link | status: @status_handshake, shared_key: shared_key, derived_key: derived_key}}
+    {:ok, %{link | status: @status_handshake, shared_key: shared_key, derived_key: derived_key}}
   end
 
   def handshake(%__MODULE__{}), do: {:error, :invalid_state}
@@ -528,7 +527,9 @@ defmodule RNS.Link do
     peer_sig_pub_bytes = binary_part(data, div(@ecpubsize, 2), div(@ecpubsize, 2))
 
     prv = X25519.generate_keypair()
-    sig_prv = owner.identity.sig_prv_bytes && Ed25519.from_private_bytes(owner.identity.sig_prv_bytes)
+
+    sig_prv =
+      owner.identity.sig_prv_bytes && Ed25519.from_private_bytes(owner.identity.sig_prv_bytes)
 
     link =
       %__MODULE__{
@@ -560,11 +561,12 @@ defmodule RNS.Link do
     establishment_timeout =
       @establishment_timeout_per_hop * max(1, Map.get(packet, :hops, 1)) + @keepalive
 
-    link = %{link |
-      establishment_cost: link.establishment_cost + byte_size(Map.get(packet, :raw, <<>>)),
-      attached_interface: Map.get(packet, :receiving_interface),
-      last_inbound: System.system_time(:second),
-      request_time: System.system_time(:second)
+    link = %{
+      link
+      | establishment_cost: link.establishment_cost + byte_size(Map.get(packet, :raw, <<>>)),
+        attached_interface: Map.get(packet, :receiving_interface),
+        last_inbound: System.system_time(:second),
+        request_time: System.system_time(:second)
     }
 
     _ = establishment_timeout
@@ -618,7 +620,9 @@ defmodule RNS.Link do
         case handshake(updated) do
           {:ok, handshaken} ->
             signed_data =
-              link.link_id <> handshaken.peer_pub_bytes <> handshaken.peer_sig_pub_bytes <>
+              link.link_id <>
+                handshaken.peer_pub_bytes <>
+                handshaken.peer_sig_pub_bytes <>
                 signalling
 
             signature = binary_part(proof_data, 0, sig_len)
@@ -641,7 +645,8 @@ defmodule RNS.Link do
                   |> Map.put(:status, @status_active)
                   |> Map.put(:activated_at, now)
                   |> Map.put(:last_proof, now)
-                  |> Map.put(:establishment_cost,
+                  |> Map.put(
+                    :establishment_cost,
                     handshaken.establishment_cost + byte_size(Map.get(packet, :raw, <<>>))
                   )
 
@@ -697,11 +702,7 @@ defmodule RNS.Link do
         now = System.system_time(:second)
 
         activated =
-          %{link |
-            rtt: final_rtt,
-            status: @status_active,
-            activated_at: now
-          }
+          %{link | rtt: final_rtt, status: @status_active, activated_at: now}
 
         activated =
           if final_rtt > 0 and activated.establishment_cost > 0 do
@@ -1051,13 +1052,7 @@ defmodule RNS.Link do
       end
 
     # Clear encryption keys
-    updated = %{updated |
-      prv: nil,
-      pub_bytes: nil,
-      shared_key: nil,
-      derived_key: nil,
-      token: nil
-    }
+    updated = %{updated | prv: nil, pub_bytes: nil, shared_key: nil, derived_key: nil, token: nil}
 
     # Invoke link_closed callback
     if updated.callbacks && updated.callbacks.link_closed do
@@ -1085,11 +1080,7 @@ defmodule RNS.Link do
       snr = Map.get(packet, :snr, link.snr)
       q = Map.get(packet, :q, link.q)
 
-      %{link |
-        rssi: rssi || link.rssi,
-        snr: snr || link.snr,
-        q: q || link.q
-      }
+      %{link | rssi: rssi || link.rssi, snr: snr || link.snr, q: q || link.q}
     else
       link
     end
@@ -1111,7 +1102,10 @@ defmodule RNS.Link do
     {:ignored, link}
   end
 
-  def receive_packet(%__MODULE__{initiator: true} = link, %{context: context, data: data} = _packet)
+  def receive_packet(
+        %__MODULE__{initiator: true} = link,
+        %{context: context, data: data} = _packet
+      )
       when context == :keepalive and data == <<0xFF>> do
     # Initiator ignores keepalive request packets
     {:ignored, link}
@@ -1122,17 +1116,18 @@ defmodule RNS.Link do
     receiving_interface = Map.get(packet, :receiving_interface)
 
     if receiving_interface != nil and link.attached_interface != nil and
-       receiving_interface != link.attached_interface do
+         receiving_interface != link.attached_interface do
       require Logger
       Logger.error("Link packet received on unexpected interface!")
       {:ignored, link}
     else
       now = System.system_time(:second)
 
-      updated = %{link |
-        last_inbound: now,
-        rx: link.rx + 1,
-        rxbytes: link.rxbytes + byte_size(Map.get(packet, :data, <<>>))
+      updated = %{
+        link
+        | last_inbound: now,
+          rx: link.rx + 1,
+          rxbytes: link.rxbytes + byte_size(Map.get(packet, :data, <<>>))
       }
 
       # Update last_data for non-keepalive packets
@@ -1252,7 +1247,7 @@ defmodule RNS.Link do
         {:ok, activated} ->
           actions =
             if activated.owner && activated.owner[:callbacks] &&
-               activated.owner[:callbacks][:link_established] do
+                 activated.owner[:callbacks][:link_established] do
               [{:callback, activated.owner[:callbacks][:link_established], [activated]}]
             else
               []
@@ -1291,10 +1286,12 @@ defmodule RNS.Link do
         {:ok, plaintext} ->
           link = update_phy_stats(link, packet)
           packet_hash = Map.get(packet, :packet_hash, <<>>)
+
           actions = [
             {:send_proof, packet_hash},
             {:channel_receive, plaintext}
           ]
+
           {:ok, link, actions}
 
         {:error, _} ->
@@ -1357,6 +1354,7 @@ defmodule RNS.Link do
 
     # Handle proof strategy
     dest = link.destination
+
     actions =
       cond do
         dest && Map.get(dest, :proof_strategy) == RNS.Destination.prove_all() ->
@@ -1402,22 +1400,29 @@ defmodule RNS.Link do
     allow_list = RNS.Destination.allow_list()
 
     if dest && Map.has_key?(dest, :request_handlers) &&
-       Map.has_key?(dest.request_handlers, path_hash) do
+         Map.has_key?(dest.request_handlers, path_hash) do
       {_path, response_generator, allow, allowed_list, _auto_compress} =
         Map.get(dest.request_handlers, path_hash)
 
       allowed =
         case allow do
-          ^allow_none -> false
-          ^allow_all -> true
+          ^allow_none ->
+            false
+
+          ^allow_all ->
+            true
+
           ^allow_list ->
             link.remote_identity != nil and
               link.remote_identity.hash in allowed_list
-          _ -> false
+
+          _ ->
+            false
         end
 
       if allowed do
-        response = response_generator.(request_data, request_id, link.remote_identity, requested_at)
+        response =
+          response_generator.(request_data, request_id, link.remote_identity, requested_at)
 
         if response != nil do
           packed_response = Msgpax.pack!([request_id, response]) |> IO.iodata_to_binary()
@@ -1451,7 +1456,13 @@ defmodule RNS.Link do
   response callback.
   """
   @spec handle_response(t(), binary(), term(), non_neg_integer(), non_neg_integer()) :: t()
-  def handle_response(%__MODULE__{status: @status_active} = link, request_id, response_data, response_size, response_transfer_size) do
+  def handle_response(
+        %__MODULE__{status: @status_active} = link,
+        request_id,
+        response_data,
+        response_size,
+        response_transfer_size
+      ) do
     {matching, remaining} =
       Enum.split_with(link.pending_requests, fn req ->
         Map.get(req, :request_id) == request_id
@@ -1470,7 +1481,13 @@ defmodule RNS.Link do
     end
   end
 
-  def handle_response(%__MODULE__{} = link, _request_id, _response_data, _response_size, _response_transfer_size) do
+  def handle_response(
+        %__MODULE__{} = link,
+        _request_id,
+        _response_data,
+        _response_size,
+        _response_transfer_size
+      ) do
     link
   end
 
@@ -1530,11 +1547,12 @@ defmodule RNS.Link do
         size = Map.get(resource, :size, 0)
         rate = size * 8 / max(concluded_at - started, 0.0001)
 
-        %{link |
-          last_resource_window: Map.get(resource, :window),
-          last_resource_eifr: Map.get(resource, :eifr),
-          incoming_resources: List.delete(link.incoming_resources, resource),
-          expected_rate: rate
+        %{
+          link
+          | last_resource_window: Map.get(resource, :window),
+            last_resource_eifr: Map.get(resource, :eifr),
+            incoming_resources: List.delete(link.incoming_resources, resource),
+            expected_rate: rate
         }
       else
         link
@@ -1545,9 +1563,10 @@ defmodule RNS.Link do
       size = Map.get(resource, :size, 0)
       rate = size * 8 / max(concluded_at - started, 0.0001)
 
-      %{link |
-        outgoing_resources: List.delete(link.outgoing_resources, resource),
-        expected_rate: rate
+      %{
+        link
+        | outgoing_resources: List.delete(link.outgoing_resources, resource),
+          expected_rate: rate
       }
     else
       link
@@ -1605,7 +1624,8 @@ defmodule RNS.Link do
     establishment_timeout =
       @establishment_timeout_per_hop * max(1, link.expected_hops || 1) + @keepalive
 
-    if link.request_time && System.system_time(:second) >= link.request_time + establishment_timeout do
+    if link.request_time &&
+         System.system_time(:second) >= link.request_time + establishment_timeout do
       closed = %{link | status: @status_closed, teardown_reason: @timeout}
       closed = link_closed(closed)
       {:ok, closed, [{:teardown, :timeout}]}
@@ -1618,7 +1638,8 @@ defmodule RNS.Link do
     establishment_timeout =
       @establishment_timeout_per_hop * max(1, link.expected_hops || 1) + @keepalive
 
-    if link.request_time && System.system_time(:second) >= link.request_time + establishment_timeout do
+    if link.request_time &&
+         System.system_time(:second) >= link.request_time + establishment_timeout do
       closed = %{link | status: @status_closed, teardown_reason: @timeout}
       closed = link_closed(closed)
       {:ok, closed, [{:teardown, :timeout}]}

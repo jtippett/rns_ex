@@ -118,7 +118,7 @@ defmodule RNS.UtilitiesTest do
     end
 
     test "verbose mode pluralizes correctly" do
-      assert RNS.prettytime(180122, verbose: true) == "2 days, 2 hours, 2 minutes and 2 seconds"
+      assert RNS.prettytime(180_122, verbose: true) == "2 days, 2 hours, 2 minutes and 2 seconds"
     end
 
     test "compact mode limits to 2 components" do

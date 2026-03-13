@@ -237,7 +237,8 @@ defmodule RNS.Reticulum do
 
   @doc "Returns whether connected to a shared instance."
   @spec is_connected_to_shared_instance?() :: boolean()
-  def is_connected_to_shared_instance?, do: GenServer.call(__MODULE__, :is_connected_to_shared_instance?)
+  def is_connected_to_shared_instance?,
+    do: GenServer.call(__MODULE__, :is_connected_to_shared_instance?)
 
   @doc "Returns whether auto-connecting discovered interfaces is enabled."
   @spec should_autoconnect_discovered_interfaces?() :: boolean()
@@ -542,7 +543,10 @@ defmodule RNS.Reticulum do
             config
 
           {:error, reason} ->
-            Logger.error("Could not parse configuration at #{paths.configpath}: #{inspect(reason)}")
+            Logger.error(
+              "Could not parse configuration at #{paths.configpath}: #{inspect(reason)}"
+            )
+
             Logger.error("Check your configuration file for errors!")
             raise "Configuration parse error: #{inspect(reason)}"
         end
@@ -882,19 +886,21 @@ defmodule RNS.Reticulum do
                 "Local shared instance appears to be running, but could not be connected"
               )
 
-              %{state |
-                is_shared_instance: false,
-                is_standalone_instance: true,
-                is_connected_to_shared_instance: false
+              %{
+                state
+                | is_shared_instance: false,
+                  is_standalone_instance: true,
+                  is_connected_to_shared_instance: false
               }
           end
       end
     else
       # No sharing configured — standalone mode
-      %{state |
-        is_shared_instance: false,
-        is_standalone_instance: true,
-        is_connected_to_shared_instance: false
+      %{
+        state
+        | is_shared_instance: false,
+          is_standalone_instance: true,
+          is_connected_to_shared_instance: false
       }
     end
   end
@@ -918,12 +924,13 @@ defmodule RNS.Reticulum do
         end
 
         {:ok,
-         %{state |
-           is_shared_instance: true,
-           is_standalone_instance: false,
-           is_connected_to_shared_instance: false,
-           shared_instance_interface: pid,
-           started_interfaces: [pid | state.started_interfaces]
+         %{
+           state
+           | is_shared_instance: true,
+             is_standalone_instance: false,
+             is_connected_to_shared_instance: false,
+             shared_instance_interface: pid,
+             started_interfaces: [pid | state.started_interfaces]
          }}
 
       {:error, reason} ->
@@ -950,14 +957,15 @@ defmodule RNS.Reticulum do
         end
 
         {:ok,
-         %{state |
-           is_shared_instance: false,
-           is_standalone_instance: false,
-           is_connected_to_shared_instance: true,
-           transport_enabled: false,
-           remote_management_enabled: false,
-           allow_probes: false,
-           started_interfaces: [pid | state.started_interfaces]
+         %{
+           state
+           | is_shared_instance: false,
+             is_standalone_instance: false,
+             is_connected_to_shared_instance: true,
+             transport_enabled: false,
+             remote_management_enabled: false,
+             allow_probes: false,
+             started_interfaces: [pid | state.started_interfaces]
          }}
 
       {:error, reason} ->
@@ -1040,9 +1048,7 @@ defmodule RNS.Reticulum do
     end
   rescue
     e ->
-      Logger.error(
-        "The interface \"#{name}\" could not be created: #{Exception.message(e)}"
-      )
+      Logger.error("The interface \"#{name}\" could not be created: #{Exception.message(e)}")
 
       if state.panic_on_interface_error do
         reraise e, __STACKTRACE__
@@ -1082,7 +1088,8 @@ defmodule RNS.Reticulum do
       if has_interface_mode_config?(c), do: parse_interface_mode(c), else: interface_mode
 
     # IFAC parameters
-    ifac_size = get_optional_int(c, "ifac_size", fn v -> if v >= @ifac_min_size * 8, do: div(v, 8) end)
+    ifac_size =
+      get_optional_int(c, "ifac_size", fn v -> if v >= @ifac_min_size * 8, do: div(v, 8) end)
 
     ifac_netname =
       get_nonempty_string(c, "networkname") || get_nonempty_string(c, "network_name")
@@ -1116,7 +1123,9 @@ defmodule RNS.Reticulum do
 
     # Default grace and penalty when target is set
     announce_rate_grace =
-      if announce_rate_target != nil and announce_rate_grace == nil, do: 0, else: announce_rate_grace
+      if announce_rate_target != nil and announce_rate_grace == nil,
+        do: 0,
+        else: announce_rate_grace
 
     announce_rate_penalty =
       if announce_rate_target != nil and announce_rate_penalty == nil,
@@ -1331,17 +1340,36 @@ defmodule RNS.Reticulum do
 
   # Integer config fields that need type coercion from string
   @integer_config_keys MapSet.new([
-    :port, :listen_port, :bind_port, :forward_port, :target_port,
-    :speed, :databits, :stopbits, :data_port, :discovery_port,
-    :connect_timeout, :max_reconnect_tries, :respawn_delay,
-    :frequency, :bandwidth, :txpower, :spreadingfactor, :codingrate,
-    :id_interval, :ifac_size
-  ])
+                         :port,
+                         :listen_port,
+                         :bind_port,
+                         :forward_port,
+                         :target_port,
+                         :speed,
+                         :databits,
+                         :stopbits,
+                         :data_port,
+                         :discovery_port,
+                         :connect_timeout,
+                         :max_reconnect_tries,
+                         :respawn_delay,
+                         :frequency,
+                         :bandwidth,
+                         :txpower,
+                         :spreadingfactor,
+                         :codingrate,
+                         :id_interval,
+                         :ifac_size
+                       ])
 
   @bool_config_keys MapSet.new([
-    :kiss_framing, :i2p_tunneled, :prefer_ipv6, :flow_control,
-    :enabled, :interface_enabled
-  ])
+                      :kiss_framing,
+                      :i2p_tunneled,
+                      :prefer_ipv6,
+                      :flow_control,
+                      :enabled,
+                      :interface_enabled
+                    ])
 
   defp coerce_config_value(key, value) when is_binary(value) do
     cond do
@@ -1593,7 +1621,12 @@ defmodule RNS.Reticulum do
 
           case File.stat(filepath) do
             {:ok, %{mtime: mtime}} ->
-              mtime_seconds = mtime |> NaiveDateTime.from_erl!() |> DateTime.from_naive!("Etc/UTC") |> DateTime.to_unix()
+              mtime_seconds =
+                mtime
+                |> NaiveDateTime.from_erl!()
+                |> DateTime.from_naive!("Etc/UTC")
+                |> DateTime.to_unix()
+
               age = now - mtime_seconds
 
               if age > max_age do
@@ -1664,11 +1697,19 @@ defmodule RNS.Reticulum do
       |> apply_bool_option_true_only(ret_section, "enable_transport", :transport_enabled)
       |> apply_network_identity(ret_section)
       |> apply_bool_option(ret_section, "link_mtu_discovery", :link_mtu_discovery)
-      |> apply_bool_option_true_only(ret_section, "enable_remote_management", :remote_management_enabled)
+      |> apply_bool_option_true_only(
+        ret_section,
+        "enable_remote_management",
+        :remote_management_enabled
+      )
       |> apply_remote_management_allowed(ret_section)
       |> apply_bool_option_true_only(ret_section, "respond_to_probes", :allow_probes)
       |> apply_force_shared_instance_bitrate(ret_section)
-      |> apply_bool_option_true_only(ret_section, "panic_on_interface_error", :panic_on_interface_error)
+      |> apply_bool_option_true_only(
+        ret_section,
+        "panic_on_interface_error",
+        :panic_on_interface_error
+      )
       |> apply_bool_option(ret_section, "use_implicit_proof", :use_implicit_proof)
       |> apply_bool_option(ret_section, "discover_interfaces", :discover_interfaces)
       |> apply_required_discovery_value(ret_section)
@@ -1811,7 +1852,11 @@ defmodule RNS.Reticulum do
 
   defp apply_force_shared_instance_bitrate(state, section) do
     if Section.has_key?(section, "force_shared_instance_bitrate") do
-      Map.put(state, :force_shared_instance_bitrate, Section.as_int(section, "force_shared_instance_bitrate"))
+      Map.put(
+        state,
+        :force_shared_instance_bitrate,
+        Section.as_int(section, "force_shared_instance_bitrate")
+      )
     else
       state
     end
