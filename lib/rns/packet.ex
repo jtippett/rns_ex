@@ -261,7 +261,13 @@ defmodule RNS.Packet do
 
   defp pack_by_header_type(%__MODULE__{header_type: @header_1} = packet, header, dest_hash) do
     header = header <> dest_hash
-    {ciphertext, ratchet_id} = encrypt_for_pack(packet)
+
+    {ciphertext, ratchet_id} =
+      case encrypt_for_pack(packet) do
+        :passthrough -> {packet.data, packet.ratchet_id}
+        result -> result
+      end
+
     {header, ciphertext, ratchet_id}
   end
 
@@ -282,48 +288,29 @@ defmodule RNS.Packet do
     {header, ciphertext, packet.ratchet_id}
   end
 
-  defp encrypt_for_pack(%__MODULE__{} = packet) do
-    cond do
-      packet.packet_type == @announce ->
-        {packet.data, packet.ratchet_id}
+  defp encrypt_for_pack(%__MODULE__{packet_type: type})
+       when type in [@announce, @linkrequest] do
+    :passthrough
+  end
 
-      packet.packet_type == @linkrequest ->
-        {packet.data, packet.ratchet_id}
+  defp encrypt_for_pack(%__MODULE__{packet_type: @proof, context: @context_resource_prf}) do
+    :passthrough
+  end
 
-      packet.packet_type == @proof and packet.context == @context_resource_prf ->
-        {packet.data, packet.ratchet_id}
+  defp encrypt_for_pack(%__MODULE__{packet_type: @proof, destination: %{type: @dest_link}}) do
+    :passthrough
+  end
 
-      packet.packet_type == @proof and Map.get(packet.destination, :type) == @dest_link ->
-        {packet.data, packet.ratchet_id}
+  defp encrypt_for_pack(%__MODULE__{context: ctx})
+       when ctx in [@context_resource, @context_keepalive, @context_cache_request] do
+    :passthrough
+  end
 
-      packet.context == @context_resource ->
-        {packet.data, packet.ratchet_id}
-
-      packet.context == @context_keepalive ->
-        {packet.data, packet.ratchet_id}
-
-      packet.context == @context_cache_request ->
-        {packet.data, packet.ratchet_id}
-
-      true ->
-        # Encrypt with destination's encryption method
-        encrypt_fn = Map.get(packet.destination, :encrypt)
-
-        ciphertext =
-          if is_function(encrypt_fn, 1) do
-            encrypt_fn.(packet.data)
-          else
-            packet.data
-          end
-
-        ratchet_id =
-          case Map.get(packet.destination, :latest_ratchet_id) do
-            nil -> packet.ratchet_id
-            id -> id
-          end
-
-        {ciphertext, ratchet_id}
-    end
+  defp encrypt_for_pack(%__MODULE__{destination: dest, data: data, ratchet_id: rid}) do
+    encrypt_fn = Map.get(dest, :encrypt)
+    ciphertext = if is_function(encrypt_fn, 1), do: encrypt_fn.(data), else: data
+    ratchet_id = Map.get(dest, :latest_ratchet_id) || rid
+    {ciphertext, ratchet_id}
   end
 
   # ── Unpack ───────────────────────────────────────────────────────
