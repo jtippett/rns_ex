@@ -128,7 +128,9 @@ defmodule RNS.PacketReceipt do
       receipt = %{receipt | status: new_status, concluded_at: now}
 
       if receipt.callbacks.timeout do
-        Task.start(fn -> receipt.callbacks.timeout.(receipt) end)
+        Task.Supervisor.start_child(RNS.TaskSupervisor, fn ->
+          receipt.callbacks.timeout.(receipt)
+        end)
       end
 
       receipt

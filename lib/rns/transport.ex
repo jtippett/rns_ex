@@ -1914,12 +1914,12 @@ defmodule RNS.Transport do
 
             case arity do
               3 ->
-                Task.start(fn ->
+                Task.Supervisor.start_child(RNS.TaskSupervisor, fn ->
                   callback.(packet.destination_hash, announce_identity, app_data)
                 end)
 
               4 ->
-                Task.start(fn ->
+                Task.Supervisor.start_child(RNS.TaskSupervisor, fn ->
                   callback.(
                     packet.destination_hash,
                     announce_identity,
@@ -1929,7 +1929,7 @@ defmodule RNS.Transport do
                 end)
 
               5 ->
-                Task.start(fn ->
+                Task.Supervisor.start_child(RNS.TaskSupervisor, fn ->
                   callback.(
                     packet.destination_hash,
                     announce_identity,

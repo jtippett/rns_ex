@@ -518,3 +518,56 @@ timer (12h interval via :run_jobs) was already working.
   start_reticulum/1).
 
 **Result:** `mix test` passes with 0 failures (3164 tests, 13 pre-existing skipped fixture tests).
+
+## 2026-03-14 — Task 4.1: Replace unsupervised spawns with supervised processes
+
+**Audit findings:**
+- `lib/rns/transport.ex` lines 1917, 1922, 1932: Three `Task.start` calls for announce handler
+  callbacks (3-arity, 4-arity, and 5-arity variants). These execute user-registered announce
+  handler callbacks in fire-and-forget fashion. Crashes were silent and unrecoverable.
+- `lib/rns/packet_receipt.ex` line 131: `Task.start` for packet receipt timeout callback.
+  Crash in a timeout callback would be silently swallowed.
+- `lib/rns/buffer.ex` line 228: `Task.start` for buffer listener notification callbacks.
+  Already had try/rescue but Task itself was unsupervised.
+- `lib/rns/utilities/rncp.ex` line 382: Raw `spawn(fn -> announce_loop(...) end)` for a
+  long-lived repeating announce loop. Crash would silently kill the loop.
+- Interface spawned children (TCP, Backbone, Local, I2P server→client) use `GenServer.start_link`
+  with `Process.monitor` — properly linked and monitored, not raw spawns. Left as-is.
+
+**Changes:**
+- `lib/rns/application.ex`:
+  - Added `{Task.Supervisor, name: RNS.TaskSupervisor}` to the supervision tree between
+    ResourceSupervisor and Reticulum (position 6 of 7 children). Updated moduledoc.
+  - Total children count is now 7 (was 6).
+- `lib/rns/transport.ex`:
+  - Replaced 3 `Task.start(fn -> callback.(...) end)` calls in `call_announce_handlers/1`
+    with `Task.Supervisor.start_child(RNS.TaskSupervisor, fn -> ... end)`. Announce handler
+    callback crashes are now logged by the supervisor instead of silently lost.
+- `lib/rns/packet_receipt.ex`:
+  - Replaced `Task.start(fn -> receipt.callbacks.timeout.(receipt) end)` in `check_timeout/1`
+    with `Task.Supervisor.start_child(RNS.TaskSupervisor, ...)`. Timeout callback crashes
+    are now visible in logs.
+- `lib/rns/buffer.ex`:
+  - Replaced `Task.start(fn -> listener.(buffer_size) end)` in `RawChannelReader` with
+    `Task.Supervisor.start_child(RNS.TaskSupervisor, ...)`.
+- `lib/rns/utilities/rncp.ex`:
+  - Replaced `spawn(fn -> announce_loop(destination, announce) end)` with
+    `Task.Supervisor.start_child(RNS.TaskSupervisor, ...)`. The long-lived announce loop
+    is now supervised — if it crashes, the supervisor logs the error.
+- `test/rns/application_test.exs`:
+  - Updated child count from 6 to 7.
+  - Added `RNS.TaskSupervisor` to expected child IDs.
+  - Added test verifying TaskSupervisor is running and accepts tasks.
+- `test/rns/supervised_tasks_test.exs`: New test file with 12 tests covering:
+  - TaskSupervisor is running after boot
+  - Supervised tasks execute correctly
+  - Task crashes don't propagate to the supervisor
+  - TaskSupervisor is in the supervision tree
+  - Announce handler callbacks use TaskSupervisor (source verification)
+  - TaskSupervisor-started tasks execute callbacks
+  - PacketReceipt timeout callback runs under TaskSupervisor
+  - No raw `spawn(fn` in any lib/rns/ file (comprehensive scan)
+  - No raw `Task.start(` in any lib/rns/ file (comprehensive scan)
+  - Per-file verification for transport.ex, packet_receipt.ex, buffer.ex, rncp.ex
+
+**Result:** `mix test` passes with 0 failures (3178 tests, 13 pre-existing skipped fixture tests).

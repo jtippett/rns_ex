@@ -65,9 +65,9 @@ defmodule RNS.ApplicationTest do
              }
     end
 
-    test "supervisor has exactly 6 children" do
+    test "supervisor has exactly 7 children" do
       counts = Supervisor.count_children(RNS.Supervisor)
-      assert counts[:active] == 6
+      assert counts[:active] == 7
     end
 
     test "supervisor uses :rest_for_one strategy" do
@@ -80,6 +80,7 @@ defmodule RNS.ApplicationTest do
       assert RNS.InterfaceSupervisor in child_ids
       assert RNS.LinkSupervisor in child_ids
       assert RNS.ResourceSupervisor in child_ids
+      assert RNS.TaskSupervisor in child_ids
       assert RNS.Reticulum in child_ids
     end
 
@@ -94,6 +95,16 @@ defmodule RNS.ApplicationTest do
       assert :ets.info(:rns_pending_links) != :undefined
       assert :ets.info(:rns_active_links) != :undefined
       assert :ets.info(:rns_packet_hashlist) != :undefined
+    end
+
+    test "TaskSupervisor is running as a Task.Supervisor" do
+      pid = Process.whereis(RNS.TaskSupervisor)
+      assert is_pid(pid)
+      assert Process.alive?(pid)
+
+      # Verify it accepts tasks
+      {:ok, task_pid} = Task.Supervisor.start_child(RNS.TaskSupervisor, fn -> :ok end)
+      assert is_pid(task_pid)
     end
 
     test "no ETS errors on startup — all GenServers are responsive" do

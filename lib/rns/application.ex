@@ -8,7 +8,8 @@ defmodule RNS.Application do
     3. InterfaceSupervisor — DynamicSupervisor for network interfaces
     4. LinkSupervisor — DynamicSupervisor for active links
     5. ResourceSupervisor — DynamicSupervisor for resource transfers
-    6. Reticulum — config, interface lifecycle, coordinator (last — depends on all above)
+    6. TaskSupervisor — Task.Supervisor for fire-and-forget callbacks
+    7. Reticulum — config, interface lifecycle, coordinator (last — depends on all above)
 
   With :rest_for_one, if IdentityStore crashes, everything below restarts.
   If Transport crashes, DynamicSupervisors and Reticulum restart.
@@ -28,6 +29,7 @@ defmodule RNS.Application do
       {DynamicSupervisor, strategy: :one_for_one, name: RNS.InterfaceSupervisor},
       {DynamicSupervisor, strategy: :one_for_one, name: RNS.LinkSupervisor},
       {DynamicSupervisor, strategy: :one_for_one, name: RNS.ResourceSupervisor},
+      {Task.Supervisor, name: RNS.TaskSupervisor},
       {RNS.Reticulum, reticulum_opts}
     ]
 

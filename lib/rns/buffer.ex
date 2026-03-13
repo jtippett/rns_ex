@@ -225,7 +225,9 @@ defmodule RNS.Buffer.RawChannelReader do
 
         for listener <- listeners do
           try do
-            Task.start(fn -> listener.(buffer_size) end)
+            Task.Supervisor.start_child(RNS.TaskSupervisor, fn ->
+              listener.(buffer_size)
+            end)
           rescue
             e ->
               RNS.Log.log(

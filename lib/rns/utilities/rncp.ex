@@ -379,7 +379,9 @@ defmodule RNS.Utilities.RNCP do
       RNS.Destination.announce(destination)
 
       if announce > 0 do
-        spawn(fn -> announce_loop(destination, announce) end)
+        Task.Supervisor.start_child(RNS.TaskSupervisor, fn ->
+          announce_loop(destination, announce)
+        end)
       end
     end
 
