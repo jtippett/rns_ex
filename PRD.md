@@ -2,7 +2,7 @@
 
 ## Overview
 
-Port the complete Reticulum Network Stack (RNS) from Python to Elixir, producing a high-quality, fully tested, idiomatic OTP application that can be imported and used in Elixir programs as a drop-in networking stack. The Python reference implementation lives in `python/RNS/` — read the corresponding Python source when implementing each module. The result should be publishable as a community hex package (`rns_ex`).
+Port the complete Reticulum Network Stack (RNS) from Python to Elixir, producing a high-quality, fully tested, idiomatic OTP application that can be imported and used in Elixir programs as a drop-in networking stack. The Python reference implementation lives in `python/RNS/` — read the corresponding Python source when implementing each module. The result should be publishable as a community hex package (`rns_ex`). Make sure to maintain public API compatibility with the Python version, while being mindful of Elixir's idioms and best practices - use OTP patterns where they make sense in an elixir context.
 
 ## Architecture
 
@@ -132,7 +132,7 @@ Optional (add only if implementing serial interfaces):
 
 ## CAUTION: Network Impact During Testing
 
-Running `mix test` on this project can cause **severe network degradation on the host machine**. The AutoInterface binds UDP multicast sockets to every network interface it discovers (including virtual ones like Tailscale, Docker, etc.), and each test run can open **thousands of sockets** with hundreds of multicast group memberships. Multiple concurrent test runs compound the problem.
+Running `mix test` on this project can cause **severe network degradation on the host machine**. The AutoInterface binds UDP multicast sockets to every network interface it discovers (including virtual ones like Tailscale, Docker, etc.), and each test run can open **thousands of sockets** with hundreds of multicast group memberships. Multiple concurrent test runs compound the problem. We will rely on CI (github actions) for testing the full suite, and developers should run individual test files or restrict AutoInterface to loopback during local development.
 
 ### Prevention
 
@@ -143,9 +143,9 @@ Running `mix test` on this project can cause **severe network degradation on the
 
 ### Recovery: If Networking Becomes Slow or Flaky
 
-1. **Kill all BEAM processes:**
+1. **Kill all test processes:**
    ```
-   pkill -9 -f beam.smp
+   pkill -9 -f beam.smp (try to find specific PIDs if you can)
    ```
 
 2. **Verify no sockets remain open:**
@@ -192,6 +192,7 @@ Running `mix test` on this project can cause **severe network degradation on the
 - All public API methods must match the Python API semantics
 - Use `@moduledoc` and `@doc` for all public modules and functions
 - Use typespecs (`@spec`) on all public functions
+- Leverage OTP patterns to replace python's crude concurrency primitives
 
 ## Constants Reference (must match exactly)
 
@@ -342,7 +343,7 @@ This is the largest module (3312 LOC in Python). Split into manageable sub-modul
 
 ### Phase 8: System Integration
 
-- [ ] **8.1 — Configuration parser**
+- [x] **8.1 — Configuration parser**
   Create `lib/rns/vendor/config_obj.ex`. Port INI-like config parsing that `python/RNS/Reticulum.py` uses. RNS configs use `configobj` format (INI with nested sections, type coercion). Implement: `parse/1`, `parse_file/1`, `to_string/1`. Handle nested `[[section]]` blocks, key=value parsing, comments, type coercion (booleans, integers, lists). Write tests with sample RNS config files (see `python/tests/rnsconfig/config`).
 
 - [ ] **8.2 — Reticulum main class — initialization and configuration**
