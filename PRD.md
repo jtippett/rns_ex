@@ -337,7 +337,7 @@ This is the largest module (3312 LOC in Python). Split into manageable sub-modul
 - [x] **7.11 — RNode interface (LoRa)**
   Port `python/RNS/Interfaces/RNodeInterface.py` (1558 LOC) → `lib/rns/interfaces/rnode_interface.ex`. LoRa radio via RNode hardware. KISS-based command protocol, radio params (frequency, bandwidth, spreading factor, coding rate, TX power), firmware detection, stats, serial connection. Most complex interface. Write tests: command encoding/decoding, radio param validation, KISS command framing.
 
-- [ ] **7.12 — RNode Multi and Weave interfaces**
+- [x] **7.12 — RNode Multi and Weave interfaces**
   Port `python/RNS/Interfaces/RNodeMultiInterface.py` (1148 LOC) → `lib/rns/interfaces/rnode_multi_interface.ex`. Dual-radio LoRa multiplexing. Port `python/RNS/Interfaces/WeaveInterface.py` (1091 LOC) → `lib/rns/interfaces/weave_interface.ex`. Weave Device Command Language (WDCL). Write tests for both.
 
 ### Phase 8: System Integration
