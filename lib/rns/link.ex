@@ -22,6 +22,90 @@ defmodule RNS.Link.Callbacks do
         }
 end
 
+defmodule RNS.Link.CryptoState do
+  @moduledoc "Holds cryptographic keys and encryption state for a Link."
+
+  use RNS.Constants.Link
+
+  defstruct [
+    :prv,
+    :pub_bytes,
+    :sig_prv,
+    :sig_pub_bytes,
+    :shared_key,
+    :derived_key,
+    :token,
+    mode: @mode_default
+  ]
+
+  @type t :: %__MODULE__{
+          prv: binary() | nil,
+          pub_bytes: binary() | nil,
+          sig_prv: binary() | nil,
+          sig_pub_bytes: binary() | nil,
+          shared_key: binary() | nil,
+          derived_key: binary() | nil,
+          token: any() | nil,
+          mode: non_neg_integer()
+        }
+end
+
+defmodule RNS.Link.PeerState do
+  @moduledoc "Holds peer public keys and identity for a Link."
+
+  defstruct [
+    :peer_pub_bytes,
+    :peer_sig_pub_bytes,
+    :remote_identity
+  ]
+
+  @type t :: %__MODULE__{
+          peer_pub_bytes: binary() | nil,
+          peer_sig_pub_bytes: binary() | nil,
+          remote_identity: any() | nil
+        }
+end
+
+defmodule RNS.Link.Stats do
+  @moduledoc "Holds statistics and timing information for a Link."
+
+  defstruct [
+    :rtt,
+    :rssi,
+    :snr,
+    :q,
+    :establishment_rate,
+    :expected_hops,
+    tx: 0,
+    rx: 0,
+    txbytes: 0,
+    rxbytes: 0,
+    last_inbound: 0,
+    last_outbound: 0,
+    last_keepalive: 0,
+    last_proof: 0,
+    last_data: 0
+  ]
+
+  @type t :: %__MODULE__{
+          rtt: number() | nil,
+          rssi: number() | nil,
+          snr: number() | nil,
+          q: number() | nil,
+          establishment_rate: number() | nil,
+          expected_hops: non_neg_integer() | nil,
+          tx: non_neg_integer(),
+          rx: non_neg_integer(),
+          txbytes: non_neg_integer(),
+          rxbytes: non_neg_integer(),
+          last_inbound: non_neg_integer(),
+          last_outbound: non_neg_integer(),
+          last_keepalive: non_neg_integer(),
+          last_proof: non_neg_integer(),
+          last_data: non_neg_integer()
+        }
+end
+
 defmodule RNS.Link do
   @moduledoc """
   Represents and manages links in the Reticulum Network Stack.
@@ -47,6 +131,7 @@ defmodule RNS.Link do
   alias RNS.Cryptography.Token
   alias RNS.Cryptography.HKDF
   alias RNS.Identity
+  alias RNS.Link.{CryptoState, PeerState, Stats}
 
   use RNS.Constants.Link
   use RNS.Constants.Destination
@@ -61,29 +146,12 @@ defmodule RNS.Link do
     :destination,
     :owner,
     :attached_interface,
-    :prv,
-    :pub_bytes,
-    :sig_prv,
-    :sig_pub_bytes,
-    :peer_pub_bytes,
-    :peer_sig_pub_bytes,
-    :shared_key,
-    :derived_key,
-    :token,
-    :rtt,
-    :remote_identity,
     :channel,
     :activated_at,
     :request_time,
     :teardown_reason,
-    :expected_hops,
-    :rssi,
-    :snr,
-    :q,
-    :establishment_rate,
     status: @status_pending,
     initiator: false,
-    mode: @mode_default,
     mtu: @mtu,
     mdu: @link_mdu,
     establishment_cost: 0,
@@ -94,22 +162,16 @@ defmodule RNS.Link do
     outgoing_resources: [],
     incoming_resources: [],
     pending_requests: [],
-    last_inbound: 0,
-    last_outbound: 0,
-    last_keepalive: 0,
-    last_proof: 0,
-    last_data: 0,
-    tx: 0,
-    rx: 0,
-    txbytes: 0,
-    rxbytes: 0,
     traffic_timeout_factor: @traffic_timeout_factor,
     keepalive_timeout_factor: @keepalive_timeout_factor,
     keepalive: @keepalive,
     stale_time: @stale_time,
     track_phy_stats: false,
     type: 0x03,
-    callbacks: nil
+    callbacks: nil,
+    crypto: %CryptoState{},
+    peer: %PeerState{},
+    stats: %Stats{}
   ]
 
   @type t :: %__MODULE__{}
@@ -152,7 +214,12 @@ defmodule RNS.Link do
   @doc "Creates a new Link struct with default values."
   @spec new() :: t()
   def new do
-    %__MODULE__{callbacks: %__MODULE__.Callbacks{}}
+    %__MODULE__{
+      callbacks: %__MODULE__.Callbacks{},
+      crypto: %CryptoState{},
+      peer: %PeerState{},
+      stats: %Stats{}
+    }
   end
 
   # ── Signalling bytes ────────────────────────────────────────────
@@ -249,8 +316,8 @@ defmodule RNS.Link do
 
   @doc "Loads peer public keys into the link."
   @spec load_peer(t(), binary(), binary()) :: t()
-  def load_peer(%__MODULE__{} = link, peer_pub_bytes, peer_sig_pub_bytes) do
-    %{link | peer_pub_bytes: peer_pub_bytes, peer_sig_pub_bytes: peer_sig_pub_bytes}
+  def load_peer(%__MODULE__{peer: peer} = link, peer_pub_bytes, peer_sig_pub_bytes) do
+    %{link | peer: %{peer | peer_pub_bytes: peer_pub_bytes, peer_sig_pub_bytes: peer_sig_pub_bytes}}
   end
 
   # ── Handshake ───────────────────────────────────────────────────
@@ -263,14 +330,14 @@ defmodule RNS.Link do
   The link_id is used as the HKDF salt.
   """
   @spec handshake(t()) :: {:ok, t()} | {:error, :invalid_state}
-  def handshake(%__MODULE__{status: @status_pending, prv: prv} = link) when prv != nil do
-    shared_key = X25519.exchange(prv, link.peer_pub_bytes)
+  def handshake(%__MODULE__{status: @status_pending, crypto: %CryptoState{prv: prv} = crypto} = link) when prv != nil do
+    shared_key = X25519.exchange(prv, link.peer.peer_pub_bytes)
 
     derived_key_length =
-      case link.mode do
+      case crypto.mode do
         @mode_aes128_cbc -> 32
         @mode_aes256_cbc -> 64
-        _ -> raise "Invalid link mode #{link.mode}"
+        _ -> raise "Invalid link mode #{crypto.mode}"
       end
 
     derived_key =
@@ -281,7 +348,7 @@ defmodule RNS.Link do
         context(link)
       )
 
-    {:ok, %{link | status: @status_handshake, shared_key: shared_key, derived_key: derived_key}}
+    {:ok, %{link | status: @status_handshake, crypto: %{crypto | shared_key: shared_key, derived_key: derived_key}}}
   end
 
   def handshake(%__MODULE__{}), do: {:error, :invalid_state}
@@ -317,20 +384,20 @@ defmodule RNS.Link do
     e -> {:error, e}
   end
 
-  defp get_or_create_token(%__MODULE__{token: %Token{} = token}), do: token
-  defp get_or_create_token(%__MODULE__{derived_key: key}), do: Token.new(key)
+  defp get_or_create_token(%__MODULE__{crypto: %CryptoState{token: %Token{} = token}}), do: token
+  defp get_or_create_token(%__MODULE__{crypto: %CryptoState{derived_key: key}}), do: Token.new(key)
 
   # ── Sign / Validate ─────────────────────────────────────────────
 
   @doc "Signs a message using the link's Ed25519 signing key."
   @spec sign(t(), binary()) :: binary()
-  def sign(%__MODULE__{sig_prv: sig_prv}, message) do
+  def sign(%__MODULE__{crypto: %CryptoState{sig_prv: sig_prv}}, message) do
     Ed25519.sign(sig_prv, message)
   end
 
   @doc "Validates a signature against the peer's signing public key."
   @spec validate(t(), binary(), binary()) :: boolean()
-  def validate(%__MODULE__{peer_sig_pub_bytes: peer_sig_pub_bytes}, signature, message) do
+  def validate(%__MODULE__{peer: %PeerState{peer_sig_pub_bytes: peer_sig_pub_bytes}}, signature, message) do
     Ed25519.verify(signature, message, peer_sig_pub_bytes)
   rescue
     _ -> false
@@ -354,14 +421,14 @@ defmodule RNS.Link do
 
   @doc "Records an outbound event with timestamp."
   @spec had_outbound(t(), keyword()) :: t()
-  def had_outbound(%__MODULE__{} = link, opts \\ []) do
+  def had_outbound(%__MODULE__{stats: stats} = link, opts \\ []) do
     now = System.system_time(:second)
     is_keepalive = Keyword.get(opts, :is_keepalive, false)
 
     if is_keepalive do
-      %{link | last_outbound: now, last_keepalive: now}
+      %{link | stats: %{stats | last_outbound: now, last_keepalive: now}}
     else
-      %{link | last_outbound: now, last_data: now}
+      %{link | stats: %{stats | last_outbound: now, last_data: now}}
     end
   end
 
@@ -401,12 +468,16 @@ defmodule RNS.Link do
       %__MODULE__{
         new()
         | initiator: false,
-          prv: prv,
-          pub_bytes: X25519.public_key(prv),
-          sig_prv: sig_prv,
-          sig_pub_bytes: owner.identity.sig_pub_bytes,
-          peer_pub_bytes: peer_pub_bytes,
-          peer_sig_pub_bytes: peer_sig_pub_bytes,
+          crypto: %CryptoState{
+            prv: prv,
+            pub_bytes: X25519.public_key(prv),
+            sig_prv: sig_prv,
+            sig_pub_bytes: owner.identity.sig_pub_bytes
+          },
+          peer: %PeerState{
+            peer_pub_bytes: peer_pub_bytes,
+            peer_sig_pub_bytes: peer_sig_pub_bytes
+          },
           owner: owner,
           destination: Map.get(packet, :destination)
       }
@@ -416,10 +487,10 @@ defmodule RNS.Link do
       if signalling_type == :with_signalling do
         mtu = mtu_from_lr_packet(packet) || @mtu
         mode = mode_from_lr_packet(packet)
-        %{link | mtu: mtu, mode: mode}
+        %{link | mtu: mtu, crypto: %{link.crypto | mode: mode}}
       else
         mode = mode_from_lr_packet(packet)
-        %{link | mode: mode}
+        %{link | crypto: %{link.crypto | mode: mode}}
       end
 
     link = update_mdu(link)
@@ -431,7 +502,7 @@ defmodule RNS.Link do
       link
       | establishment_cost: link.establishment_cost + byte_size(Map.get(packet, :raw, <<>>)),
         attached_interface: Map.get(packet, :receiving_interface),
-        last_inbound: System.system_time(:second),
+        stats: %{link.stats | last_inbound: System.system_time(:second)},
         request_time: System.system_time(:second)
     }
 
@@ -461,7 +532,7 @@ defmodule RNS.Link do
 
     mode = mode_from_lp_packet(packet)
 
-    if mode != link.mode do
+    if mode != link.crypto.mode do
       {:error, :mode_mismatch}
     else
       {confirmed_mtu, signalling, proof_data} =
@@ -487,8 +558,8 @@ defmodule RNS.Link do
           {:ok, handshaken} ->
             signed_data =
               link.link_id <>
-                handshaken.peer_pub_bytes <>
-                handshaken.peer_sig_pub_bytes <>
+                handshaken.peer.peer_pub_bytes <>
+                handshaken.peer.peer_sig_pub_bytes <>
                 signalling
 
             <<signature::binary-size(sig_len), _::binary>> = proof_data
@@ -502,23 +573,20 @@ defmodule RNS.Link do
                 mtu = confirmed_mtu || @mtu
 
                 activated =
-                  handshaken
-                  |> Map.put(:rtt, rtt)
-                  |> Map.put(:attached_interface, Map.get(packet, :receiving_interface))
-                  |> Map.put(:remote_identity, link.destination.identity)
-                  |> Map.put(:mtu, mtu)
+                  %{handshaken |
+                    stats: %{handshaken.stats | rtt: rtt, last_proof: now},
+                    attached_interface: Map.get(packet, :receiving_interface),
+                    peer: %{handshaken.peer | remote_identity: link.destination.identity},
+                    mtu: mtu,
+                    status: @status_active,
+                    activated_at: now,
+                    establishment_cost: handshaken.establishment_cost + byte_size(Map.get(packet, :raw, <<>>))
+                  }
                   |> update_mdu()
-                  |> Map.put(:status, @status_active)
-                  |> Map.put(:activated_at, now)
-                  |> Map.put(:last_proof, now)
-                  |> Map.put(
-                    :establishment_cost,
-                    handshaken.establishment_cost + byte_size(Map.get(packet, :raw, <<>>))
-                  )
 
                 activated =
                   if rtt > 0 and activated.establishment_cost > 0 do
-                    %{activated | establishment_rate: activated.establishment_cost / rtt}
+                    %{activated | stats: %{activated.stats | establishment_rate: activated.establishment_cost / rtt}}
                   else
                     activated
                   end
@@ -568,11 +636,11 @@ defmodule RNS.Link do
         now = System.system_time(:second)
 
         activated =
-          %{link | rtt: final_rtt, status: @status_active, activated_at: now}
+          %{link | stats: %{link.stats | rtt: final_rtt}, status: @status_active, activated_at: now}
 
         activated =
           if final_rtt > 0 and activated.establishment_cost > 0 do
-            %{activated | establishment_rate: activated.establishment_cost / final_rtt}
+            %{activated | stats: %{activated.stats | establishment_rate: activated.establishment_cost / final_rtt}}
           else
             activated
           end
@@ -588,7 +656,7 @@ defmodule RNS.Link do
 
   # ── Update keepalive ────────────────────────────────────────────
 
-  defp update_keepalive(%__MODULE__{rtt: rtt} = link) when is_number(rtt) do
+  defp update_keepalive(%__MODULE__{stats: %Stats{rtt: rtt}} = link) when is_number(rtt) do
     ka = max(min(rtt * (@keepalive_max / @keepalive_max_rtt), @keepalive_max), @keepalive_min)
     %{link | keepalive: ka, stale_time: ka * @stale_factor}
   end
@@ -634,7 +702,7 @@ defmodule RNS.Link do
 
     timeout =
       Keyword.get_lazy(opts, :timeout, fn ->
-        link.rtt * link.traffic_timeout_factor + @response_max_grace_time * 1.125
+        link.stats.rtt * link.traffic_timeout_factor + @response_max_grace_time * 1.125
       end)
 
     {:ok, packed_request, timeout}
@@ -650,24 +718,24 @@ defmodule RNS.Link do
 
   @doc "Returns the RSSI if tracking is enabled."
   @spec rssi(t()) :: number() | nil
-  def rssi(%__MODULE__{track_phy_stats: true, rssi: rssi}), do: rssi
+  def rssi(%__MODULE__{track_phy_stats: true, stats: %Stats{rssi: rssi}}), do: rssi
   def rssi(%__MODULE__{}), do: nil
 
   @doc "Returns the SNR if tracking is enabled."
   @spec snr(t()) :: number() | nil
-  def snr(%__MODULE__{track_phy_stats: true, snr: snr}), do: snr
+  def snr(%__MODULE__{track_phy_stats: true, stats: %Stats{snr: snr}}), do: snr
   def snr(%__MODULE__{}), do: nil
 
   @doc "Returns the link quality if tracking is enabled."
   @spec q(t()) :: number() | nil
-  def q(%__MODULE__{track_phy_stats: true, q: q}), do: q
+  def q(%__MODULE__{track_phy_stats: true, stats: %Stats{q: q}}), do: q
   def q(%__MODULE__{}), do: nil
 
   # ── Establishment rate ──────────────────────────────────────────
 
   @doc "Returns the establishment rate in bits per second."
   @spec establishment_rate(t()) :: float() | nil
-  def establishment_rate(%__MODULE__{establishment_rate: rate}) when is_number(rate) do
+  def establishment_rate(%__MODULE__{stats: %Stats{establishment_rate: rate}}) when is_number(rate) do
     rate * 8
   end
 
@@ -677,7 +745,7 @@ defmodule RNS.Link do
 
   @doc "Returns the remote peer's identity if known."
   @spec remote_identity(t()) :: Identity.t() | nil
-  def remote_identity(%__MODULE__{remote_identity: id}), do: id
+  def remote_identity(%__MODULE__{peer: %PeerState{remote_identity: id}}), do: id
 
   # ── Channel ─────────────────────────────────────────────────────
 
@@ -753,7 +821,7 @@ defmodule RNS.Link do
 
   @doc "Returns the time in seconds since last inbound packet (including keepalive)."
   @spec no_inbound_for(t()) :: number()
-  def no_inbound_for(%__MODULE__{last_inbound: last_inbound, activated_at: activated_at}) do
+  def no_inbound_for(%__MODULE__{stats: %Stats{last_inbound: last_inbound}, activated_at: activated_at}) do
     activated = activated_at || 0
     effective_last = max(last_inbound, activated)
     System.system_time(:second) - effective_last
@@ -761,13 +829,13 @@ defmodule RNS.Link do
 
   @doc "Returns the time in seconds since last outbound packet (including keepalive)."
   @spec no_outbound_for(t()) :: number()
-  def no_outbound_for(%__MODULE__{last_outbound: last_outbound}) do
+  def no_outbound_for(%__MODULE__{stats: %Stats{last_outbound: last_outbound}}) do
     System.system_time(:second) - last_outbound
   end
 
   @doc "Returns the time in seconds since payload data traversed the link (excludes keepalive)."
   @spec no_data_for(t()) :: number()
-  def no_data_for(%__MODULE__{last_data: last_data}) do
+  def no_data_for(%__MODULE__{stats: %Stats{last_data: last_data}}) do
     System.system_time(:second) - last_data
   end
 
@@ -801,13 +869,13 @@ defmodule RNS.Link do
   """
   @spec prove(t()) :: {binary(), t()}
   def prove(%__MODULE__{} = link) do
-    sig_bytes = signalling_bytes(link.mtu, link.mode)
+    sig_bytes = signalling_bytes(link.mtu, link.crypto.mode)
 
     signed_data =
-      link.link_id <> link.pub_bytes <> link.sig_pub_bytes <> sig_bytes
+      link.link_id <> link.crypto.pub_bytes <> link.crypto.sig_pub_bytes <> sig_bytes
 
     signature = link.owner.identity |> Identity.sign(signed_data)
-    proof_data = signature <> link.pub_bytes <> sig_bytes
+    proof_data = signature <> link.crypto.pub_bytes <> sig_bytes
 
     updated = had_outbound(link)
     {proof_data, updated}
@@ -918,7 +986,7 @@ defmodule RNS.Link do
       end
 
     # Clear encryption keys
-    updated = %{updated | prv: nil, pub_bytes: nil, shared_key: nil, derived_key: nil, token: nil}
+    updated = %{updated | crypto: %{updated.crypto | prv: nil, pub_bytes: nil, shared_key: nil, derived_key: nil, token: nil}}
 
     # Invoke link_closed callback
     if updated.callbacks && updated.callbacks.link_closed do
@@ -938,15 +1006,15 @@ defmodule RNS.Link do
 
   @doc "Updates physical layer statistics from a received packet."
   @spec update_phy_stats(t(), map(), keyword()) :: t()
-  def update_phy_stats(%__MODULE__{} = link, packet, opts \\ []) do
+  def update_phy_stats(%__MODULE__{stats: stats} = link, packet, opts \\ []) do
     force = Keyword.get(opts, :force_update, false)
 
     if link.track_phy_stats or force do
-      rssi = Map.get(packet, :rssi, link.rssi)
-      snr = Map.get(packet, :snr, link.snr)
-      q = Map.get(packet, :q, link.q)
+      rssi = Map.get(packet, :rssi, stats.rssi)
+      snr = Map.get(packet, :snr, stats.snr)
+      q = Map.get(packet, :q, stats.q)
 
-      %{link | rssi: rssi || link.rssi, snr: snr || link.snr, q: q || link.q}
+      %{link | stats: %{stats | rssi: rssi || stats.rssi, snr: snr || stats.snr, q: q || stats.q}}
     else
       link
     end
@@ -988,21 +1056,24 @@ defmodule RNS.Link do
       {:ignored, link}
     else
       now = System.system_time(:second)
+      stats = link.stats
 
-      updated = %{
-        link
+      updated_stats = %{
+        stats
         | last_inbound: now,
-          rx: link.rx + 1,
-          rxbytes: link.rxbytes + byte_size(Map.get(packet, :data, <<>>))
+          rx: stats.rx + 1,
+          rxbytes: stats.rxbytes + byte_size(Map.get(packet, :data, <<>>))
       }
 
       # Update last_data for non-keepalive packets
-      updated =
+      updated_stats =
         if context != :keepalive do
-          %{updated | last_data: now}
+          %{updated_stats | last_data: now}
         else
-          updated
+          updated_stats
         end
+
+      updated = %{link | stats: updated_stats}
 
       # Revive stale link on any inbound
       updated =
@@ -1046,7 +1117,7 @@ defmodule RNS.Link do
           identity = Identity.load_public_key(identity, public_key)
 
           if Identity.validate(identity, signature, signed_data) do
-            link = %{link | remote_identity: identity}
+            link = %{link | peer: %{link.peer | remote_identity: identity}}
             link = update_phy_stats(link, packet)
 
             actions =
@@ -1278,8 +1349,8 @@ defmodule RNS.Link do
             true
 
           ^allow_list ->
-            link.remote_identity != nil and
-              link.remote_identity.hash in allowed_list
+            link.peer.remote_identity != nil and
+              link.peer.remote_identity.hash in allowed_list
 
           _ ->
             false
@@ -1287,7 +1358,7 @@ defmodule RNS.Link do
 
       if allowed do
         response =
-          response_generator.(request_data, request_id, link.remote_identity, requested_at)
+          response_generator.(request_data, request_id, link.peer.remote_identity, requested_at)
 
         if response != nil do
           packed_response = Msgpax.pack!([request_id, response]) |> IO.iodata_to_binary()
@@ -1465,7 +1536,7 @@ defmodule RNS.Link do
 
   @doc "Returns the encryption mode of the link."
   @spec get_mode(t()) :: non_neg_integer()
-  def get_mode(%__MODULE__{mode: mode}), do: mode
+  def get_mode(%__MODULE__{crypto: %CryptoState{mode: mode}}), do: mode
 
   # ── Watchdog check ─────────────────────────────────────────────
 
@@ -1487,7 +1558,7 @@ defmodule RNS.Link do
 
   def watchdog_check(%__MODULE__{status: @status_pending} = link) do
     establishment_timeout =
-      @establishment_timeout_per_hop * max(1, link.expected_hops || 1) + @keepalive
+      @establishment_timeout_per_hop * max(1, link.stats.expected_hops || 1) + @keepalive
 
     if link.request_time &&
          System.system_time(:second) >= link.request_time + establishment_timeout do
@@ -1501,7 +1572,7 @@ defmodule RNS.Link do
 
   def watchdog_check(%__MODULE__{status: @status_handshake} = link) do
     establishment_timeout =
-      @establishment_timeout_per_hop * max(1, link.expected_hops || 1) + @keepalive
+      @establishment_timeout_per_hop * max(1, link.stats.expected_hops || 1) + @keepalive
 
     if link.request_time &&
          System.system_time(:second) >= link.request_time + establishment_timeout do
@@ -1515,7 +1586,7 @@ defmodule RNS.Link do
 
   def watchdog_check(%__MODULE__{status: @status_active} = link) do
     activated = link.activated_at || 0
-    last_inbound = max(max(link.last_inbound, link.last_proof), activated)
+    last_inbound = max(max(link.stats.last_inbound, link.stats.last_proof), activated)
     now = System.system_time(:second)
 
     cond do
@@ -1527,7 +1598,7 @@ defmodule RNS.Link do
       now >= last_inbound + link.keepalive ->
         # Need keepalive
         actions =
-          if link.initiator and now >= link.last_keepalive + link.keepalive do
+          if link.initiator and now >= link.stats.last_keepalive + link.keepalive do
             [{:send_keepalive}]
           else
             []

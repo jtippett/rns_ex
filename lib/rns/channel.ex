@@ -932,7 +932,10 @@ defimpl RNS.Channel.Outlet, for: RNS.Channel.LinkChannelOutlet do
   end
 
   def rtt(%{link: link}) do
-    Map.get(link, :rtt) || 0.0
+    case Map.get(link, :stats) do
+      %{rtt: rtt} when rtt != nil -> rtt
+      _ -> 0.0
+    end
   end
 
   def is_usable(_outlet) do

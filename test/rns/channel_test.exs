@@ -1127,7 +1127,7 @@ defmodule RNS.ChannelTest do
     end
 
     test "rtt returns link rtt or default" do
-      outlet = RNS.Channel.LinkChannelOutlet.new(%{rtt: 0.5})
+      outlet = RNS.Channel.LinkChannelOutlet.new(%{stats: %{rtt: 0.5}})
       assert Outlet.rtt(outlet) == 0.5
 
       outlet_no_rtt = RNS.Channel.LinkChannelOutlet.new(%{})

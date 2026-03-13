@@ -92,8 +92,8 @@ defmodule RNS.LinkTest do
       assert %Link{} = link
       assert link.status == Link.pending()
       assert link.initiator == false
-      assert link.mode == Link.mode_default()
-      assert link.rtt == nil
+      assert link.crypto.mode == Link.mode_default()
+      assert link.stats.rtt == nil
       assert link.mtu == 500
       assert link.callbacks == %Link.Callbacks{}
       assert link.resource_strategy == Link.accept_none()
@@ -190,10 +190,9 @@ defmodule RNS.LinkTest do
       link = %Link{
         Link.new()
         | status: Link.pending(),
-          prv: prv,
-          peer_pub_bytes: X25519.public_key(peer_prv),
-          link_id: :crypto.strong_rand_bytes(16),
-          mode: Link.mode_aes256_cbc()
+          crypto: %Link.CryptoState{prv: prv, mode: Link.mode_aes256_cbc()},
+          peer: %Link.PeerState{peer_pub_bytes: X25519.public_key(peer_prv)},
+          link_id: :crypto.strong_rand_bytes(16)
       }
 
       result = Link.handshake(link)
@@ -208,15 +207,14 @@ defmodule RNS.LinkTest do
       link = %Link{
         Link.new()
         | status: Link.pending(),
-          prv: prv,
-          peer_pub_bytes: X25519.public_key(peer_prv),
-          link_id: :crypto.strong_rand_bytes(16),
-          mode: Link.mode_aes256_cbc()
+          crypto: %Link.CryptoState{prv: prv, mode: Link.mode_aes256_cbc()},
+          peer: %Link.PeerState{peer_pub_bytes: X25519.public_key(peer_prv)},
+          link_id: :crypto.strong_rand_bytes(16)
       }
 
       {:ok, updated} = Link.handshake(link)
-      assert updated.shared_key != nil
-      assert byte_size(updated.shared_key) == 32
+      assert updated.crypto.shared_key != nil
+      assert byte_size(updated.crypto.shared_key) == 32
     end
 
     test "derives key using HKDF with link_id as salt" do
@@ -226,16 +224,15 @@ defmodule RNS.LinkTest do
       link = %Link{
         Link.new()
         | status: Link.pending(),
-          prv: prv,
-          peer_pub_bytes: X25519.public_key(peer_prv),
-          link_id: :crypto.strong_rand_bytes(16),
-          mode: Link.mode_aes256_cbc()
+          crypto: %Link.CryptoState{prv: prv, mode: Link.mode_aes256_cbc()},
+          peer: %Link.PeerState{peer_pub_bytes: X25519.public_key(peer_prv)},
+          link_id: :crypto.strong_rand_bytes(16)
       }
 
       {:ok, updated} = Link.handshake(link)
-      assert updated.derived_key != nil
+      assert updated.crypto.derived_key != nil
       # AES-256-CBC mode: derived key is 64 bytes
-      assert byte_size(updated.derived_key) == 64
+      assert byte_size(updated.crypto.derived_key) == 64
     end
 
     test "AES-128-CBC mode derives 32-byte key" do
@@ -245,14 +242,13 @@ defmodule RNS.LinkTest do
       link = %Link{
         Link.new()
         | status: Link.pending(),
-          prv: prv,
-          peer_pub_bytes: X25519.public_key(peer_prv),
-          link_id: :crypto.strong_rand_bytes(16),
-          mode: Link.mode_aes128_cbc()
+          crypto: %Link.CryptoState{prv: prv, mode: Link.mode_aes128_cbc()},
+          peer: %Link.PeerState{peer_pub_bytes: X25519.public_key(peer_prv)},
+          link_id: :crypto.strong_rand_bytes(16)
       }
 
       {:ok, updated} = Link.handshake(link)
-      assert byte_size(updated.derived_key) == 32
+      assert byte_size(updated.crypto.derived_key) == 32
     end
 
     test "both sides derive same shared key" do
@@ -264,26 +260,24 @@ defmodule RNS.LinkTest do
       initiator_link = %Link{
         Link.new()
         | status: Link.pending(),
-          prv: initiator_prv,
-          peer_pub_bytes: X25519.public_key(responder_prv),
-          link_id: link_id,
-          mode: Link.mode_aes256_cbc()
+          crypto: %Link.CryptoState{prv: initiator_prv, mode: Link.mode_aes256_cbc()},
+          peer: %Link.PeerState{peer_pub_bytes: X25519.public_key(responder_prv)},
+          link_id: link_id
       }
 
       responder_link = %Link{
         Link.new()
         | status: Link.pending(),
-          prv: responder_prv,
-          peer_pub_bytes: X25519.public_key(initiator_prv),
-          link_id: link_id,
-          mode: Link.mode_aes256_cbc()
+          crypto: %Link.CryptoState{prv: responder_prv, mode: Link.mode_aes256_cbc()},
+          peer: %Link.PeerState{peer_pub_bytes: X25519.public_key(initiator_prv)},
+          link_id: link_id
       }
 
       {:ok, init_done} = Link.handshake(initiator_link)
       {:ok, resp_done} = Link.handshake(responder_link)
 
-      assert init_done.shared_key == resp_done.shared_key
-      assert init_done.derived_key == resp_done.derived_key
+      assert init_done.crypto.shared_key == resp_done.crypto.shared_key
+      assert init_done.crypto.derived_key == resp_done.crypto.derived_key
     end
 
     test "returns error when not in PENDING state" do
@@ -292,8 +286,8 @@ defmodule RNS.LinkTest do
       link = %Link{
         Link.new()
         | status: Link.active(),
-          prv: prv,
-          peer_pub_bytes: :crypto.strong_rand_bytes(32),
+          crypto: %Link.CryptoState{prv: prv},
+          peer: %Link.PeerState{peer_pub_bytes: :crypto.strong_rand_bytes(32)},
           link_id: :crypto.strong_rand_bytes(16)
       }
 
@@ -304,8 +298,8 @@ defmodule RNS.LinkTest do
       link = %Link{
         Link.new()
         | status: Link.pending(),
-          prv: nil,
-          peer_pub_bytes: :crypto.strong_rand_bytes(32),
+          crypto: %Link.CryptoState{prv: nil},
+          peer: %Link.PeerState{peer_pub_bytes: :crypto.strong_rand_bytes(32)},
           link_id: :crypto.strong_rand_bytes(16)
       }
 
@@ -324,8 +318,8 @@ defmodule RNS.LinkTest do
 
       link = Link.new()
       updated = Link.load_peer(link, pub_bytes, sig_pub_bytes)
-      assert updated.peer_pub_bytes == pub_bytes
-      assert updated.peer_sig_pub_bytes == sig_pub_bytes
+      assert updated.peer.peer_pub_bytes == pub_bytes
+      assert updated.peer.peer_sig_pub_bytes == sig_pub_bytes
     end
   end
 
@@ -341,10 +335,9 @@ defmodule RNS.LinkTest do
       link = %Link{
         Link.new()
         | status: Link.pending(),
-          prv: initiator_prv,
-          peer_pub_bytes: X25519.public_key(responder_prv),
-          link_id: link_id,
-          mode: Link.mode_aes256_cbc()
+          crypto: %Link.CryptoState{prv: initiator_prv, mode: Link.mode_aes256_cbc()},
+          peer: %Link.PeerState{peer_pub_bytes: X25519.public_key(responder_prv)},
+          link_id: link_id
       }
 
       {:ok, handshaken} = Link.handshake(link)
@@ -395,10 +388,9 @@ defmodule RNS.LinkTest do
       link1 = %Link{
         Link.new()
         | status: Link.pending(),
-          prv: prv1,
-          peer_pub_bytes: X25519.public_key(peer1),
-          link_id: link_id,
-          mode: Link.mode_aes256_cbc()
+          crypto: %Link.CryptoState{prv: prv1, mode: Link.mode_aes256_cbc()},
+          peer: %Link.PeerState{peer_pub_bytes: X25519.public_key(peer1)},
+          link_id: link_id
       }
 
       prv2 = X25519.generate_keypair()
@@ -407,10 +399,9 @@ defmodule RNS.LinkTest do
       link2 = %Link{
         Link.new()
         | status: Link.pending(),
-          prv: prv2,
-          peer_pub_bytes: X25519.public_key(peer2),
-          link_id: link_id,
-          mode: Link.mode_aes256_cbc()
+          crypto: %Link.CryptoState{prv: prv2, mode: Link.mode_aes256_cbc()},
+          peer: %Link.PeerState{peer_pub_bytes: X25519.public_key(peer2)},
+          link_id: link_id
       }
 
       {:ok, l1} = Link.handshake(link1)
@@ -428,10 +419,9 @@ defmodule RNS.LinkTest do
       link = %Link{
         Link.new()
         | status: Link.pending(),
-          prv: prv,
-          peer_pub_bytes: X25519.public_key(peer_prv),
-          link_id: link_id,
-          mode: Link.mode_aes128_cbc()
+          crypto: %Link.CryptoState{prv: prv, mode: Link.mode_aes128_cbc()},
+          peer: %Link.PeerState{peer_pub_bytes: X25519.public_key(peer_prv)},
+          link_id: link_id
       }
 
       {:ok, handshaken} = Link.handshake(link)
@@ -449,7 +439,7 @@ defmodule RNS.LinkTest do
 
       link = %Link{
         Link.new()
-        | sig_prv: sig_prv
+        | crypto: %Link.CryptoState{sig_prv: sig_prv}
       }
 
       signature = Link.sign(link, "test message")
@@ -462,8 +452,8 @@ defmodule RNS.LinkTest do
 
       link = %Link{
         Link.new()
-        | sig_prv: sig_prv,
-          peer_sig_pub_bytes: sig_pub_bytes
+        | crypto: %Link.CryptoState{sig_prv: sig_prv},
+          peer: %Link.PeerState{peer_sig_pub_bytes: sig_pub_bytes}
       }
 
       message = "test message"
@@ -477,8 +467,8 @@ defmodule RNS.LinkTest do
 
       link = %Link{
         Link.new()
-        | sig_prv: sig_prv,
-          peer_sig_pub_bytes: Ed25519.public_key(other_prv)
+        | crypto: %Link.CryptoState{sig_prv: sig_prv},
+          peer: %Link.PeerState{peer_sig_pub_bytes: Ed25519.public_key(other_prv)}
       }
 
       message = "test message"
@@ -526,16 +516,16 @@ defmodule RNS.LinkTest do
     test "updates last_outbound and last_data" do
       link = Link.new()
       updated = Link.had_outbound(link)
-      assert updated.last_outbound > 0
-      assert updated.last_data == updated.last_outbound
+      assert updated.stats.last_outbound > 0
+      assert updated.stats.last_data == updated.stats.last_outbound
     end
 
     test "keepalive flag updates last_keepalive instead of last_data" do
       link = Link.new()
       updated = Link.had_outbound(link, is_keepalive: true)
-      assert updated.last_outbound > 0
-      assert updated.last_keepalive == updated.last_outbound
-      assert updated.last_data == 0
+      assert updated.stats.last_outbound > 0
+      assert updated.stats.last_keepalive == updated.stats.last_outbound
+      assert updated.stats.last_data == 0
     end
   end
 
@@ -595,7 +585,7 @@ defmodule RNS.LinkTest do
       link = %Link{
         Link.new()
         | status: Link.active(),
-          rtt: 0.5,
+          stats: %Link.Stats{rtt: 0.5},
           traffic_timeout_factor: 6
       }
 
@@ -607,7 +597,7 @@ defmodule RNS.LinkTest do
       link = %Link{
         Link.new()
         | status: Link.active(),
-          rtt: 0.5,
+          stats: %Link.Stats{rtt: 0.5},
           traffic_timeout_factor: 6
       }
 
@@ -628,7 +618,7 @@ defmodule RNS.LinkTest do
       link = %Link{
         Link.new()
         | status: Link.active(),
-          rtt: 0.5,
+          stats: %Link.Stats{rtt: 0.5},
           traffic_timeout_factor: 6
       }
 
@@ -640,7 +630,7 @@ defmodule RNS.LinkTest do
       link = %Link{
         Link.new()
         | status: Link.active(),
-          rtt: 0.5,
+          stats: %Link.Stats{rtt: 0.5},
           traffic_timeout_factor: 6
       }
 
@@ -714,32 +704,32 @@ defmodule RNS.LinkTest do
     end
 
     test "rssi returns nil when not tracking" do
-      link = %Link{Link.new() | rssi: -50}
+      link = %Link{Link.new() | stats: %Link.Stats{rssi: -50}}
       assert Link.rssi(link) == nil
     end
 
     test "rssi returns value when tracking" do
-      link = %Link{Link.new() | track_phy_stats: true, rssi: -50}
+      link = %Link{Link.new() | track_phy_stats: true, stats: %Link.Stats{rssi: -50}}
       assert Link.rssi(link) == -50
     end
 
     test "snr returns nil when not tracking" do
-      link = %Link{Link.new() | snr: 10.0}
+      link = %Link{Link.new() | stats: %Link.Stats{snr: 10.0}}
       assert Link.snr(link) == nil
     end
 
     test "snr returns value when tracking" do
-      link = %Link{Link.new() | track_phy_stats: true, snr: 10.0}
+      link = %Link{Link.new() | track_phy_stats: true, stats: %Link.Stats{snr: 10.0}}
       assert Link.snr(link) == 10.0
     end
 
     test "q returns nil when not tracking" do
-      link = %Link{Link.new() | q: 0.9}
+      link = %Link{Link.new() | stats: %Link.Stats{q: 0.9}}
       assert Link.q(link) == nil
     end
 
     test "q returns value when tracking" do
-      link = %Link{Link.new() | track_phy_stats: true, q: 0.9}
+      link = %Link{Link.new() | track_phy_stats: true, stats: %Link.Stats{q: 0.9}}
       assert Link.q(link) == 0.9
     end
   end
@@ -748,7 +738,7 @@ defmodule RNS.LinkTest do
 
   describe "establishment_rate/1" do
     test "returns rate in bits per second" do
-      link = %Link{Link.new() | establishment_rate: 100.0}
+      link = %Link{Link.new() | stats: %Link.Stats{establishment_rate: 100.0}}
       assert Link.establishment_rate(link) == 800.0
     end
 
@@ -768,7 +758,7 @@ defmodule RNS.LinkTest do
 
     test "returns identity when set" do
       identity = Identity.new()
-      link = %Link{Link.new() | remote_identity: identity}
+      link = %Link{Link.new() | peer: %Link.PeerState{remote_identity: identity}}
       assert Link.remote_identity(link) == identity
     end
   end
@@ -843,8 +833,8 @@ defmodule RNS.LinkTest do
 
       result = Link.validate_request(owner, request_data, packet)
       assert {:ok, link} = result
-      assert link.peer_pub_bytes == X25519.public_key(initiator_x25519)
-      assert link.peer_sig_pub_bytes == Ed25519.public_key(initiator_ed25519)
+      assert link.peer.peer_pub_bytes == X25519.public_key(initiator_x25519)
+      assert link.peer.peer_sig_pub_bytes == Ed25519.public_key(initiator_ed25519)
       assert link.status == Link.handshake()
     end
 
@@ -922,13 +912,17 @@ defmodule RNS.LinkTest do
       responder_link = %Link{
         Link.new()
         | status: Link.pending(),
-          prv: responder_x25519,
-          peer_pub_bytes: X25519.public_key(initiator_x25519),
-          peer_sig_pub_bytes: Ed25519.public_key(initiator_ed25519),
-          link_id: link_id,
-          mode: Link.mode_aes256_cbc(),
-          sig_prv: nil,
-          sig_pub_bytes: nil
+          crypto: %Link.CryptoState{
+            prv: responder_x25519,
+            mode: Link.mode_aes256_cbc(),
+            sig_prv: nil,
+            sig_pub_bytes: nil
+          },
+          peer: %Link.PeerState{
+            peer_pub_bytes: X25519.public_key(initiator_x25519),
+            peer_sig_pub_bytes: Ed25519.public_key(initiator_ed25519)
+          },
+          link_id: link_id
       }
 
       {:ok, responder_handshaken} = Link.handshake(responder_link)
@@ -953,11 +947,13 @@ defmodule RNS.LinkTest do
         Link.new()
         | status: Link.pending(),
           initiator: true,
-          prv: initiator_x25519,
-          pub_bytes: X25519.public_key(initiator_x25519),
-          sig_pub_bytes: Ed25519.public_key(initiator_ed25519),
+          crypto: %Link.CryptoState{
+            prv: initiator_x25519,
+            pub_bytes: X25519.public_key(initiator_x25519),
+            sig_pub_bytes: Ed25519.public_key(initiator_ed25519),
+            mode: Link.mode_aes256_cbc()
+          },
           link_id: link_id,
-          mode: Link.mode_aes256_cbc(),
           destination: destination,
           request_time: System.system_time(:second) - 1
       }
@@ -971,11 +967,11 @@ defmodule RNS.LinkTest do
       result = Link.validate_proof(initiator_link, proof_packet)
       assert {:ok, activated_link} = result
       assert activated_link.status == Link.active()
-      assert activated_link.rtt > 0
-      assert activated_link.derived_key != nil
+      assert activated_link.stats.rtt > 0
+      assert activated_link.crypto.derived_key != nil
 
       # Verify both sides would derive the same key
-      assert activated_link.derived_key == responder_handshaken.derived_key
+      assert activated_link.crypto.derived_key == responder_handshaken.crypto.derived_key
     end
 
     test "rejects proof when not in PENDING state" do
@@ -1013,11 +1009,13 @@ defmodule RNS.LinkTest do
         Link.new()
         | status: Link.pending(),
           initiator: true,
-          prv: initiator_x25519,
-          pub_bytes: X25519.public_key(initiator_x25519),
-          sig_pub_bytes: Ed25519.public_key(initiator_ed25519),
+          crypto: %Link.CryptoState{
+            prv: initiator_x25519,
+            pub_bytes: X25519.public_key(initiator_x25519),
+            sig_pub_bytes: Ed25519.public_key(initiator_ed25519),
+            mode: Link.mode_aes256_cbc()
+          },
           link_id: link_id,
-          mode: Link.mode_aes256_cbc(),
           destination: destination,
           request_time: System.system_time(:second)
       }
@@ -1045,10 +1043,9 @@ defmodule RNS.LinkTest do
       resp_link = %Link{
         Link.new()
         | status: Link.pending(),
-          prv: responder_x25519,
-          peer_pub_bytes: X25519.public_key(initiator_x25519),
+          crypto: %Link.CryptoState{prv: responder_x25519, mode: Link.mode_aes256_cbc()},
+          peer: %Link.PeerState{peer_pub_bytes: X25519.public_key(initiator_x25519)},
           link_id: link_id,
-          mode: Link.mode_aes256_cbc(),
           request_time: System.system_time(:second) - 1
       }
 
@@ -1058,10 +1055,9 @@ defmodule RNS.LinkTest do
       init_link = %Link{
         Link.new()
         | status: Link.pending(),
-          prv: initiator_x25519,
-          peer_pub_bytes: X25519.public_key(responder_x25519),
-          link_id: link_id,
-          mode: Link.mode_aes256_cbc()
+          crypto: %Link.CryptoState{prv: initiator_x25519, mode: Link.mode_aes256_cbc()},
+          peer: %Link.PeerState{peer_pub_bytes: X25519.public_key(responder_x25519)},
+          link_id: link_id
       }
 
       {:ok, init_handshaken} = Link.handshake(init_link)
@@ -1076,8 +1072,8 @@ defmodule RNS.LinkTest do
       result = Link.rtt_packet(resp_handshaken, rtt_packet)
       assert {:ok, activated} = result
       assert activated.status == Link.active()
-      assert activated.rtt != nil
-      assert activated.rtt >= rtt_value
+      assert activated.stats.rtt != nil
+      assert activated.stats.rtt >= rtt_value
     end
   end
 

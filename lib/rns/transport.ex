@@ -1912,7 +1912,7 @@ defmodule RNS.Transport do
         :ok
 
       link ->
-        expected_hops = Map.get(link, :expected_hops, @pathfinder_m)
+        expected_hops = get_in(link, [Access.key(:stats), Access.key(:expected_hops)]) || @pathfinder_m
 
         if packet.hops == expected_hops or expected_hops == @pathfinder_m do
           mark_packet_hash(packet.packet_hash)

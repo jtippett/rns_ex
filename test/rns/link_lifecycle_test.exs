@@ -20,14 +20,18 @@ defmodule RNS.LinkLifecycleTest do
       Link.new()
       | status: Link.pending(),
         initiator: true,
-        prv: initiator_x25519,
-        pub_bytes: X25519.public_key(initiator_x25519),
-        sig_prv: initiator_ed25519,
-        sig_pub_bytes: Ed25519.public_key(initiator_ed25519),
-        peer_pub_bytes: X25519.public_key(responder_x25519),
-        peer_sig_pub_bytes: Ed25519.public_key(responder_ed25519),
+        crypto: %Link.CryptoState{
+          prv: initiator_x25519,
+          pub_bytes: X25519.public_key(initiator_x25519),
+          sig_prv: initiator_ed25519,
+          sig_pub_bytes: Ed25519.public_key(initiator_ed25519),
+          mode: mode
+        },
+        peer: %Link.PeerState{
+          peer_pub_bytes: X25519.public_key(responder_x25519),
+          peer_sig_pub_bytes: Ed25519.public_key(responder_ed25519)
+        },
         link_id: link_id,
-        mode: mode,
         request_time: System.system_time(:second) - 1
     }
 
@@ -37,14 +41,18 @@ defmodule RNS.LinkLifecycleTest do
       Link.new()
       | status: Link.pending(),
         initiator: false,
-        prv: responder_x25519,
-        pub_bytes: X25519.public_key(responder_x25519),
-        sig_prv: responder_ed25519,
-        sig_pub_bytes: Ed25519.public_key(responder_ed25519),
-        peer_pub_bytes: X25519.public_key(initiator_x25519),
-        peer_sig_pub_bytes: Ed25519.public_key(initiator_ed25519),
+        crypto: %Link.CryptoState{
+          prv: responder_x25519,
+          pub_bytes: X25519.public_key(responder_x25519),
+          sig_prv: responder_ed25519,
+          sig_pub_bytes: Ed25519.public_key(responder_ed25519),
+          mode: mode
+        },
+        peer: %Link.PeerState{
+          peer_pub_bytes: X25519.public_key(initiator_x25519),
+          peer_sig_pub_bytes: Ed25519.public_key(initiator_ed25519)
+        },
         link_id: link_id,
-        mode: mode,
         owner: %{identity: responder_identity},
         request_time: System.system_time(:second) - 1
     }
@@ -59,18 +67,14 @@ defmodule RNS.LinkLifecycleTest do
       init_hs
       | status: Link.active(),
         activated_at: now,
-        rtt: 1.0,
-        last_inbound: now,
-        last_outbound: now
+        stats: %{init_hs.stats | rtt: 1.0, last_inbound: now, last_outbound: now}
     }
 
     resp_active = %{
       resp_hs
       | status: Link.active(),
         activated_at: now,
-        rtt: 1.0,
-        last_inbound: now,
-        last_outbound: now
+        stats: %{resp_hs.stats | rtt: 1.0, last_inbound: now, last_outbound: now}
     }
 
     {init_active, resp_active}
@@ -101,7 +105,7 @@ defmodule RNS.LinkLifecycleTest do
 
   describe "no_inbound_for/1" do
     test "returns time since last inbound" do
-      link = %Link{Link.new() | last_inbound: System.system_time(:second) - 3}
+      link = %Link{Link.new() | stats: %Link.Stats{last_inbound: System.system_time(:second) - 3}}
       silence = Link.no_inbound_for(link)
       assert silence >= 3
       assert silence < 10
@@ -109,14 +113,14 @@ defmodule RNS.LinkLifecycleTest do
 
     test "uses activated_at if later than last_inbound" do
       now = System.system_time(:second)
-      link = %Link{Link.new() | last_inbound: now - 10, activated_at: now - 2}
+      link = %Link{Link.new() | stats: %Link.Stats{last_inbound: now - 10}, activated_at: now - 2}
       silence = Link.no_inbound_for(link)
       assert silence >= 2
       assert silence < 5
     end
 
     test "returns large value when no inbound ever" do
-      link = %Link{Link.new() | last_inbound: 0, activated_at: nil}
+      link = %Link{Link.new() | stats: %Link.Stats{last_inbound: 0}, activated_at: nil}
       silence = Link.no_inbound_for(link)
       assert silence > 1_000_000
     end
@@ -124,7 +128,7 @@ defmodule RNS.LinkLifecycleTest do
 
   describe "no_outbound_for/1" do
     test "returns time since last outbound" do
-      link = %Link{Link.new() | last_outbound: System.system_time(:second) - 5}
+      link = %Link{Link.new() | stats: %Link.Stats{last_outbound: System.system_time(:second) - 5}}
       silence = Link.no_outbound_for(link)
       assert silence >= 5
       assert silence < 10
@@ -133,7 +137,7 @@ defmodule RNS.LinkLifecycleTest do
 
   describe "no_data_for/1" do
     test "returns time since last data" do
-      link = %Link{Link.new() | last_data: System.system_time(:second) - 7}
+      link = %Link{Link.new() | stats: %Link.Stats{last_data: System.system_time(:second) - 7}}
       silence = Link.no_data_for(link)
       assert silence >= 7
       assert silence < 12
@@ -143,7 +147,7 @@ defmodule RNS.LinkLifecycleTest do
   describe "inactive_for/1" do
     test "returns minimum of inbound and outbound silence" do
       now = System.system_time(:second)
-      link = %Link{Link.new() | last_inbound: now - 10, last_outbound: now - 3, activated_at: nil}
+      link = %Link{Link.new() | stats: %Link.Stats{last_inbound: now - 10, last_outbound: now - 3}, activated_at: nil}
       assert Link.inactive_for(link) >= 3
       assert Link.inactive_for(link) < 5
     end
@@ -164,8 +168,8 @@ defmodule RNS.LinkLifecycleTest do
     test "updates last_outbound and last_keepalive" do
       link = make_active_link()
       {_data, _ctx, updated} = Link.send_keepalive(link)
-      assert updated.last_outbound > 0
-      assert updated.last_keepalive == updated.last_outbound
+      assert updated.stats.last_outbound > 0
+      assert updated.stats.last_keepalive == updated.stats.last_outbound
     end
   end
 
@@ -184,13 +188,15 @@ defmodule RNS.LinkLifecycleTest do
         Link.new()
         | status: Link.handshake(),
           initiator: false,
-          prv: responder_x25519,
-          pub_bytes: X25519.public_key(responder_x25519),
-          sig_prv: responder_ed25519,
-          sig_pub_bytes: Ed25519.public_key(responder_ed25519),
+          crypto: %Link.CryptoState{
+            prv: responder_x25519,
+            pub_bytes: X25519.public_key(responder_x25519),
+            sig_prv: responder_ed25519,
+            sig_pub_bytes: Ed25519.public_key(responder_ed25519),
+            mode: Link.mode_aes256_cbc()
+          },
           link_id: link_id,
           mtu: 500,
-          mode: Link.mode_aes256_cbc(),
           owner: %{identity: responder_identity}
       }
 
@@ -198,7 +204,7 @@ defmodule RNS.LinkLifecycleTest do
 
       # proof_data = signature(64) + pub_bytes(32) + signalling(3) = 99
       assert byte_size(proof_data) == 64 + 32 + 3
-      assert updated.last_outbound > 0
+      assert updated.stats.last_outbound > 0
     end
   end
 
@@ -209,7 +215,7 @@ defmodule RNS.LinkLifecycleTest do
   describe "prove_packet/2" do
     test "builds explicit proof with packet_hash + signature" do
       sig_prv = Ed25519.generate_keypair()
-      link = %Link{Link.new() | sig_prv: sig_prv}
+      link = %Link{Link.new() | crypto: %Link.CryptoState{sig_prv: sig_prv}}
 
       packet_hash = :crypto.strong_rand_bytes(32)
       {proof_data, updated} = Link.prove_packet(link, packet_hash)
@@ -218,7 +224,7 @@ defmodule RNS.LinkLifecycleTest do
       assert byte_size(proof_data) == 32 + 64
       # First 32 bytes should be the packet hash
       assert binary_part(proof_data, 0, 32) == packet_hash
-      assert updated.last_outbound > 0
+      assert updated.stats.last_outbound > 0
     end
   end
 
@@ -235,9 +241,9 @@ defmodule RNS.LinkLifecycleTest do
       assert updated.teardown_reason == Link.initiator_closed()
       assert is_binary(teardown_data)
       # Keys should be cleared
-      assert updated.prv == nil
-      assert updated.shared_key == nil
-      assert updated.derived_key == nil
+      assert updated.crypto.prv == nil
+      assert updated.crypto.shared_key == nil
+      assert updated.crypto.derived_key == nil
     end
 
     test "responder teardown sets DESTINATION_CLOSED reason" do
@@ -318,11 +324,11 @@ defmodule RNS.LinkLifecycleTest do
       link = make_active_link()
       closed = Link.link_closed(link)
 
-      assert closed.prv == nil
-      assert closed.pub_bytes == nil
-      assert closed.shared_key == nil
-      assert closed.derived_key == nil
-      assert closed.token == nil
+      assert closed.crypto.prv == nil
+      assert closed.crypto.pub_bytes == nil
+      assert closed.crypto.shared_key == nil
+      assert closed.crypto.derived_key == nil
+      assert closed.crypto.token == nil
     end
 
     test "invokes link_closed callback" do
@@ -341,7 +347,7 @@ defmodule RNS.LinkLifecycleTest do
     test "handles nil callbacks gracefully" do
       link = %Link{Link.new() | callbacks: nil}
       result = Link.link_closed(link)
-      assert result.prv == nil
+      assert result.crypto.prv == nil
     end
   end
 
@@ -355,9 +361,9 @@ defmodule RNS.LinkLifecycleTest do
       packet = %{rssi: -60, snr: 12.5, q: 0.95}
       updated = Link.update_phy_stats(link, packet)
 
-      assert updated.rssi == -60
-      assert updated.snr == 12.5
-      assert updated.q == 0.95
+      assert updated.stats.rssi == -60
+      assert updated.stats.snr == 12.5
+      assert updated.stats.q == 0.95
     end
 
     test "does not update stats when tracking disabled" do
@@ -365,9 +371,9 @@ defmodule RNS.LinkLifecycleTest do
       packet = %{rssi: -60, snr: 12.5, q: 0.95}
       updated = Link.update_phy_stats(link, packet)
 
-      assert updated.rssi == nil
-      assert updated.snr == nil
-      assert updated.q == nil
+      assert updated.stats.rssi == nil
+      assert updated.stats.snr == nil
+      assert updated.stats.q == nil
     end
 
     test "updates stats when force_update is true" do
@@ -375,19 +381,19 @@ defmodule RNS.LinkLifecycleTest do
       packet = %{rssi: -70, snr: 8.0, q: 0.8}
       updated = Link.update_phy_stats(link, packet, force_update: true)
 
-      assert updated.rssi == -70
-      assert updated.snr == 8.0
-      assert updated.q == 0.8
+      assert updated.stats.rssi == -70
+      assert updated.stats.snr == 8.0
+      assert updated.stats.q == 0.8
     end
 
     test "preserves existing stats when packet has nil values" do
-      link = %Link{Link.new() | track_phy_stats: true, rssi: -50, snr: 10.0, q: 0.9}
+      link = %Link{Link.new() | track_phy_stats: true, stats: %Link.Stats{rssi: -50, snr: 10.0, q: 0.9}}
       packet = %{rssi: nil, snr: nil, q: nil}
       updated = Link.update_phy_stats(link, packet)
 
-      assert updated.rssi == -50
-      assert updated.snr == 10.0
-      assert updated.q == 0.9
+      assert updated.stats.rssi == -50
+      assert updated.stats.snr == 10.0
+      assert updated.stats.q == 0.9
     end
   end
 
@@ -411,7 +417,7 @@ defmodule RNS.LinkLifecycleTest do
     test "updates last_inbound and rx counter" do
       {_init, resp} = make_handshaken_pair()
       now = System.system_time(:second)
-      resp = %{resp | last_inbound: now - 10}
+      resp = %{resp | stats: %{resp.stats | last_inbound: now - 10}}
 
       # A keepalive from initiator
       packet = %{
@@ -423,8 +429,8 @@ defmodule RNS.LinkLifecycleTest do
 
       {:ok, updated, _actions} = Link.receive_packet(resp, packet)
 
-      assert updated.rx == resp.rx + 1
-      assert updated.last_inbound >= now
+      assert updated.stats.rx == resp.stats.rx + 1
+      assert updated.stats.last_inbound >= now
     end
 
     test "revives stale link on inbound" do
@@ -457,7 +463,7 @@ defmodule RNS.LinkLifecycleTest do
 
     test "updates last_data for non-keepalive packets" do
       {init, resp} = make_handshaken_pair()
-      resp = %{resp | last_data: 0}
+      resp = %{resp | stats: %{resp.stats | last_data: 0}}
 
       # Encrypt a data packet
       {:ok, encrypted} = Link.encrypt(init, "hello")
@@ -471,12 +477,12 @@ defmodule RNS.LinkLifecycleTest do
       }
 
       {:ok, updated, _actions} = Link.receive_packet(resp, packet)
-      assert updated.last_data > 0
+      assert updated.stats.last_data > 0
     end
 
     test "does not update last_data for keepalive packets" do
       {_init, resp} = make_handshaken_pair()
-      resp = %{resp | last_data: 0}
+      resp = %{resp | stats: %{resp.stats | last_data: 0}}
 
       packet = %{
         data: <<0xFF>>,
@@ -486,7 +492,7 @@ defmodule RNS.LinkLifecycleTest do
       }
 
       {:ok, updated, _actions} = Link.receive_packet(resp, packet)
-      assert updated.last_data == 0
+      assert updated.stats.last_data == 0
     end
 
     test "decrypts and dispatches data packets" do
@@ -567,7 +573,7 @@ defmodule RNS.LinkLifecycleTest do
       }
 
       {:ok, updated, _actions} = Link.receive_packet(resp, packet)
-      assert updated.remote_identity != nil
+      assert updated.peer.remote_identity != nil
     end
 
     test "handles channel data" do
@@ -765,7 +771,7 @@ defmodule RNS.LinkLifecycleTest do
 
   describe "get_mode/1" do
     test "returns mode" do
-      link = %Link{Link.new() | mode: Link.mode_aes256_cbc()}
+      link = %Link{Link.new() | crypto: %Link.CryptoState{mode: Link.mode_aes256_cbc()}}
       assert Link.get_mode(link) == Link.mode_aes256_cbc()
     end
   end
@@ -786,7 +792,7 @@ defmodule RNS.LinkLifecycleTest do
         Link.new()
         | status: Link.pending(),
           request_time: System.system_time(:second) - 1000,
-          expected_hops: 1
+          stats: %Link.Stats{expected_hops: 1}
       }
 
       {:ok, updated, actions} = Link.watchdog_check(link)
@@ -800,7 +806,7 @@ defmodule RNS.LinkLifecycleTest do
         Link.new()
         | status: Link.pending(),
           request_time: System.system_time(:second),
-          expected_hops: 1
+          stats: %Link.Stats{expected_hops: 1}
       }
 
       {:ok, updated, actions} = Link.watchdog_check(link)
@@ -813,7 +819,7 @@ defmodule RNS.LinkLifecycleTest do
         Link.new()
         | status: Link.handshake(),
           request_time: System.system_time(:second) - 1000,
-          expected_hops: 1
+          stats: %Link.Stats{expected_hops: 1}
       }
 
       {:ok, updated, actions} = Link.watchdog_check(link)
@@ -829,13 +835,15 @@ defmodule RNS.LinkLifecycleTest do
         | status: Link.active(),
           initiator: true,
           activated_at: now - 400,
-          last_inbound: now - 400,
-          last_outbound: now - 400,
-          last_keepalive: now - 400,
-          last_proof: now - 400,
+          stats: %Link.Stats{
+            last_inbound: now - 400,
+            last_outbound: now - 400,
+            last_keepalive: now - 400,
+            last_proof: now - 400,
+            rtt: 1.0
+          },
           keepalive: 360,
-          stale_time: 720,
-          rtt: 1.0
+          stale_time: 720
       }
 
       {:ok, _updated, actions} = Link.watchdog_check(link)
@@ -850,13 +858,15 @@ defmodule RNS.LinkLifecycleTest do
         | status: Link.active(),
           initiator: false,
           activated_at: now - 400,
-          last_inbound: now - 400,
-          last_outbound: now - 400,
-          last_keepalive: now - 400,
-          last_proof: now - 400,
+          stats: %Link.Stats{
+            last_inbound: now - 400,
+            last_outbound: now - 400,
+            last_keepalive: now - 400,
+            last_proof: now - 400,
+            rtt: 1.0
+          },
           keepalive: 360,
-          stale_time: 720,
-          rtt: 1.0
+          stale_time: 720
       }
 
       {:ok, _updated, actions} = Link.watchdog_check(link)
@@ -870,12 +880,14 @@ defmodule RNS.LinkLifecycleTest do
         Link.new()
         | status: Link.active(),
           activated_at: now - 800,
-          last_inbound: now - 800,
-          last_outbound: now - 800,
-          last_proof: now - 800,
+          stats: %Link.Stats{
+            last_inbound: now - 800,
+            last_outbound: now - 800,
+            last_proof: now - 800,
+            rtt: 1.0
+          },
           keepalive: 360,
-          stale_time: 720,
-          rtt: 1.0
+          stale_time: 720
       }
 
       {:ok, updated, actions} = Link.watchdog_check(link)
@@ -903,12 +915,14 @@ defmodule RNS.LinkLifecycleTest do
         Link.new()
         | status: Link.active(),
           activated_at: now,
-          last_inbound: now,
-          last_outbound: now,
-          last_proof: now,
+          stats: %Link.Stats{
+            last_inbound: now,
+            last_outbound: now,
+            last_proof: now,
+            rtt: 1.0
+          },
           keepalive: 360,
-          stale_time: 720,
-          rtt: 1.0
+          stale_time: 720
       }
 
       {:ok, _updated, actions} = Link.watchdog_check(link)

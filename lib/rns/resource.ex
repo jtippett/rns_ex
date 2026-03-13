@@ -398,7 +398,7 @@ defmodule RNS.Resource do
     # Determine timeout
     timeout =
       timeout ||
-        (Map.get(link, :rtt, 1.0) || 1.0) * Map.get(link, :traffic_timeout_factor, 6)
+        (get_in(link, [Access.key(:stats), Access.key(:rtt)]) || 1.0) * Map.get(link, :traffic_timeout_factor, 6)
 
     base = %__MODULE__{
       link: link,

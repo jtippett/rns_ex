@@ -83,12 +83,12 @@ defmodule RNS.Integration.LinkEstablishmentTest do
         Link.validate_request(server_dest, link_request_data, link_request_packet)
 
       assert responder_link.status == Link.handshake()
-      assert responder_link.peer_pub_bytes == initiator_pub
-      assert responder_link.peer_sig_pub_bytes == initiator_sig_pub
-      assert responder_link.shared_key != nil
-      assert responder_link.derived_key != nil
+      assert responder_link.peer.peer_pub_bytes == initiator_pub
+      assert responder_link.peer.peer_sig_pub_bytes == initiator_sig_pub
+      assert responder_link.crypto.shared_key != nil
+      assert responder_link.crypto.derived_key != nil
       # AES256_CBC
-      assert byte_size(responder_link.derived_key) == 64
+      assert byte_size(responder_link.crypto.derived_key) == 64
 
       # Responder generates proof
       {proof_data, _updated_responder} = Link.prove(responder_link)
@@ -100,10 +100,12 @@ defmodule RNS.Integration.LinkEstablishmentTest do
         Link.new()
         | initiator: true,
           status: Link.pending(),
-          prv: initiator_prv,
-          pub_bytes: initiator_pub,
-          sig_prv: initiator_sig_prv,
-          sig_pub_bytes: initiator_sig_pub,
+          crypto: %Link.CryptoState{
+            prv: initiator_prv,
+            pub_bytes: initiator_pub,
+            sig_prv: initiator_sig_prv,
+            sig_pub_bytes: initiator_sig_pub
+          },
           destination: server_dest,
           link_id: responder_link.link_id,
           request_time: System.system_time(:second)
@@ -120,14 +122,14 @@ defmodule RNS.Integration.LinkEstablishmentTest do
       {:ok, activated_link} = Link.validate_proof(initiator_link, proof_packet)
 
       assert activated_link.status == Link.active()
-      assert activated_link.shared_key != nil
-      assert activated_link.derived_key != nil
-      assert activated_link.rtt != nil
+      assert activated_link.crypto.shared_key != nil
+      assert activated_link.crypto.derived_key != nil
+      assert activated_link.stats.rtt != nil
       assert activated_link.activated_at != nil
 
       # === Verify: both sides derived the same shared key ===
-      assert responder_link.shared_key == activated_link.shared_key
-      assert responder_link.derived_key == activated_link.derived_key
+      assert responder_link.crypto.shared_key == activated_link.crypto.shared_key
+      assert responder_link.crypto.derived_key == activated_link.crypto.derived_key
     end
 
     test "encryption/decryption works with derived keys" do
@@ -286,8 +288,8 @@ defmodule RNS.Integration.LinkEstablishmentTest do
 
       assert data == <<0xFF>>
       assert context == :keepalive
-      assert updated.last_outbound > 0
-      assert updated.last_keepalive > 0
+      assert updated.stats.last_outbound > 0
+      assert updated.stats.last_keepalive > 0
     end
 
     test "teardown transitions link to closed state" do
@@ -308,9 +310,7 @@ defmodule RNS.Integration.LinkEstablishmentTest do
         link
         | status: Link.active(),
           activated_at: now - 100,
-          last_inbound: now - 10,
-          last_outbound: now - 5,
-          last_data: now - 15
+          stats: %{link.stats | last_inbound: now - 10, last_outbound: now - 5, last_data: now - 15}
       }
 
       assert Link.get_age(active) >= 100
@@ -332,9 +332,7 @@ defmodule RNS.Integration.LinkEstablishmentTest do
         link
         | status: Link.active(),
           activated_at: now - 10,
-          last_inbound: now - 5,
-          last_outbound: now - 3,
-          last_data: now - 5
+          stats: %{link.stats | last_inbound: now - 5, last_outbound: now - 3, last_data: now - 5}
       }
 
       assert Link.inactive_for(fresh) < stale_time
@@ -344,9 +342,7 @@ defmodule RNS.Integration.LinkEstablishmentTest do
         link
         | status: Link.active(),
           activated_at: now - 1000,
-          last_inbound: now - 800,
-          last_outbound: now - 800,
-          last_data: now - 800
+          stats: %{link.stats | last_inbound: now - 800, last_outbound: now - 800, last_data: now - 800}
       }
 
       assert Link.inactive_for(stale) > stale_time
@@ -449,10 +445,12 @@ defmodule RNS.Integration.LinkEstablishmentTest do
       Link.new()
       | initiator: true,
         status: Link.pending(),
-        prv: initiator_prv,
-        pub_bytes: initiator_pub,
-        sig_prv: initiator_sig_prv,
-        sig_pub_bytes: initiator_sig_pub,
+        crypto: %Link.CryptoState{
+          prv: initiator_prv,
+          pub_bytes: initiator_pub,
+          sig_prv: initiator_sig_prv,
+          sig_pub_bytes: initiator_sig_pub
+        },
         destination: server_dest,
         link_id: responder_link.link_id,
         request_time: System.system_time(:second)
