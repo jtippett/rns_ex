@@ -186,12 +186,13 @@ defmodule RNS.Interfaces.LocalClientInterface do
     target_port = Keyword.get(opts, :target_port)
     socket_path = Keyword.get(opts, :socket_path)
     connected_socket = Keyword.get(opts, :connected_socket)
+    out = Keyword.get(opts, :out, false)
 
     state = %__MODULE__{
       name: name,
       owner: owner,
       in: true,
-      out: false,
+      out: out,
       online: false,
       bitrate: @bitrate,
       hw_mtu: RNS.Interfaces.LocalInterface.hw_mtu(),
@@ -346,6 +347,10 @@ defmodule RNS.Interfaces.LocalClientInterface do
     end
 
     {:noreply, state}
+  end
+
+  def handle_info({:set_field, field, value}, state) when is_atom(field) do
+    {:noreply, Map.put(state, field, value)}
   end
 
   def handle_info(_msg, state) do
@@ -699,12 +704,13 @@ defmodule RNS.Interfaces.LocalServerInterface do
     owner = Keyword.get(opts, :owner)
     bindport = Keyword.get(opts, :bindport)
     socket_path = Keyword.get(opts, :socket_path)
+    out = Keyword.get(opts, :out, false)
 
     state = %__MODULE__{
       name: name,
       owner: owner,
       in: true,
-      out: false,
+      out: out,
       online: false,
       bitrate: @bitrate,
       hw_mtu: RNS.Interfaces.LocalInterface.hw_mtu(),
@@ -714,7 +720,7 @@ defmodule RNS.Interfaces.LocalServerInterface do
       created: System.system_time(:second)
     }
 
-    state =
+    result =
       cond do
         socket_path != nil ->
           # Unix domain socket listener
@@ -725,12 +731,17 @@ defmodule RNS.Interfaces.LocalServerInterface do
           do_listen_tcp(state, bindport)
 
         true ->
-          Logger.error("No bind port or socket path configured for LocalServerInterface")
-          state
+          {:error, :no_bind_config}
       end
 
-    state = %{state | hash: RNS.Interfaces.Interface.hash(state)}
-    {:ok, state}
+    case result do
+      {:ok, state} ->
+        state = %{state | hash: RNS.Interfaces.Interface.hash(state)}
+        {:ok, state}
+
+      {:error, reason} ->
+        {:stop, reason}
+    end
   end
 
   @impl GenServer
@@ -795,6 +806,10 @@ defmodule RNS.Interfaces.LocalServerInterface do
     {:noreply, %{state | spawned_interfaces: spawned, clients: clients}}
   end
 
+  def handle_info({:set_field, field, value}, state) when is_atom(field) do
+    {:noreply, Map.put(state, field, value)}
+  end
+
   def handle_info(_msg, state) do
     {:noreply, state}
   end
@@ -817,7 +832,6 @@ defmodule RNS.Interfaces.LocalServerInterface do
       :binary,
       ip: {127, 0, 0, 1},
       active: false,
-      reuseaddr: true,
       packet: :raw,
       nodelay: true,
       backlog: 128
@@ -827,27 +841,29 @@ defmodule RNS.Interfaces.LocalServerInterface do
       {:ok, listen_socket} ->
         accept_async(listen_socket)
 
-        %{
-          state
-          | bind_ip: bind_ip,
-            bind_port: bindport,
-            listen_socket: listen_socket,
-            online: true,
-            receives: true
-        }
+        {:ok,
+         %{
+           state
+           | bind_ip: bind_ip,
+             bind_port: bindport,
+             listen_socket: listen_socket,
+             online: true,
+             receives: true
+         }}
 
       {:error, reason} ->
         Logger.error(
           "Could not bind local TCP socket on #{bind_ip}:#{bindport}: #{inspect(reason)}"
         )
 
-        state
+        {:error, reason}
     end
   end
 
   defp do_listen_unix(state, socket_path) do
-    # Remove existing socket file if it exists
-    if File.exists?(socket_path) do
+    # Remove existing socket file if it exists (only for non-abstract paths)
+    if is_binary(socket_path) and not String.starts_with?(socket_path, <<0>>) and
+         File.exists?(socket_path) do
       File.rm(socket_path)
     end
 
@@ -862,18 +878,19 @@ defmodule RNS.Interfaces.LocalServerInterface do
       {:ok, listen_socket} ->
         accept_async(listen_socket)
 
-        %{
-          state
-          | socket_path: socket_path,
-            listen_socket: listen_socket,
-            online: true,
-            receives: true
-        }
+        {:ok,
+         %{
+           state
+           | socket_path: socket_path,
+             listen_socket: listen_socket,
+             online: true,
+             receives: true
+         }}
 
       {:error, reason} ->
-        Logger.error("Could not bind local Unix socket at #{socket_path}: #{inspect(reason)}")
+        Logger.error("Could not bind local Unix socket at #{inspect(socket_path)}: #{inspect(reason)}")
 
-        state
+        {:error, reason}
     end
   end
 

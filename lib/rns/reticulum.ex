@@ -524,6 +524,7 @@ defmodule RNS.Reticulum do
   @impl true
   def init(opts) do
     skip_start = Keyword.get(opts, :skip_start, false)
+    require_shared = Keyword.get(opts, :require_shared_instance, false)
     configdir_opt = Keyword.get(opts, :configdir)
 
     # Determine config directory
@@ -577,9 +578,20 @@ defmodule RNS.Reticulum do
 
     local_socket_path =
       cond do
-        applied.local_socket_path != nil -> applied.local_socket_path
-        use_af_unix -> "default"
-        true -> nil
+        applied.local_socket_path != nil ->
+          if use_af_unix do
+            # Abstract Unix socket: null byte prefix + "rns/" + name (matches Python)
+            <<0>> <> "rns/" <> applied.local_socket_path
+          else
+            applied.local_socket_path
+          end
+
+        use_af_unix ->
+          # Default abstract Unix socket path (matches Python's "default")
+          <<0>> <> "rns/default"
+
+        true ->
+          nil
       end
 
     state =
@@ -607,6 +619,7 @@ defmodule RNS.Reticulum do
         force_shared_instance_bitrate: applied.force_shared_instance_bitrate,
         network_identity: applied.network_identity,
         use_af_unix: use_af_unix,
+        require_shared_instance: require_shared,
         is_shared_instance: false,
         is_standalone_instance: false,
         is_connected_to_shared_instance: false,
@@ -627,18 +640,25 @@ defmodule RNS.Reticulum do
       # Start local interface (shared/client/standalone mode)
       state = start_local_interface(state)
 
-      # Start configured interfaces (only if shared or standalone)
-      state =
-        if state.is_shared_instance or state.is_standalone_instance do
-          start_configured_interfaces(state)
-        else
-          state
-        end
+      # If a shared instance was required but none was available, abort
+      if state.require_shared_instance and not state.is_connected_to_shared_instance do
+        {:stop,
+         {:shutdown,
+          "No shared instance available, but application that started Reticulum required it"}}
+      else
+        # Start configured interfaces (only if shared or standalone)
+        state =
+          if state.is_shared_instance or state.is_standalone_instance do
+            start_configured_interfaces(state)
+          else
+            state
+          end
 
-      # Start periodic jobs
-      schedule_job()
+        # Start periodic jobs
+        schedule_job()
 
-      {:ok, state}
+        {:ok, state}
+      end
     end
   end
 
@@ -885,7 +905,25 @@ defmodule RNS.Reticulum do
       # Try to become the shared instance by starting a LocalServerInterface
       case start_shared_server(state) do
         {:ok, state} ->
-          state
+          if state.require_shared_instance do
+            # We became the server, but the caller requires connecting to
+            # an existing shared instance — detach and abort
+            Logger.error(
+              "Existing shared instance required, but this instance started as shared instance. Aborting startup."
+            )
+
+            detach_interface(state.shared_instance_interface)
+
+            %{
+              state
+              | is_shared_instance: false,
+                is_standalone_instance: false,
+                is_connected_to_shared_instance: false,
+                shared_instance_interface: nil
+            }
+          else
+            state
+          end
 
         {:error, _reason} ->
           # Server port is in use — try connecting as a client
@@ -918,11 +956,22 @@ defmodule RNS.Reticulum do
     end
   end
 
+  defp detach_interface(nil), do: :ok
+
+  defp detach_interface(pid) when is_pid(pid) do
+    try do
+      if Process.alive?(pid), do: GenServer.call(pid, :detach)
+    catch
+      _, _ -> :ok
+    end
+  end
+
   defp start_shared_server(state) do
     opts = [
       name: "Shared Instance",
-      listen_port: state.local_interface_port,
-      socket_path: state.local_socket_path
+      bindport: state.local_interface_port,
+      socket_path: state.local_socket_path,
+      out: true
     ]
 
     case DynamicSupervisor.start_child(
@@ -955,7 +1004,8 @@ defmodule RNS.Reticulum do
     opts = [
       name: "Local shared instance",
       target_port: state.local_interface_port,
-      socket_path: state.local_socket_path
+      socket_path: state.local_socket_path,
+      out: true
     ]
 
     case DynamicSupervisor.start_child(

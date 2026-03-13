@@ -795,6 +795,113 @@ defmodule RNS.Interfaces.LocalInterfaceTest do
     end
   end
 
+  # ── OUT flag via opts ─────────────────────────────────────────
+
+  describe "out flag via opts" do
+    test "LocalServerInterface accepts out: true option" do
+      {:ok, server} =
+        LocalServerInterface.start_link(
+          name: "out_flag_server",
+          bindport: 0,
+          out: true
+        )
+
+      state = LocalServerInterface.get_state(server)
+      assert state.out == true
+
+      LocalServerInterface.stop(server)
+    end
+
+    test "LocalServerInterface defaults out to false" do
+      {:ok, server} =
+        LocalServerInterface.start_link(
+          name: "out_default_server",
+          bindport: 0
+        )
+
+      state = LocalServerInterface.get_state(server)
+      assert state.out == false
+
+      LocalServerInterface.stop(server)
+    end
+
+    test "LocalClientInterface accepts out: true option" do
+      {:ok, server} =
+        LocalServerInterface.start_link(
+          name: "out_client_server",
+          bindport: 0
+        )
+
+      server_state = LocalServerInterface.get_state(server)
+      {:ok, port} = :inet.port(server_state.listen_socket)
+
+      {:ok, client} =
+        LocalClientInterface.start_link(
+          name: "out_flag_client",
+          target_port: port,
+          out: true
+        )
+
+      client_state = LocalClientInterface.get_state(client)
+      assert client_state.out == true
+
+      LocalClientInterface.stop(client)
+      LocalServerInterface.stop(server)
+    end
+  end
+
+  # ── set_field handler ──────────────────────────────────────────
+
+  describe "set_field handler" do
+    test "LocalServerInterface updates field via :set_field message" do
+      {:ok, server} =
+        LocalServerInterface.start_link(
+          name: "set_field_server",
+          bindport: 0
+        )
+
+      state_before = LocalServerInterface.get_state(server)
+      assert state_before.bitrate == 1_000_000_000
+
+      send(server, {:set_field, :bitrate, 500_000})
+      Process.sleep(50)
+
+      state_after = LocalServerInterface.get_state(server)
+      assert state_after.bitrate == 500_000
+
+      LocalServerInterface.stop(server)
+    end
+
+    test "LocalClientInterface updates field via :set_field message" do
+      {:ok, server} =
+        LocalServerInterface.start_link(
+          name: "set_field_client_server",
+          bindport: 0
+        )
+
+      server_state = LocalServerInterface.get_state(server)
+      {:ok, port} = :inet.port(server_state.listen_socket)
+
+      {:ok, client} =
+        LocalClientInterface.start_link(
+          name: "set_field_client",
+          target_port: port
+        )
+
+      state_before = LocalClientInterface.get_state(client)
+      assert state_before.bitrate == 1_000_000_000
+
+      send(client, {:set_field, :bitrate, 250_000})
+      Process.sleep(50)
+
+      state_after = LocalClientInterface.get_state(client)
+      assert state_after.bitrate == 250_000
+
+      LocalClientInterface.stop(client)
+      LocalServerInterface.stop(server)
+    end
+  end
+
   # ── String port as target_port ─────────────────────────────────
 
   describe "string port handling" do

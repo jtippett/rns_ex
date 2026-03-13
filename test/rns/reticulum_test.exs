@@ -1598,4 +1598,316 @@ defmodule RNS.ReticulumTest do
       GenServer.stop(pid)
     end
   end
+
+  # ── Shared-instance detection ──────────────────────────────────
+
+  describe "start_local_interface shared-instance detection" do
+    setup do
+      configdir = Path.join(System.tmp_dir!(), "rns_test_shared_#{:rand.uniform(100_000)}")
+      File.mkdir_p!(configdir)
+
+      on_exit(fn ->
+        File.rm_rf!(configdir)
+      end)
+
+      %{configdir: configdir}
+    end
+
+    test "becomes shared instance when port is available", %{configdir: configdir} do
+      name = :"test_shared_#{:rand.uniform(100_000)}"
+
+      {:ok, pid} =
+        Reticulum.start_link(
+          configdir: configdir,
+          skip_start: true,
+          server_name: name
+        )
+
+      # Build a state that simulates shared-instance attempt with a free port
+      state = :sys.get_state(pid)
+
+      state = %{
+        state
+        | share_instance: true,
+          local_interface_port: 0,
+          local_socket_path: nil,
+          force_shared_instance_bitrate: nil,
+          require_shared_instance: false,
+          started_interfaces: []
+      }
+
+      result = Reticulum.start_local_interface(state)
+
+      assert result.is_shared_instance == true
+      assert result.is_standalone_instance == false
+      assert result.is_connected_to_shared_instance == false
+      assert is_pid(result.shared_instance_interface)
+      assert Process.alive?(result.shared_instance_interface)
+
+      # Clean up the started interface
+      GenServer.call(result.shared_instance_interface, :detach)
+      GenServer.stop(pid)
+    end
+
+    test "connects as client when server already running", %{configdir: configdir} do
+      # Start a server on a known port
+      {:ok, server} =
+        RNS.Interfaces.LocalServerInterface.start_link(
+          name: "existing_shared",
+          bindport: 0
+        )
+
+      server_state = RNS.Interfaces.LocalServerInterface.get_state(server)
+      {:ok, port} = :inet.port(server_state.listen_socket)
+
+      name = :"test_client_#{:rand.uniform(100_000)}"
+
+      {:ok, pid} =
+        Reticulum.start_link(
+          configdir: configdir,
+          skip_start: true,
+          server_name: name
+        )
+
+      state = :sys.get_state(pid)
+
+      # Set share_instance to true and local_interface_port to the server's port
+      state = %{
+        state
+        | share_instance: true,
+          local_interface_port: port,
+          local_socket_path: nil,
+          force_shared_instance_bitrate: nil,
+          require_shared_instance: false,
+          started_interfaces: []
+      }
+
+      result = Reticulum.start_local_interface(state)
+
+      assert result.is_shared_instance == false
+      assert result.is_standalone_instance == false
+      assert result.is_connected_to_shared_instance == true
+      assert result.transport_enabled == false
+      assert result.remote_management_enabled == false
+      assert result.allow_probes == false
+
+      # Clean up
+      for iface_pid <- result.started_interfaces do
+        if Process.alive?(iface_pid), do: GenServer.stop(iface_pid)
+      end
+
+      RNS.Interfaces.LocalServerInterface.stop(server)
+      GenServer.stop(pid)
+    end
+
+    test "falls back to standalone when no sharing configured", %{configdir: configdir} do
+      name = :"test_standalone_#{:rand.uniform(100_000)}"
+
+      {:ok, pid} =
+        Reticulum.start_link(
+          configdir: configdir,
+          skip_start: true,
+          server_name: name
+        )
+
+      state = :sys.get_state(pid)
+
+      state = %{
+        state
+        | share_instance: false,
+          require_shared_instance: false,
+          started_interfaces: []
+      }
+
+      result = Reticulum.start_local_interface(state)
+
+      assert result.is_shared_instance == false
+      assert result.is_standalone_instance == true
+      assert result.is_connected_to_shared_instance == false
+
+      GenServer.stop(pid)
+    end
+
+    test "require_shared_instance detaches server when no existing instance", %{
+      configdir: configdir
+    } do
+      name = :"test_require_shared_#{:rand.uniform(100_000)}"
+
+      {:ok, pid} =
+        Reticulum.start_link(
+          configdir: configdir,
+          skip_start: true,
+          server_name: name
+        )
+
+      state = :sys.get_state(pid)
+
+      state = %{
+        state
+        | share_instance: true,
+          local_interface_port: 0,
+          local_socket_path: nil,
+          force_shared_instance_bitrate: nil,
+          require_shared_instance: true,
+          started_interfaces: []
+      }
+
+      result = Reticulum.start_local_interface(state)
+
+      # Should have detached the server and set no mode flags
+      assert result.is_shared_instance == false
+      assert result.is_standalone_instance == false
+      assert result.is_connected_to_shared_instance == false
+      assert result.shared_instance_interface == nil
+
+      GenServer.stop(pid)
+    end
+
+    test "port consistency between server and client", %{configdir: configdir} do
+      # Start the first instance as shared on a dynamic port
+      name1 = :"test_port_consistency_1_#{:rand.uniform(100_000)}"
+
+      {:ok, pid1} =
+        Reticulum.start_link(
+          configdir: configdir,
+          skip_start: true,
+          server_name: name1
+        )
+
+      state1 = :sys.get_state(pid1)
+
+      state1 = %{
+        state1
+        | share_instance: true,
+          local_interface_port: 0,
+          local_socket_path: nil,
+          force_shared_instance_bitrate: nil,
+          require_shared_instance: false,
+          started_interfaces: []
+      }
+
+      result1 = Reticulum.start_local_interface(state1)
+      assert result1.is_shared_instance == true
+
+      # Get the actual port the server bound to (bind_port stores the requested port,
+      # so we need :inet.port/1 for the actual OS-assigned port when bindport was 0)
+      server_state =
+        RNS.Interfaces.LocalServerInterface.get_state(result1.shared_instance_interface)
+
+      {:ok, server_port} = :inet.port(server_state.listen_socket)
+
+      # Now start a second instance connecting to the same port
+      name2 = :"test_port_consistency_2_#{:rand.uniform(100_000)}"
+
+      configdir2 =
+        Path.join(System.tmp_dir!(), "rns_test_shared2_#{:rand.uniform(100_000)}")
+
+      File.mkdir_p!(configdir2)
+
+      {:ok, pid2} =
+        Reticulum.start_link(
+          configdir: configdir2,
+          skip_start: true,
+          server_name: name2
+        )
+
+      state2 = :sys.get_state(pid2)
+
+      state2 = %{
+        state2
+        | share_instance: true,
+          local_interface_port: server_port,
+          local_socket_path: nil,
+          force_shared_instance_bitrate: nil,
+          require_shared_instance: false,
+          started_interfaces: []
+      }
+
+      result2 = Reticulum.start_local_interface(state2)
+      assert result2.is_connected_to_shared_instance == true
+
+      # Clean up
+      for iface_pid <- result2.started_interfaces do
+        if Process.alive?(iface_pid), do: GenServer.stop(iface_pid)
+      end
+
+      GenServer.call(result1.shared_instance_interface, :detach)
+      GenServer.stop(pid1)
+      GenServer.stop(pid2)
+      File.rm_rf!(configdir2)
+    end
+  end
+
+  # ── Mode flag query APIs ─────────────────────────────────────────
+
+  describe "mode flag query APIs" do
+    setup do
+      configdir = Path.join(System.tmp_dir!(), "rns_test_mode_#{:rand.uniform(100_000)}")
+      File.mkdir_p!(configdir)
+
+      on_exit(fn ->
+        File.rm_rf!(configdir)
+      end)
+
+      %{configdir: configdir}
+    end
+
+    test "is_shared_instance? returns correct value", %{configdir: configdir} do
+      name = :"test_mode_shared_#{:rand.uniform(100_000)}"
+
+      {:ok, pid} =
+        Reticulum.start_link(
+          configdir: configdir,
+          skip_start: true,
+          server_name: name
+        )
+
+      # Default: not shared
+      assert GenServer.call(name, :is_shared_instance?) == false
+
+      :sys.replace_state(pid, fn state -> %{state | is_shared_instance: true} end)
+      assert GenServer.call(name, :is_shared_instance?) == true
+
+      GenServer.stop(pid)
+    end
+
+    test "is_standalone_instance? returns correct value", %{configdir: configdir} do
+      name = :"test_mode_standalone_#{:rand.uniform(100_000)}"
+
+      {:ok, pid} =
+        Reticulum.start_link(
+          configdir: configdir,
+          skip_start: true,
+          server_name: name
+        )
+
+      assert GenServer.call(name, :is_standalone_instance?) == false
+
+      :sys.replace_state(pid, fn state -> %{state | is_standalone_instance: true} end)
+      assert GenServer.call(name, :is_standalone_instance?) == true
+
+      GenServer.stop(pid)
+    end
+
+    test "is_connected_to_shared_instance? returns correct value", %{configdir: configdir} do
+      name = :"test_mode_connected_#{:rand.uniform(100_000)}"
+
+      {:ok, pid} =
+        Reticulum.start_link(
+          configdir: configdir,
+          skip_start: true,
+          server_name: name
+        )
+
+      assert GenServer.call(name, :is_connected_to_shared_instance?) == false
+
+      :sys.replace_state(pid, fn state ->
+        %{state | is_connected_to_shared_instance: true}
+      end)
+
+      assert GenServer.call(name, :is_connected_to_shared_instance?) == true
+
+      GenServer.stop(pid)
+    end
+  end
 end

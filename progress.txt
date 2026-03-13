@@ -39,3 +39,39 @@
   (IdentityStore has storagepath, storagepath matches Reticulum's, Transport ETS accessible, no crashes).
 
 **Result:** `mix test` passes with 0 failures (2981 tests, 13 pre-existing skipped fixture tests).
+
+## 2026-03-13 — Task 1.3: Fix shared-instance detection and local IPC
+
+**Changes:**
+- `lib/rns/reticulum.ex`:
+  - Fixed port key mismatch: `start_shared_server/1` passed `:listen_port` but
+    `LocalServerInterface` expected `:bindport`. Changed to `:bindport`.
+  - Fixed abstract Unix socket path: when `use_af_unix` is true, the default socket
+    path `"default"` is now converted to `<<0>> <> "rns/default"` (abstract Unix socket
+    matching Python's `\0rns/default`). Instance names from config are also prefixed.
+  - Added `out: true` to interface options in both `start_shared_server/1` and
+    `start_shared_client/1`, matching Python's `interface.OUT = True`.
+  - Added `require_shared_instance` support: when set, if this instance becomes the
+    server (no existing daemon), it detaches and returns `{:stop, ...}` instead of
+    running. Matches Python's `require_shared_instance` parameter.
+  - Added `detach_interface/1` helper for single-interface detach.
+- `lib/rns/interfaces/local_interface.ex`:
+  - `LocalServerInterface.init/1` and `LocalClientInterface.init/1` now accept `:out`
+    option (defaults to false, matching previous behavior).
+  - `LocalServerInterface.init/1` now returns `{:stop, reason}` when listen fails
+    (previously returned `{:ok, state}` with an offline server, breaking detection).
+  - `do_listen_tcp/2` and `do_listen_unix/2` return `{:ok, state}` or `{:error, reason}`
+    instead of always returning state.
+  - Removed `reuseaddr: true` from server TCP listen options — on macOS, `SO_REUSEADDR`
+    allows two sockets to bind the same port, defeating shared-instance detection.
+  - Added `handle_info({:set_field, field, value})` to both server and client interfaces
+    for runtime field updates (previously silently dropped by catch-all handler).
+  - Fixed abstract socket path handling in `do_listen_unix/2`: only removes existing
+    socket files for non-abstract paths.
+- `test/rns/interfaces/local_interface_test.exs`: Added 5 tests for OUT flag via opts
+  and `:set_field` handler on both server and client interfaces.
+- `test/rns/reticulum_test.exs`: Added 8 tests covering shared-instance detection
+  (becomes server, connects as client, standalone fallback, require_shared_instance,
+  port consistency between server/client) and mode flag query APIs.
+
+**Result:** `mix test` passes with 0 failures (2994 tests, 13 pre-existing skipped fixture tests).
