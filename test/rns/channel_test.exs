@@ -294,16 +294,16 @@ defmodule RNS.ChannelTest do
 
   # ── Readiness ───────────────────────────────────────────────
 
-  describe "is_ready_to_send/1" do
+  describe "ready_to_send?/1" do
     test "returns true when no outstanding packets" do
       {channel, _outlet} = make_channel()
-      assert Channel.is_ready_to_send(channel) == true
+      assert Channel.ready_to_send?(channel) == true
     end
 
     test "returns false when outlet is not usable" do
       outlet = TestOutlet.new(usable: false)
       channel = Channel.new(outlet, owner: self())
-      assert Channel.is_ready_to_send(channel) == false
+      assert Channel.ready_to_send?(channel) == false
     end
 
     test "returns false when window is full" do
@@ -314,7 +314,7 @@ defmodule RNS.ChannelTest do
       {:ok, channel, _env1} = Channel.send(channel, msg)
       {:ok, channel, _env2} = Channel.send(channel, msg)
 
-      assert Channel.is_ready_to_send(channel) == false
+      assert Channel.ready_to_send?(channel) == false
     end
 
     test "returns true after delivery frees window" do
@@ -325,13 +325,13 @@ defmodule RNS.ChannelTest do
       {:ok, channel, _env2} = Channel.send(channel, msg)
 
       # Window full
-      assert Channel.is_ready_to_send(channel) == false
+      assert Channel.ready_to_send?(channel) == false
 
       # Deliver first packet
       TestOutlet.deliver_packet(outlet, env1.packet.id)
       channel = Channel.packet_delivered(channel, env1.packet)
 
-      assert Channel.is_ready_to_send(channel) == true
+      assert Channel.ready_to_send?(channel) == true
     end
   end
 
@@ -1134,9 +1134,9 @@ defmodule RNS.ChannelTest do
       assert Outlet.rtt(outlet_no_rtt) == 0.0
     end
 
-    test "is_usable returns true" do
+    test "usable? returns true" do
       outlet = RNS.Channel.LinkChannelOutlet.new(%{})
-      assert Outlet.is_usable(outlet) == true
+      assert Outlet.usable?(outlet) == true
     end
 
     test "get_packet_id returns nil for nil packet" do
@@ -1192,13 +1192,13 @@ defmodule RNS.ChannelTest do
       # Send 2 messages (fills window)
       {:ok, channel, env1} = Channel.send(channel, msg)
       {:ok, channel, env2} = Channel.send(channel, msg)
-      assert Channel.is_ready_to_send(channel) == false
+      assert Channel.ready_to_send?(channel) == false
 
       # Deliver first — window opens and increases
       TestOutlet.deliver_packet(outlet, env1.packet.id)
       channel = Channel.packet_delivered(channel, env1.packet)
       assert channel.window == 3
-      assert Channel.is_ready_to_send(channel) == true
+      assert Channel.ready_to_send?(channel) == true
 
       # Deliver second
       TestOutlet.deliver_packet(outlet, env2.packet.id)

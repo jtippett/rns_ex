@@ -55,8 +55,8 @@ defprotocol RNS.Channel.Outlet do
   def rtt(outlet)
 
   @doc "Check if the outlet is usable for sending"
-  @spec is_usable(t()) :: boolean()
-  def is_usable(outlet)
+  @spec usable?(t()) :: boolean()
+  def usable?(outlet)
 
   @doc "Get the delivery state of a packet"
   @spec get_packet_state(t(), any()) :: non_neg_integer()
@@ -384,11 +384,11 @@ defmodule RNS.Channel do
   @doc """
   Check if Channel is ready to send.
   """
-  @spec is_ready_to_send(t()) :: boolean()
-  def is_ready_to_send(%__MODULE__{} = channel) do
+  @spec ready_to_send?(t()) :: boolean()
+  def ready_to_send?(%__MODULE__{} = channel) do
     outlet = channel.outlet
 
-    if not Outlet.is_usable(outlet) do
+    if not Outlet.usable?(outlet) do
       false
     else
       outstanding =
@@ -426,7 +426,7 @@ defmodule RNS.Channel do
   """
   @spec send(t(), struct()) :: {:ok, t(), Envelope.t()}
   def send(%__MODULE__{} = channel, message) do
-    unless is_ready_to_send(channel) do
+    unless ready_to_send?(channel) do
       raise ChannelException,
         type: @me_link_not_ready,
         message: "Link is not ready"
@@ -938,7 +938,7 @@ defimpl RNS.Channel.Outlet, for: RNS.Channel.LinkChannelOutlet do
     end
   end
 
-  def is_usable(_outlet) do
+  def usable?(_outlet) do
     true
   end
 

@@ -91,7 +91,7 @@ defimpl RNS.Channel.Outlet, for: RNS.Channel.TestOutlet do
     Agent.get(agent, fn state -> Map.get(state, :rtt_override, default_rtt) end)
   end
 
-  def is_usable(%{usable: usable}), do: usable
+  def usable?(%{usable: usable}), do: usable
 
   def get_packet_state(%{agent: agent}, packet) do
     if packet == nil do

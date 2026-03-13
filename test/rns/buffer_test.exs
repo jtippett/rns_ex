@@ -348,10 +348,10 @@ defmodule RNS.Buffer.RawChannelReaderTest do
     end
   end
 
-  describe "is_eof/1" do
+  describe "eof?/1" do
     test "returns false initially" do
       %{reader: reader} = setup_reader()
-      assert RawChannelReader.is_eof(reader) == false
+      assert RawChannelReader.eof?(reader) == false
     end
 
     test "returns true after eof message" do
@@ -366,7 +366,7 @@ defmodule RNS.Buffer.RawChannelReaderTest do
       _channel = Channel.receive_raw(channel, envelope_raw)
       Process.sleep(10)
 
-      assert RawChannelReader.is_eof(reader) == true
+      assert RawChannelReader.eof?(reader) == true
     end
   end
 end
@@ -605,7 +605,7 @@ defmodule RNS.BufferTest do
       # Read all data
       result = RawChannelReader.read(reader, 100)
       assert result == "final"
-      assert RawChannelReader.is_eof(reader) == true
+      assert RawChannelReader.eof?(reader) == true
 
       # Subsequent read returns empty
       result2 = RawChannelReader.read(reader, 100)

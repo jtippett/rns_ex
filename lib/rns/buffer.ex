@@ -193,8 +193,8 @@ defmodule RNS.Buffer.RawChannelReader do
   @doc """
   Check if the end-of-file has been received.
   """
-  @spec is_eof(pid()) :: boolean()
-  def is_eof(agent) do
+  @spec eof?(pid()) :: boolean()
+  def eof?(agent) do
     Agent.get(agent, fn state -> state.eof end)
   end
 
