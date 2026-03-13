@@ -239,6 +239,30 @@ defmodule RNS.Reticulum do
   @spec is_connected_to_shared_instance?() :: boolean()
   def is_connected_to_shared_instance?, do: GenServer.call(__MODULE__, :is_connected_to_shared_instance?)
 
+  @doc "Returns whether auto-connecting discovered interfaces is enabled."
+  @spec should_autoconnect_discovered_interfaces?() :: boolean()
+  def should_autoconnect_discovered_interfaces? do
+    GenServer.call(__MODULE__, :should_autoconnect_discovered_interfaces?)
+  end
+
+  @doc "Returns the maximum number of auto-connected interfaces (0 if disabled)."
+  @spec max_autoconnected_interfaces() :: non_neg_integer()
+  def max_autoconnected_interfaces do
+    GenServer.call(__MODULE__, :max_autoconnected_interfaces)
+  end
+
+  @doc "Returns whether a network identity is configured."
+  @spec has_network_identity?() :: boolean()
+  def has_network_identity?, do: GenServer.call(__MODULE__, :has_network_identity?)
+
+  @doc "Returns the network identity if configured."
+  @spec network_identity() :: RNS.Identity.t() | nil
+  def network_identity, do: GenServer.call(__MODULE__, :network_identity)
+
+  @doc "Returns the identity used for this instance."
+  @spec identity() :: RNS.Identity.t() | nil
+  def identity, do: GenServer.call(__MODULE__, :identity)
+
   @doc "Triggers gracious persistence if enough time has elapsed."
   @spec should_persist_data() :: :ok
   def should_persist_data, do: GenServer.cast(__MODULE__, :should_persist_data)
@@ -694,6 +718,30 @@ defmodule RNS.Reticulum do
   @impl true
   def handle_call(:is_connected_to_shared_instance?, _from, state),
     do: {:reply, state.is_connected_to_shared_instance, state}
+
+  @impl true
+  def handle_call(:should_autoconnect_discovered_interfaces?, _from, state) do
+    val = state.autoconnect_discovered_interfaces
+    {:reply, is_integer(val) and val > 0, state}
+  end
+
+  @impl true
+  def handle_call(:max_autoconnected_interfaces, _from, state) do
+    val = state.autoconnect_discovered_interfaces
+    {:reply, if(is_integer(val) and val > 0, do: val, else: 0), state}
+  end
+
+  @impl true
+  def handle_call(:has_network_identity?, _from, state),
+    do: {:reply, state.network_identity != nil, state}
+
+  @impl true
+  def handle_call(:network_identity, _from, state),
+    do: {:reply, state.network_identity, state}
+
+  @impl true
+  def handle_call(:identity, _from, state),
+    do: {:reply, Map.get(state, :identity), state}
 
   @impl true
   def handle_call({:add_interface, interface_pid, opts}, _from, state) do

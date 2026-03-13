@@ -429,6 +429,43 @@ defmodule RNS.Transport do
     end
   end
 
+  # ── Announce Handler Registration ──────────────────────────────────────
+
+  @doc """
+  Registers an announce handler.
+
+  The handler must be a map/struct with an `aspect_filter` field and a
+  `received_announce` function field (3-arity: destination_hash, announced_identity, app_data).
+  """
+  @spec register_announce_handler(map()) :: :ok
+  def register_announce_handler(handler) do
+    GenServer.call(__MODULE__, {:register_announce_handler, handler})
+  end
+
+  @doc "Deregisters an announce handler."
+  @spec deregister_announce_handler(map()) :: :ok
+  def deregister_announce_handler(handler) do
+    GenServer.call(__MODULE__, {:deregister_announce_handler, handler})
+  end
+
+  @doc "Returns all registered announce handlers."
+  @spec get_announce_handlers() :: [map()]
+  def get_announce_handlers do
+    GenServer.call(__MODULE__, :get_announce_handlers)
+  end
+
+  @doc "Returns whether a network identity is configured on Transport."
+  @spec has_network_identity?() :: boolean()
+  def has_network_identity? do
+    GenServer.call(__MODULE__, :has_network_identity?)
+  end
+
+  @doc "Returns the Transport network identity."
+  @spec network_identity() :: term()
+  def network_identity do
+    GenServer.call(__MODULE__, :network_identity)
+  end
+
   # ── Link Registration ─────────────────────────────────────────────────
 
   @doc """
@@ -1953,7 +1990,10 @@ defmodule RNS.Transport do
       announces_last_checked: 0,
       tables_last_culled: 0,
       cache_last_cleaned: now + 60,
-      jobs_started: false
+      jobs_started: false,
+      announce_handlers: [],
+      network_identity: nil,
+      blackholed_identities: %{}
     }
 
     {:ok, state}
@@ -1997,6 +2037,33 @@ defmodule RNS.Transport do
   def handle_call({:deregister_interface, interface}, _from, state) do
     :ets.delete(@interfaces_table, interface.hash)
     {:reply, :ok, state}
+  end
+
+  @impl true
+  def handle_call({:register_announce_handler, handler}, _from, state) do
+    handlers = [handler | state.announce_handlers]
+    {:reply, :ok, %{state | announce_handlers: handlers}}
+  end
+
+  @impl true
+  def handle_call({:deregister_announce_handler, handler}, _from, state) do
+    handlers = Enum.reject(state.announce_handlers, &(&1 == handler))
+    {:reply, :ok, %{state | announce_handlers: handlers}}
+  end
+
+  @impl true
+  def handle_call(:get_announce_handlers, _from, state) do
+    {:reply, state.announce_handlers, state}
+  end
+
+  @impl true
+  def handle_call(:has_network_identity?, _from, state) do
+    {:reply, state.network_identity != nil, state}
+  end
+
+  @impl true
+  def handle_call(:network_identity, _from, state) do
+    {:reply, state.network_identity, state}
   end
 
   @impl true

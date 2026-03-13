@@ -352,7 +352,7 @@ This is the largest module (3312 LOC in Python). Split into manageable sub-modul
 - [x] **8.3 — Reticulum main class — interface instantiation and lifecycle**
   Complete `lib/rns/reticulum.ex`. Interface instantiation from config: for each `[[interface_name]]` section, determine type, start appropriate interface GenServer under InterfaceSupervisor. `start_local_interface/1`, `start_remote_interface/1`. Exit handler via `GenServer.terminate/2` — save state (path tables, known destinations, packet hashlist), teardown interfaces, stop Transport. Shared instance mode (daemon). Write tests: interface instantiation from config, state persistence on shutdown.
 
-- [ ] **8.4 — Discovery module**
+- [x] **8.4 — Discovery module**
   Port `python/RNS/Discovery.py` (733 LOC) → `lib/rns/discovery.ex`. `InterfaceAnnouncer` (creates/sends discovery announces). `InterfaceAnnounceHandler` (receives/processes). `InterfaceDiscovery` (coordinates across interfaces). `BlackholeUpdater` (network blackhole detection/distribution). Write tests: announce creation/validation, discovery state, blackhole list.
 
 ### Phase 9: Public API and Module Integration
