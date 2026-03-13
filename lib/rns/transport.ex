@@ -463,6 +463,12 @@ defmodule RNS.Transport do
     GenServer.call(__MODULE__, :get_announce_handlers)
   end
 
+  @doc "Returns the Transport's persistent identity, or nil if not yet configured."
+  @spec identity() :: RNS.Identity.t() | nil
+  def identity do
+    GenServer.call(__MODULE__, :identity)
+  end
+
   @doc "Returns whether a network identity is configured on Transport."
   @spec has_network_identity?() :: boolean()
   def has_network_identity? do
@@ -2106,11 +2112,20 @@ defmodule RNS.Transport do
     cachepath = Keyword.get(opts, :cachepath, state.cachepath)
     transport_enabled = Keyword.get(opts, :transport_enabled, state.transport_enabled)
 
+    # Create or load the persistent transport identity
+    identity =
+      if storage_path do
+        load_or_create_identity(storage_path)
+      else
+        state.identity
+      end
+
     state = %{
       state
       | storage_path: storage_path,
         cachepath: cachepath,
-        transport_enabled: transport_enabled
+        transport_enabled: transport_enabled,
+        identity: identity
     }
 
     # Load persisted data from disk if storage path is available
@@ -2176,6 +2191,11 @@ defmodule RNS.Transport do
   @impl true
   def handle_call(:get_announce_handlers, _from, state) do
     {:reply, state.announce_handlers, state}
+  end
+
+  @impl true
+  def handle_call(:identity, _from, state) do
+    {:reply, state.identity, state}
   end
 
   @impl true
@@ -2250,6 +2270,31 @@ defmodule RNS.Transport do
     PathManagement.load_path_table(Path.join(storage_path, "destination_table"))
     CacheManagement.load_tunnel_table(Path.join(storage_path, "tunnels"))
     :ok
+  end
+
+  # Loads an existing transport identity from disk, or creates and persists a new one.
+  # Matches Python's Transport.start() identity lifecycle.
+  defp load_or_create_identity(storage_path) do
+    identity_path = Path.join(storage_path, "transport_identity")
+
+    identity =
+      if File.exists?(identity_path) do
+        RNS.Identity.from_file(identity_path)
+      else
+        nil
+      end
+
+    case identity do
+      nil ->
+        RNS.Log.log("No valid Transport Identity in storage, creating...", :verbose)
+        new_identity = RNS.Identity.new()
+        RNS.Identity.to_file(new_identity, identity_path)
+        new_identity
+
+      loaded ->
+        RNS.Log.log("Loaded Transport Identity from storage", :verbose)
+        loaded
+    end
   end
 
   # ── Periodic Job Logic ────────────────────────────────────────────────

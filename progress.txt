@@ -221,3 +221,33 @@ in link-status contexts. One unrelated match (`I2PController.tunnel_state_active
 is I2P tunnel state, not link status.
 
 **Result:** `mix test` passes with 0 failures (3044 tests, 13 pre-existing skipped fixture tests).
+
+## 2026-03-14 — Task 2.1: Create and load transport identity on boot
+
+**Changes:**
+- `lib/rns/transport.ex`:
+  - Added `load_or_create_identity/1` private function that checks for an existing
+    `transport_identity` file in the storage path. If found, loads it via
+    `RNS.Identity.from_file/1`. If not found (first boot or corrupt file), creates a
+    new identity via `RNS.Identity.new/0` and persists it via `RNS.Identity.to_file/2`.
+    Matches Python's `Transport.start()` identity lifecycle exactly.
+  - Updated `handle_call({:configure, opts}, ...)` to call `load_or_create_identity/1`
+    when a storage path is available, storing the result in `state.identity`.
+  - Added `identity/0` public API (GenServer call) that returns the transport identity.
+  - Added `handle_call(:identity, ...)` handler returning `state.identity`.
+- `lib/rns/packet.ex`:
+  - Updated `transport_opts/0` to include `transport_identity: RNS.Transport.identity()`
+    in the options passed to `Transport.outbound/2`. This ensures outbound packets that
+    require HEADER_2 transport routing use the real transport identity hash instead of
+    random bytes.
+- `test/rns/transport_test.exs`: Added 6 tests covering:
+  - Transport has an identity after boot (non-nil, correct struct, 16-byte hash)
+  - Identity has valid key material (pub, sig_pub, prv, sig_prv bytes)
+  - Identity persists to disk (file exists, loads back with same hash)
+  - Identity survives reconfigure (same hash after re-calling configure)
+  - Fresh identity created when no file exists (new tmp dir)
+  - Loading from existing file matches the saved identity
+- `test/rns/application_test.exs`: Added 2 tests verifying transport identity is
+  configured after boot and persists to disk.
+
+**Result:** `mix test` passes with 0 failures (3052 tests, 13 pre-existing skipped fixture tests).

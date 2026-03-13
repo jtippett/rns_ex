@@ -130,5 +130,23 @@ defmodule RNS.ApplicationTest do
       assert is_pid(GenServer.whereis(RNS.Transport))
       assert is_pid(GenServer.whereis(RNS.Reticulum))
     end
+
+    test "Transport has a transport identity after boot (Task 2.1)" do
+      identity = RNS.Transport.identity()
+      assert %RNS.Identity{} = identity
+      assert is_binary(identity.hash)
+      assert byte_size(identity.hash) == 16
+    end
+
+    test "Transport identity persists across restarts (Task 2.1)" do
+      identity = RNS.Transport.identity()
+      reticulum_state = GenServer.call(RNS.Reticulum, :get_state)
+      identity_path = Path.join(reticulum_state.storagepath, "transport_identity")
+      assert File.exists?(identity_path)
+
+      # Loading from file gives the same identity
+      loaded = RNS.Identity.from_file(identity_path)
+      assert loaded.hash == identity.hash
+    end
   end
 end

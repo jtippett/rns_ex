@@ -2152,4 +2152,106 @@ defmodule RNS.TransportTest do
       destination_hash: opts[:destination_hash] || :crypto.strong_rand_bytes(16)
     }
   end
+
+  # ── Transport Identity (Task 2.1) ──────────────────────────────────
+
+  describe "transport identity" do
+    test "Transport has an identity after boot" do
+      identity = Transport.identity()
+      assert identity != nil
+      assert %RNS.Identity{} = identity
+      assert is_binary(identity.hash)
+      assert byte_size(identity.hash) == 16
+    end
+
+    test "transport identity has valid key material" do
+      identity = Transport.identity()
+      assert is_binary(identity.pub_bytes)
+      assert is_binary(identity.sig_pub_bytes)
+      # Private keys should be present (this is our own identity)
+      assert is_binary(identity.prv_bytes)
+      assert is_binary(identity.sig_prv_bytes)
+    end
+
+    test "transport identity persists to disk" do
+      identity = Transport.identity()
+      reticulum_state = GenServer.call(RNS.Reticulum, :get_state)
+      identity_path = Path.join(reticulum_state.storagepath, "transport_identity")
+      assert File.exists?(identity_path)
+
+      # Loading the file should produce an identity with the same hash
+      loaded = RNS.Identity.from_file(identity_path)
+      assert loaded != nil
+      assert loaded.hash == identity.hash
+    end
+
+    test "transport identity survives reconfigure" do
+      identity_before = Transport.identity()
+      assert identity_before != nil
+
+      # Reconfigure with the same storage path
+      reticulum_state = GenServer.call(RNS.Reticulum, :get_state)
+
+      Transport.configure(
+        storage_path: reticulum_state.storagepath,
+        cachepath: reticulum_state.cachepath
+      )
+
+      identity_after = Transport.identity()
+      # Should load the same identity from disk
+      assert identity_after.hash == identity_before.hash
+    end
+
+    test "transport identity is created fresh when no file exists" do
+      # Save original config to restore after test
+      reticulum_state = GenServer.call(RNS.Reticulum, :get_state)
+      original_path = reticulum_state.storagepath
+
+      tmp_dir = System.tmp_dir!() |> Path.join("rns_test_identity_#{:rand.uniform(999_999)}")
+      File.mkdir_p!(tmp_dir)
+
+      on_exit(fn ->
+        Transport.configure(storage_path: original_path)
+        File.rm_rf!(tmp_dir)
+      end)
+
+      # Verify no identity file exists
+      refute File.exists?(Path.join(tmp_dir, "transport_identity"))
+
+      # Configure with the fresh directory
+      Transport.configure(storage_path: tmp_dir)
+
+      identity = Transport.identity()
+      assert identity != nil
+      assert %RNS.Identity{} = identity
+
+      # File should now exist
+      assert File.exists?(Path.join(tmp_dir, "transport_identity"))
+    end
+
+    test "transport identity loaded from existing file matches saved identity" do
+      # Save original config to restore after test
+      reticulum_state = GenServer.call(RNS.Reticulum, :get_state)
+      original_path = reticulum_state.storagepath
+
+      tmp_dir = System.tmp_dir!() |> Path.join("rns_test_identity_load_#{:rand.uniform(999_999)}")
+      File.mkdir_p!(tmp_dir)
+
+      on_exit(fn ->
+        Transport.configure(storage_path: original_path)
+        File.rm_rf!(tmp_dir)
+      end)
+
+      # Create and save an identity manually
+      known_identity = RNS.Identity.new()
+      identity_path = Path.join(tmp_dir, "transport_identity")
+      assert RNS.Identity.to_file(known_identity, identity_path)
+
+      # Configure Transport to load from this directory
+      Transport.configure(storage_path: tmp_dir)
+
+      loaded = Transport.identity()
+      assert loaded.hash == known_identity.hash
+    end
+  end
 end
