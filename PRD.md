@@ -368,7 +368,7 @@ This is the largest module (3312 LOC in Python). Split into manageable sub-modul
 - [x] **10.1 — rnsd daemon**
   Port `python/RNS/Utilities/rnsd.py` (564 LOC) → Elixir escript or Mix release. Create `lib/rns/utilities/rnsd.ex`. Argument parsing (OptionParser), config dir, log level, Reticulum init, signal handling (`:os.set_signal_handler`), background execution. Write integration test: start/stop.
 
-- [ ] **10.2 — rnstatus and rnpath utilities**
+- [x] **10.2 — rnstatus and rnpath utilities**
   Port `python/RNS/Utilities/rnstatus.py` (687 LOC) → `lib/rns/utilities/rnstatus.ex`. Interface status, transport stats, tables. Port `python/RNS/Utilities/rnpath.py` (548 LOC) → `lib/rns/utilities/rnpath.ex`. Path lookup/request/display. Write tests for output formatting.
 
 - [ ] **10.3 — rnprobe and rnid utilities**

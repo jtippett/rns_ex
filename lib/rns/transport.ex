@@ -554,6 +554,19 @@ defmodule RNS.Transport do
     :ets.delete(@active_links_table, link_id)
   end
 
+  # ── Path Request ──────────────────────────────────────────────────────
+
+  @doc """
+  Requests a path to the specified destination hash.
+
+  Broadcasts a path request packet to all registered interfaces.
+  This is asynchronous — the path may not be available immediately.
+  """
+  @spec request_path(binary()) :: :ok
+  def request_path(destination_hash) do
+    GenServer.cast(__MODULE__, {:request_path, destination_hash})
+  end
+
   # ── Path Table Queries (direct ETS reads for concurrency) ─────────────
 
   @doc "Returns true if a path to the destination is known."
@@ -2064,6 +2077,26 @@ defmodule RNS.Transport do
   @impl true
   def handle_call(:network_identity, _from, state) do
     {:reply, state.network_identity, state}
+  end
+
+  @impl true
+  def handle_cast({:request_path, destination_hash}, state) do
+    # Send path request to all outgoing interfaces
+    interfaces = get_interfaces()
+
+    Enum.each(interfaces, fn iface ->
+      if Map.get(iface, :out, false) do
+        try do
+          if iface[:pid] do
+            GenServer.cast(iface.pid, {:path_request, destination_hash})
+          end
+        rescue
+          _ -> :ok
+        end
+      end
+    end)
+
+    {:noreply, state}
   end
 
   @impl true

@@ -612,7 +612,8 @@ defmodule RNS.Reticulum do
         last_data_persist: System.system_time(:second),
         last_cache_clean: 0,
         jobs_started: false,
-        started_interfaces: []
+        started_interfaces: [],
+        blackholed_identities: %{}
       })
 
     unless skip_start do
@@ -742,6 +743,23 @@ defmodule RNS.Reticulum do
   @impl true
   def handle_call(:identity, _from, state),
     do: {:reply, Map.get(state, :identity), state}
+
+  @impl true
+  def handle_call({:blackhole_identity, identity_hash, entry}, _from, state) do
+    blackholed = Map.put(state.blackholed_identities, identity_hash, entry)
+    {:reply, :ok, %{state | blackholed_identities: blackholed}}
+  end
+
+  @impl true
+  def handle_call({:unblackhole_identity, identity_hash}, _from, state) do
+    blackholed = Map.delete(state.blackholed_identities, identity_hash)
+    {:reply, :ok, %{state | blackholed_identities: blackholed}}
+  end
+
+  @impl true
+  def handle_call(:get_blackholed_identities, _from, state) do
+    {:reply, state.blackholed_identities, state}
+  end
 
   @impl true
   def handle_call({:add_interface, interface_pid, opts}, _from, state) do
