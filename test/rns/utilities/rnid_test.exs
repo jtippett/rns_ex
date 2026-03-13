@@ -186,10 +186,14 @@ defmodule RNS.Utilities.RNIDTest do
 
     test "parses combined crypto options" do
       args = [
-        "--config", "/tmp/rns",
-        "-i", "abcdef1234567890abcdef1234567890",
-        "-s", "/tmp/file.txt",
-        "-w", "/tmp/file.txt.rsg",
+        "--config",
+        "/tmp/rns",
+        "-i",
+        "abcdef1234567890abcdef1234567890",
+        "-s",
+        "/tmp/file.txt",
+        "-w",
+        "/tmp/file.txt.rsg",
         "-f",
         "-v"
       ]

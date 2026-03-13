@@ -146,46 +146,44 @@ defmodule RNS.Utilities.RNX do
         ]
       )
 
-    cond do
-      invalid != [] ->
-        {key, _} = hd(invalid)
-        {:error, "unknown option: #{key}"}
+    if invalid != [] do
+      {key, _} = hd(invalid)
+      {:error, "unknown option: #{key}"}
+    else
+      {destination, command} =
+        case rest do
+          [d, c | _] -> {d, c}
+          [d] -> {d, nil}
+          [] -> {nil, nil}
+        end
 
-      true ->
-        {destination, command} =
-          case rest do
-            [d, c | _] -> {d, c}
-            [d] -> {d, nil}
-            [] -> {nil, nil}
-          end
+      allowed_list = Keyword.get_values(parsed, :allowed)
 
-        allowed_list = Keyword.get_values(parsed, :allowed)
-
-        {:ok,
-         %{
-           configdir: Keyword.get(parsed, :config),
-           verbosity: Keyword.get(parsed, :verbose, 0),
-           quietness: Keyword.get(parsed, :quiet, 0),
-           print_identity: Keyword.get(parsed, :print_identity, false),
-           listen: Keyword.get(parsed, :listen, false),
-           identity_path: Keyword.get(parsed, :identity),
-           interactive: Keyword.get(parsed, :interactive, false),
-           no_announce: Keyword.get(parsed, :no_announce, false),
-           allowed: allowed_list,
-           noauth: Keyword.get(parsed, :noauth, false),
-           noid: Keyword.get(parsed, :noid, false),
-           detailed: Keyword.get(parsed, :detailed, false),
-           mirror: Keyword.get(parsed, :mirror, false),
-           timeout: Keyword.get(parsed, :timeout, 15.0),
-           result_timeout: Keyword.get(parsed, :result_timeout),
-           stdin: Keyword.get(parsed, :stdin),
-           stdoutl: Keyword.get(parsed, :stdout),
-           stderrl: Keyword.get(parsed, :stderr),
-           version: Keyword.get(parsed, :version, false),
-           help: Keyword.get(parsed, :help, false),
-           destination: destination,
-           command: command
-         }}
+      {:ok,
+       %{
+         configdir: Keyword.get(parsed, :config),
+         verbosity: Keyword.get(parsed, :verbose, 0),
+         quietness: Keyword.get(parsed, :quiet, 0),
+         print_identity: Keyword.get(parsed, :print_identity, false),
+         listen: Keyword.get(parsed, :listen, false),
+         identity_path: Keyword.get(parsed, :identity),
+         interactive: Keyword.get(parsed, :interactive, false),
+         no_announce: Keyword.get(parsed, :no_announce, false),
+         allowed: allowed_list,
+         noauth: Keyword.get(parsed, :noauth, false),
+         noid: Keyword.get(parsed, :noid, false),
+         detailed: Keyword.get(parsed, :detailed, false),
+         mirror: Keyword.get(parsed, :mirror, false),
+         timeout: Keyword.get(parsed, :timeout, 15.0),
+         result_timeout: Keyword.get(parsed, :result_timeout),
+         stdin: Keyword.get(parsed, :stdin),
+         stdoutl: Keyword.get(parsed, :stdout),
+         stderrl: Keyword.get(parsed, :stderr),
+         version: Keyword.get(parsed, :version, false),
+         help: Keyword.get(parsed, :help, false),
+         destination: destination,
+         command: command
+       }}
     end
   end
 
@@ -362,8 +360,12 @@ defmodule RNS.Utilities.RNX do
       |> maybe_add_opt(:configdir, opts.configdir)
 
     case start_reticulum(reticulum_opts) do
-      {:ok, _pid} -> :ok
-      {:error, {:already_started, _pid}} -> :ok
+      {:ok, _pid} ->
+        :ok
+
+      {:error, {:already_started, _pid}} ->
+        :ok
+
       {:error, reason} ->
         IO.puts(:stderr, "Could not start Reticulum: #{inspect(reason)}")
         System.halt(1)
@@ -389,7 +391,7 @@ defmodule RNS.Utilities.RNX do
     # Build allowed identity hashes
     {allow_all, allowed_hashes} = build_allowed_list(opts)
 
-    if length(allowed_hashes) < 1 and not opts.noauth do
+    if allowed_hashes == [] and not opts.noauth do
       IO.puts("Warning: No allowed identities configured, rnx will not accept any commands!")
     end
 
@@ -397,20 +399,21 @@ defmodule RNS.Utilities.RNX do
     Process.put(:rnx_allow_all, allow_all)
     Process.put(:rnx_allowed_hashes, allowed_hashes)
 
-    destination = RNS.Destination.set_link_established_callback(destination, &command_link_established/1)
+    destination =
+      RNS.Destination.set_link_established_callback(destination, &command_link_established/1)
 
     # Register command request handler
     destination =
-      if not allow_all do
+      if allow_all do
         RNS.Destination.register_request_handler(destination, "command",
           response_generator: &execute_received_command/5,
-          allow: RNS.Destination.allow_list(),
-          allowed_list: allowed_hashes
+          allow: RNS.Destination.allow_all()
         )
       else
         RNS.Destination.register_request_handler(destination, "command",
           response_generator: &execute_received_command/5,
-          allow: RNS.Destination.allow_all()
+          allow: RNS.Destination.allow_list(),
+          allowed_list: allowed_hashes
         )
       end
 
@@ -434,7 +437,9 @@ defmodule RNS.Utilities.RNX do
   def handle_execute(opts) do
     destination_hash =
       case parse_destination_hash(opts.destination) do
-        {:ok, hash} -> hash
+        {:ok, hash} ->
+          hash
+
         {:error, msg} ->
           IO.puts(msg)
           System.halt(241)
@@ -449,8 +454,12 @@ defmodule RNS.Utilities.RNX do
       |> maybe_add_opt(:configdir, opts.configdir)
 
     case start_reticulum(reticulum_opts) do
-      {:ok, _pid} -> :ok
-      {:error, {:already_started, _pid}} -> :ok
+      {:ok, _pid} ->
+        :ok
+
+      {:error, {:already_started, _pid}} ->
+        :ok
+
       {:error, reason} ->
         IO.puts(:stderr, "Could not start Reticulum: #{inspect(reason)}")
         System.halt(1)
@@ -463,9 +472,11 @@ defmodule RNS.Utilities.RNX do
       RNS.Transport.request_path(destination_hash)
       timeout_at = System.system_time(:millisecond) + trunc(opts.timeout * 1000)
 
-      if not spin("Path to #{RNS.prettyhexrep(destination_hash)} requested",
-                   fn -> RNS.Transport.has_path(destination_hash) end,
-                   timeout_at) do
+      if not spin(
+           "Path to #{RNS.prettyhexrep(destination_hash)} requested",
+           fn -> RNS.Transport.has_path(destination_hash) end,
+           timeout_at
+         ) do
         IO.puts("Path not found")
 
         if opts.interactive do
@@ -488,13 +499,21 @@ defmodule RNS.Utilities.RNX do
       )
 
     link = RNS.Link.new()
-    link = %{link | destination: listener_destination, initiator: true, status: RNS.Link.pending()}
+
+    link = %{
+      link
+      | destination: listener_destination,
+        initiator: true,
+        status: RNS.Link.pending()
+    }
 
     estab_timeout = System.system_time(:millisecond) + trunc(opts.timeout * 1000)
 
-    if not spin("Establishing link with #{RNS.prettyhexrep(destination_hash)}",
-                fn -> link.status == RNS.Link.active() end,
-                estab_timeout) do
+    if not spin(
+         "Establishing link with #{RNS.prettyhexrep(destination_hash)}",
+         fn -> link.status == RNS.Link.active() end,
+         estab_timeout
+       ) do
       IO.puts("Could not establish link with #{RNS.prettyhexrep(destination_hash)}")
 
       if opts.interactive do
@@ -512,7 +531,8 @@ defmodule RNS.Utilities.RNX do
         nil
       end
 
-    request_data = build_request_data(opts.command, opts.timeout, opts.stdoutl, opts.stderrl, stdin_data)
+    request_data =
+      build_request_data(opts.command, opts.timeout, opts.stdoutl, opts.stderrl, stdin_data)
 
     # In a running system, this would send the request via link.request
     # and wait for results. For the CLI utility structure:
@@ -628,7 +648,8 @@ defmodule RNS.Utilities.RNX do
 
   Returns a result list: [executed, return_value, stdout, stderr, stdout_len, stderr_len, started, concluded].
   """
-  @spec execute_received_command(String.t(), list(), binary(), RNS.Identity.t() | nil, number()) :: list()
+  @spec execute_received_command(String.t(), list(), binary(), RNS.Identity.t() | nil, number()) ::
+          list()
   def execute_received_command(_path, data, _request_id, remote_identity, _requested_at) do
     command = Enum.at(data, 0) |> decode_string()
     timeout = Enum.at(data, 1)
@@ -649,14 +670,22 @@ defmodule RNS.Utilities.RNX do
 
     result =
       [
-        false,    # 0: Command was executed
-        nil,      # 1: Return value
-        nil,      # 2: Stdout
-        nil,      # 3: Stderr
-        nil,      # 4: Total stdout length
-        nil,      # 5: Total stderr length
-        started,  # 6: Started
-        nil       # 7: Concluded
+        # 0: Command was executed
+        false,
+        # 1: Return value
+        nil,
+        # 2: Stdout
+        nil,
+        # 3: Stderr
+        nil,
+        # 4: Total stdout length
+        nil,
+        # 5: Total stderr length
+        nil,
+        # 6: Started
+        started,
+        # 7: Concluded
+        nil
       ]
 
     case run_command(command, stdin, timeout, started) do
@@ -703,7 +732,13 @@ defmodule RNS.Utilities.RNX do
 
   Matches the Python format: [command_bytes, timeout, stdout_limit, stderr_limit, stdin_data].
   """
-  @spec build_request_data(String.t(), number() | nil, integer() | nil, integer() | nil, String.t() | nil) :: list()
+  @spec build_request_data(
+          String.t(),
+          number() | nil,
+          integer() | nil,
+          integer() | nil,
+          String.t() | nil
+        ) :: list()
   def build_request_data(command, timeout, stdoutl, stderrl, stdin) do
     stdin_data = if stdin != nil, do: stdin, else: nil
 
@@ -723,6 +758,7 @@ defmodule RNS.Utilities.RNX do
   """
   @spec format_result(list(), boolean(), integer() | nil, integer() | nil) ::
           {String.t() | nil, String.t() | nil, [String.t()]}
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def format_result(response, detailed, stdoutl, stderrl) do
     executed = Enum.at(response, 0)
     _retval = Enum.at(response, 1)
@@ -733,11 +769,12 @@ defmodule RNS.Utilities.RNX do
     started = Enum.at(response, 6)
     concluded = Enum.at(response, 7)
 
-    if not executed do
-      {nil, nil, ["Remote could not execute command"]}
-    else
-      stdout_str = if stdout != nil and byte_size(stdout) > 0, do: decode_string(stdout), else: nil
-      stderr_str = if stderr != nil and byte_size(stderr) > 0, do: decode_string(stderr), else: nil
+    if executed do
+      stdout_str =
+        if stdout != nil and byte_size(stdout) > 0, do: decode_string(stdout), else: nil
+
+      stderr_str =
+        if stderr != nil and byte_size(stderr) > 0, do: decode_string(stderr), else: nil
 
       detail_lines =
         if detailed do
@@ -753,7 +790,8 @@ defmodule RNS.Utilities.RNX do
 
           lines =
             if outlen != nil and stdout != nil and byte_size(stdout) < outlen do
-              lines ++ ["Remote wrote #{outlen} bytes to stdout, #{byte_size(stdout)} bytes displayed"]
+              lines ++
+                ["Remote wrote #{outlen} bytes to stdout, #{byte_size(stdout)} bytes displayed"]
             else
               if outlen != nil do
                 lines ++ ["Remote wrote #{outlen} bytes to stdout"]
@@ -764,7 +802,8 @@ defmodule RNS.Utilities.RNX do
 
           lines =
             if errlen != nil and stderr != nil and byte_size(stderr) < errlen do
-              lines ++ ["Remote wrote #{errlen} bytes to stderr, #{byte_size(stderr)} bytes displayed"]
+              lines ++
+                ["Remote wrote #{errlen} bytes to stderr, #{byte_size(stderr)} bytes displayed"]
             else
               if errlen != nil do
                 lines ++ ["Remote wrote #{errlen} bytes to stderr"]
@@ -792,7 +831,7 @@ defmodule RNS.Utilities.RNX do
               truncated_lines
             end
 
-          if length(truncated_lines) > 0 do
+          if truncated_lines != [] do
             ["", "Output truncated before being returned:" | truncated_lines]
           else
             []
@@ -800,6 +839,8 @@ defmodule RNS.Utilities.RNX do
         end
 
       {stdout_str, stderr_str, detail_lines}
+    else
+      {nil, nil, ["Remote could not execute command"]}
     end
   end
 
@@ -823,26 +864,24 @@ defmodule RNS.Utilities.RNX do
   # ── Private Helpers ──────────────────────────────────────────────────
 
   defp run_command(command, stdin, timeout, started) do
-    try do
-      args = split_command(command)
-      {cmd, cmd_args} = {hd(args), tl(args)}
+    args = split_command(command)
+    {cmd, cmd_args} = {hd(args), tl(args)}
 
-      port =
-        Port.open({:spawn_executable, System.find_executable(cmd) || cmd}, [
-          :binary,
-          :exit_status,
-          :stderr_to_stdout,
-          args: cmd_args
-        ])
+    port =
+      Port.open({:spawn_executable, System.find_executable(cmd) || cmd}, [
+        :binary,
+        :exit_status,
+        :stderr_to_stdout,
+        args: cmd_args
+      ])
 
-      if stdin != nil do
-        Port.command(port, stdin)
-      end
-
-      collect_output(port, <<>>, timeout, started)
-    rescue
-      e -> {:error, Exception.message(e)}
+    if stdin != nil do
+      Port.command(port, stdin)
     end
+
+    collect_output(port, <<>>, timeout, started)
+  rescue
+    e -> {:error, Exception.message(e)}
   end
 
   defp collect_output(port, acc, timeout, started) do
@@ -883,7 +922,8 @@ defmodule RNS.Utilities.RNX do
     do_split_command(rest, acc, current, char)
   end
 
-  defp do_split_command(<<char, rest::binary>>, acc, current, quote_char) when char == quote_char do
+  defp do_split_command(<<char, rest::binary>>, acc, current, quote_char)
+       when char == quote_char do
     do_split_command(rest, acc, current, nil)
   end
 
@@ -933,7 +973,9 @@ defmodule RNS.Utilities.RNX do
         end
 
         case Base.decode16(a, case: :mixed) do
-          {:ok, hash} -> [hash | acc]
+          {:ok, hash} ->
+            [hash | acc]
+
           :error ->
             IO.puts("Invalid destination entered. Check your input.")
             System.halt(1)

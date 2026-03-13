@@ -20,8 +20,8 @@ defmodule RNS.ProtocolCompatibilityTest do
 
   import Bitwise
 
-  alias RNS.Cryptography.{Hashes, HMAC, HKDF, PKCS7, AES, X25519, Ed25519, Token}
-  alias RNS.{Identity, Destination, Packet}
+  alias RNS.Cryptography.{AES, Ed25519, Hashes, HKDF, HMAC, PKCS7, Token, X25519}
+  alias RNS.{Destination, Identity, Packet}
 
   # Helper to decode hex strings
   defp hex(hex_string) when is_binary(hex_string) do
@@ -45,7 +45,7 @@ defmodule RNS.ProtocolCompatibilityTest do
       assert RNS.Reticulum.header_maxsize() == 35
       assert RNS.Reticulum.mdu() == 464
       assert RNS.Reticulum.ifac_min_size() == 1
-      assert RNS.Reticulum.resource_cache() == 86400
+      assert RNS.Reticulum.resource_cache() == 86_400
       assert RNS.Reticulum.announce_cap() == 2
       assert RNS.Reticulum.minimum_bitrate() == 5
       assert RNS.Reticulum.default_per_hop_timeout() == 6
@@ -181,7 +181,9 @@ defmodule RNS.ProtocolCompatibilityTest do
       length = 42
 
       expected =
-        hex("3cb25f25faacd57a90434f64d0362f2a2d2d0a90cf1a5a4c5db02d56ecc4c5bf34007208d5b887185865")
+        hex(
+          "3cb25f25faacd57a90434f64d0362f2a2d2d0a90cf1a5a4c5db02d56ecc4c5bf34007208d5b887185865"
+        )
 
       assert HKDF.derive_key(ikm, length, salt, info) == expected
     end
@@ -205,7 +207,9 @@ defmodule RNS.ProtocolCompatibilityTest do
       length = 42
 
       expected =
-        hex("8da4e775a563c18f715f802a063c5a31b8a11f5c5ee1879ec3454e5f3c738d2d9d201395faa4b61a96c8")
+        hex(
+          "8da4e775a563c18f715f802a063c5a31b8a11f5c5ee1879ec3454e5f3c738d2d9d201395faa4b61a96c8"
+        )
 
       assert HKDF.derive_key(ikm, length, nil, nil) == expected
     end
@@ -463,6 +467,7 @@ defmodule RNS.ProtocolCompatibilityTest do
       for _ <- 1..5 do
         a = X25519.generate_keypair()
         b = X25519.generate_keypair()
+
         assert X25519.exchange(a, X25519.public_key(b)) ==
                  X25519.exchange(b, X25519.public_key(a))
       end
@@ -481,7 +486,7 @@ defmodule RNS.ProtocolCompatibilityTest do
         :crypto.hash(:sha256, "test_seed_1"),
         :crypto.hash(:sha256, "test_seed_2"),
         :binary.copy(<<0x42>>, 32),
-        :binary.list_to_bin(Enum.to_list(0..31)),
+        :binary.list_to_bin(Enum.to_list(0..31))
       ]
 
       for seed <- seeds do
@@ -947,9 +952,14 @@ defmodule RNS.ProtocolCompatibilityTest do
       File.read!(@fixtures_path) |> Jason.decode!()
     end
 
-    @tag skip: unless(File.exists?(Path.join([__DIR__, "..", "fixtures", "protocol_compatibility.json"])), do: "Run: python3 test/fixtures/generate_fixtures.py")
+    @tag skip:
+           unless(
+             File.exists?(Path.join([__DIR__, "..", "fixtures", "protocol_compatibility.json"])),
+             do: "Run: python3 test/fixtures/generate_fixtures.py"
+           )
     test "hash fixtures match Python" do
       fixtures = load_fixtures()
+
       for fixture <- fixtures["hashes"] do
         input = hex(fixture["input"])
         assert to_hex(Hashes.sha256(input)) == fixture["sha256"]
@@ -958,9 +968,14 @@ defmodule RNS.ProtocolCompatibilityTest do
       end
     end
 
-    @tag skip: unless(File.exists?(Path.join([__DIR__, "..", "fixtures", "protocol_compatibility.json"])), do: "Run: python3 test/fixtures/generate_fixtures.py")
+    @tag skip:
+           unless(
+             File.exists?(Path.join([__DIR__, "..", "fixtures", "protocol_compatibility.json"])),
+             do: "Run: python3 test/fixtures/generate_fixtures.py"
+           )
     test "identity fixtures match Python" do
       fixtures = load_fixtures()
+
       for fixture <- fixtures["identities"] do
         prv = hex(fixture["private_key"])
         id = Identity.from_bytes(prv)
@@ -977,7 +992,11 @@ defmodule RNS.ProtocolCompatibilityTest do
       end
     end
 
-    @tag skip: unless(File.exists?(Path.join([__DIR__, "..", "fixtures", "protocol_compatibility.json"])), do: "Run: python3 test/fixtures/generate_fixtures.py")
+    @tag skip:
+           unless(
+             File.exists?(Path.join([__DIR__, "..", "fixtures", "protocol_compatibility.json"])),
+             do: "Run: python3 test/fixtures/generate_fixtures.py"
+           )
     test "destination hash fixtures match Python" do
       fixtures = load_fixtures()
       id_prv = hex(List.first(fixtures["identities"])["private_key"])
@@ -997,9 +1016,14 @@ defmodule RNS.ProtocolCompatibilityTest do
       end
     end
 
-    @tag skip: unless(File.exists?(Path.join([__DIR__, "..", "fixtures", "protocol_compatibility.json"])), do: "Run: python3 test/fixtures/generate_fixtures.py")
+    @tag skip:
+           unless(
+             File.exists?(Path.join([__DIR__, "..", "fixtures", "protocol_compatibility.json"])),
+             do: "Run: python3 test/fixtures/generate_fixtures.py"
+           )
     test "HKDF fixtures match Python" do
       fixtures = load_fixtures()
+
       for fixture <- fixtures["hkdf"] do
         ikm = hex(fixture["ikm"])
         length = fixture["length"]
@@ -1007,14 +1031,20 @@ defmodule RNS.ProtocolCompatibilityTest do
         info = if fixture["info"], do: hex(fixture["info"]), else: nil
 
         derived = HKDF.derive_key(ikm, length, salt, info)
+
         assert to_hex(derived) == fixture["derived_key"],
                "HKDF mismatch for: #{fixture["description"]}"
       end
     end
 
-    @tag skip: unless(File.exists?(Path.join([__DIR__, "..", "fixtures", "protocol_compatibility.json"])), do: "Run: python3 test/fixtures/generate_fixtures.py")
+    @tag skip:
+           unless(
+             File.exists?(Path.join([__DIR__, "..", "fixtures", "protocol_compatibility.json"])),
+             do: "Run: python3 test/fixtures/generate_fixtures.py"
+           )
     test "token fixtures — Python ciphertext decrypts correctly" do
       fixtures = load_fixtures()
+
       for fixture <- fixtures["tokens"] do
         key = hex(fixture["key"])
         token = Token.new(key)
@@ -1026,9 +1056,14 @@ defmodule RNS.ProtocolCompatibilityTest do
       end
     end
 
-    @tag skip: unless(File.exists?(Path.join([__DIR__, "..", "fixtures", "protocol_compatibility.json"])), do: "Run: python3 test/fixtures/generate_fixtures.py")
+    @tag skip:
+           unless(
+             File.exists?(Path.join([__DIR__, "..", "fixtures", "protocol_compatibility.json"])),
+             do: "Run: python3 test/fixtures/generate_fixtures.py"
+           )
     test "X25519 fixtures match Python" do
       fixtures = load_fixtures()
+
       for fixture <- fixtures["x25519"] do
         key_a = X25519.from_private_bytes(hex(fixture["private_a"]))
         key_b = X25519.from_private_bytes(hex(fixture["private_b"]))
@@ -1041,9 +1076,14 @@ defmodule RNS.ProtocolCompatibilityTest do
       end
     end
 
-    @tag skip: unless(File.exists?(Path.join([__DIR__, "..", "fixtures", "protocol_compatibility.json"])), do: "Run: python3 test/fixtures/generate_fixtures.py")
+    @tag skip:
+           unless(
+             File.exists?(Path.join([__DIR__, "..", "fixtures", "protocol_compatibility.json"])),
+             do: "Run: python3 test/fixtures/generate_fixtures.py"
+           )
     test "Ed25519 fixtures match Python" do
       fixtures = load_fixtures()
+
       for fixture <- fixtures["ed25519"] do
         key = Ed25519.from_private_bytes(hex(fixture["private_key"]))
         assert to_hex(Ed25519.public_key(key)) == fixture["public_key"]
@@ -1057,9 +1097,14 @@ defmodule RNS.ProtocolCompatibilityTest do
       end
     end
 
-    @tag skip: unless(File.exists?(Path.join([__DIR__, "..", "fixtures", "protocol_compatibility.json"])), do: "Run: python3 test/fixtures/generate_fixtures.py")
+    @tag skip:
+           unless(
+             File.exists?(Path.join([__DIR__, "..", "fixtures", "protocol_compatibility.json"])),
+             do: "Run: python3 test/fixtures/generate_fixtures.py"
+           )
     test "identity encryption — Python ciphertext decrypts" do
       fixtures = load_fixtures()
+
       for fixture <- fixtures["identity_encryption"] do
         prv = hex(fixture["receiver_private_key"])
         receiver = Identity.from_bytes(prv)
@@ -1071,9 +1116,14 @@ defmodule RNS.ProtocolCompatibilityTest do
       end
     end
 
-    @tag skip: unless(File.exists?(Path.join([__DIR__, "..", "fixtures", "protocol_compatibility.json"])), do: "Run: python3 test/fixtures/generate_fixtures.py")
+    @tag skip:
+           unless(
+             File.exists?(Path.join([__DIR__, "..", "fixtures", "protocol_compatibility.json"])),
+             do: "Run: python3 test/fixtures/generate_fixtures.py"
+           )
     test "PKCS7 fixtures match Python" do
       fixtures = load_fixtures()
+
       for fixture <- fixtures["pkcs7"] do
         input = hex(fixture["input"])
         expected_padded = hex(fixture["padded"])
@@ -1082,9 +1132,14 @@ defmodule RNS.ProtocolCompatibilityTest do
       end
     end
 
-    @tag skip: unless(File.exists?(Path.join([__DIR__, "..", "fixtures", "protocol_compatibility.json"])), do: "Run: python3 test/fixtures/generate_fixtures.py")
+    @tag skip:
+           unless(
+             File.exists?(Path.join([__DIR__, "..", "fixtures", "protocol_compatibility.json"])),
+             do: "Run: python3 test/fixtures/generate_fixtures.py"
+           )
     test "AES fixtures match Python" do
       fixtures = load_fixtures()
+
       for fixture <- fixtures["aes"] do
         key = hex(fixture["key"])
         iv = hex(fixture["iv"])
@@ -1096,9 +1151,14 @@ defmodule RNS.ProtocolCompatibilityTest do
       end
     end
 
-    @tag skip: unless(File.exists?(Path.join([__DIR__, "..", "fixtures", "protocol_compatibility.json"])), do: "Run: python3 test/fixtures/generate_fixtures.py")
+    @tag skip:
+           unless(
+             File.exists?(Path.join([__DIR__, "..", "fixtures", "protocol_compatibility.json"])),
+             do: "Run: python3 test/fixtures/generate_fixtures.py"
+           )
     test "HMAC fixtures match Python" do
       fixtures = load_fixtures()
+
       for fixture <- fixtures["hmac"] do
         key = hex(fixture["key"])
         data = hex(fixture["data"])
@@ -1107,7 +1167,11 @@ defmodule RNS.ProtocolCompatibilityTest do
       end
     end
 
-    @tag skip: unless(File.exists?(Path.join([__DIR__, "..", "fixtures", "protocol_compatibility.json"])), do: "Run: python3 test/fixtures/generate_fixtures.py")
+    @tag skip:
+           unless(
+             File.exists?(Path.join([__DIR__, "..", "fixtures", "protocol_compatibility.json"])),
+             do: "Run: python3 test/fixtures/generate_fixtures.py"
+           )
     test "constants match Python" do
       fixtures = load_fixtures()
       constants = fixtures["constants"]
@@ -1122,9 +1186,14 @@ defmodule RNS.ProtocolCompatibilityTest do
       assert Identity.ratchetsize() == constants["IDENTITY_RATCHETSIZE"]
     end
 
-    @tag skip: unless(File.exists?(Path.join([__DIR__, "..", "fixtures", "protocol_compatibility.json"])), do: "Run: python3 test/fixtures/generate_fixtures.py")
+    @tag skip:
+           unless(
+             File.exists?(Path.join([__DIR__, "..", "fixtures", "protocol_compatibility.json"])),
+             do: "Run: python3 test/fixtures/generate_fixtures.py"
+           )
     test "announce fixtures match Python" do
       fixtures = load_fixtures()
+
       for fixture <- fixtures["announces"] do
         prv = hex(fixture["identity_private_key"])
         id = Identity.from_bytes(prv)
@@ -1219,6 +1288,7 @@ defmodule RNS.ProtocolCompatibilityTest do
 
     test "HKDF output length matches request" do
       ikm = :crypto.strong_rand_bytes(32)
+
       for len <- [16, 32, 48, 64, 128] do
         derived = HKDF.derive_key(ikm, len, nil, nil)
         assert byte_size(derived) == len
@@ -1232,7 +1302,8 @@ defmodule RNS.ProtocolCompatibilityTest do
 
   defp encode_flags(header_type, context_flag, transport_type, dest_type, packet_type) do
     import Bitwise
-    (header_type <<< 6) ||| (context_flag <<< 5) ||| (transport_type <<< 4) |||
-      (dest_type <<< 2) ||| packet_type
+
+    header_type <<< 6 ||| context_flag <<< 5 ||| transport_type <<< 4 |||
+      dest_type <<< 2 ||| packet_type
   end
 end

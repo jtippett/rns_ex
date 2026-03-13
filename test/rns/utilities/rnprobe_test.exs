@@ -104,11 +104,16 @@ defmodule RNS.Utilities.RNProbeTest do
       hex = String.duplicate("ab", 16)
 
       args = [
-        "--config", "/tmp/rns",
-        "-s", "32",
-        "-n", "3",
-        "-t", "10.0",
-        "-w", "0.5",
+        "--config",
+        "/tmp/rns",
+        "-s",
+        "32",
+        "-n",
+        "3",
+        "-t",
+        "10.0",
+        "-w",
+        "0.5",
         "-v",
         "myapp.echo",
         hex

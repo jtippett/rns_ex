@@ -954,22 +954,18 @@ defmodule RNS.Interfaces.BackboneClientInterface do
   end
 
   defp set_linux_keepalive(socket) do
-    try do
-      :inet.setopts(socket, [{:raw, 6, 18, <<@tcp_user_timeout * 1000::native-32>>}])
-      :inet.setopts(socket, [{:raw, 6, 4, <<@tcp_probe_after::native-32>>}])
-      :inet.setopts(socket, [{:raw, 6, 5, <<@tcp_probe_interval::native-32>>}])
-      :inet.setopts(socket, [{:raw, 6, 6, <<@tcp_probes::native-32>>}])
-    rescue
-      _ -> :ok
-    end
+    :inet.setopts(socket, [{:raw, 6, 18, <<@tcp_user_timeout * 1000::native-32>>}])
+    :inet.setopts(socket, [{:raw, 6, 4, <<@tcp_probe_after::native-32>>}])
+    :inet.setopts(socket, [{:raw, 6, 5, <<@tcp_probe_interval::native-32>>}])
+    :inet.setopts(socket, [{:raw, 6, 6, <<@tcp_probes::native-32>>}])
+  rescue
+    _ -> :ok
   end
 
   defp set_darwin_keepalive(socket) do
-    try do
-      :inet.setopts(socket, [{:raw, 6, 0x10, <<@tcp_probe_after::native-32>>}])
-    rescue
-      _ -> :ok
-    end
+    :inet.setopts(socket, [{:raw, 6, 0x10, <<@tcp_probe_after::native-32>>}])
+  rescue
+    _ -> :ok
   end
 
   defp teardown(state) do

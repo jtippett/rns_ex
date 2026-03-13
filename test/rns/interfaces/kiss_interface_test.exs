@@ -1,8 +1,8 @@
 defmodule RNS.Interfaces.KISSInterfaceTest do
   use ExUnit.Case, async: false
 
-  alias RNS.Interfaces.KISSInterface
   alias RNS.Interfaces.Interface.KISS
+  alias RNS.Interfaces.KISSInterface
 
   # ── Constants ──────────────────────────────────────────────────
 
@@ -557,7 +557,7 @@ defmodule RNS.Interfaces.KISSInterfaceTest do
         online: true,
         skip_open: true,
         beacon_data: "N0CALL",
-        first_tx: 12345
+        first_tx: 12_345
       }
 
       {:ok, updated} = KISSInterface.process_outgoing(state, "N0CALL")

@@ -1,8 +1,8 @@
 defmodule RNS.Interfaces.SerialInterfaceTest do
   use ExUnit.Case, async: false
 
-  alias RNS.Interfaces.SerialInterface
   alias RNS.Interfaces.Interface.HDLC
+  alias RNS.Interfaces.SerialInterface
 
   # ── Constants ──────────────────────────────────────────────────
 

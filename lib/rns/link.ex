@@ -124,10 +124,10 @@ defmodule RNS.Link do
 
   import Bitwise
 
-  alias RNS.Cryptography.X25519
   alias RNS.Cryptography.Ed25519
-  alias RNS.Cryptography.Token
   alias RNS.Cryptography.HKDF
+  alias RNS.Cryptography.Token
+  alias RNS.Cryptography.X25519
   alias RNS.Identity
   alias RNS.Link.{CryptoState, PeerState, Stats}
 
@@ -581,50 +581,7 @@ defmodule RNS.Link do
                 handshaken.peer.peer_sig_pub_bytes <>
                 signalling
 
-            <<signature::binary-size(sig_len), _::binary>> = proof_data
-
-            if Identity.validate(link.destination.identity, signature, signed_data) do
-              if handshaken.status != @status_handshake do
-                {:error, :invalid_link_state}
-              else
-                now = System.system_time(:second)
-                rtt = now - link.request_time
-                mtu = confirmed_mtu || @mtu
-
-                activated =
-                  %{
-                    handshaken
-                    | stats: %{handshaken.stats | rtt: rtt, last_proof: now},
-                      attached_interface: Map.get(packet, :receiving_interface),
-                      peer: %{handshaken.peer | remote_identity: link.destination.identity},
-                      mtu: mtu,
-                      status: @status_active,
-                      activated_at: now,
-                      establishment_cost:
-                        handshaken.establishment_cost + byte_size(Map.get(packet, :raw, <<>>))
-                  }
-                  |> update_mdu()
-
-                activated =
-                  if rtt > 0 and activated.establishment_cost > 0 do
-                    %{
-                      activated
-                      | stats: %{
-                          activated.stats
-                          | establishment_rate: activated.establishment_cost / rtt
-                        }
-                    }
-                  else
-                    activated
-                  end
-
-                activated = update_keepalive(activated)
-
-                {:ok, activated}
-              end
-            else
-              {:error, :invalid_signature}
-            end
+            activate_after_proof(link, handshaken, packet, proof_data, signed_data, confirmed_mtu)
 
           error ->
             error
@@ -700,6 +657,49 @@ defmodule RNS.Link do
   end
 
   defp update_keepalive(link), do: link
+
+  defp maybe_set_establishment_rate(%__MODULE__{} = link, rtt)
+       when rtt > 0 and link.establishment_cost > 0 do
+    %{link | stats: %{link.stats | establishment_rate: link.establishment_cost / rtt}}
+  end
+
+  defp maybe_set_establishment_rate(link, _rtt), do: link
+
+  defp activate_after_proof(link, handshaken, packet, proof_data, signed_data, confirmed_mtu) do
+    sig_len = div(Identity.siglength(), 8)
+    <<signature::binary-size(sig_len), _::binary>> = proof_data
+
+    cond do
+      not Identity.validate(link.destination.identity, signature, signed_data) ->
+        {:error, :invalid_signature}
+
+      handshaken.status != @status_handshake ->
+        {:error, :invalid_link_state}
+
+      true ->
+        now = System.system_time(:second)
+        rtt = now - link.request_time
+        mtu = confirmed_mtu || @mtu
+
+        activated =
+          %{
+            handshaken
+            | stats: %{handshaken.stats | rtt: rtt, last_proof: now},
+              attached_interface: Map.get(packet, :receiving_interface),
+              peer: %{handshaken.peer | remote_identity: link.destination.identity},
+              mtu: mtu,
+              status: @status_active,
+              activated_at: now,
+              establishment_cost:
+                handshaken.establishment_cost + byte_size(Map.get(packet, :raw, <<>>))
+          }
+          |> update_mdu()
+          |> maybe_set_establishment_rate(rtt)
+          |> update_keepalive()
+
+        {:ok, activated}
+    end
+  end
 
   # ── Identify ────────────────────────────────────────────────────
 
@@ -1230,7 +1230,9 @@ defmodule RNS.Link do
   end
 
   defp do_receive_packet(link, packet, :data, :lrrtt) do
-    if not link.initiator do
+    if link.initiator do
+      {:ok, link, []}
+    else
       link = update_phy_stats(link, packet)
 
       case rtt_packet(link, packet) do
@@ -1248,8 +1250,6 @@ defmodule RNS.Link do
         {:error, _} ->
           {:ok, link, []}
       end
-    else
-      {:ok, link, []}
     end
   end
 

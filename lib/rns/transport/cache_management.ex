@@ -8,10 +8,10 @@ defmodule RNS.Transport.CacheManagement do
 
   require Logger
 
+  alias RNS.Packet
   alias RNS.Transport
   alias RNS.Transport.PathEntry
   alias RNS.Transport.TunnelEntry
-  alias RNS.Packet
 
   @packet_hashlist_table :rns_packet_hashlist
   @path_table :rns_path_table
@@ -176,9 +176,7 @@ defmodule RNS.Transport.CacheManagement do
       # Send a CACHE_REQUEST packet to the network
       packet = Packet.new(destination, packet_hash, context: 0x08)
 
-      if is_function(Map.get(packet, :send), 0) do
-        packet.send.()
-      end
+      Packet.send(packet)
     end
 
     :ok
@@ -269,21 +267,19 @@ defmodule RNS.Transport.CacheManagement do
   """
   @spec save_packet_hashlist(String.t()) :: :ok | {:error, term()}
   def save_packet_hashlist(file_path) do
-    try do
-      hashlist =
-        :ets.tab2list(@packet_hashlist_table)
-        |> Enum.map(fn {hash, _} -> hash end)
+    hashlist =
+      :ets.tab2list(@packet_hashlist_table)
+      |> Enum.map(fn {hash, _} -> hash end)
 
-      packed = Msgpax.pack!(hashlist, iodata: false)
-      File.write!(file_path, packed)
+    packed = Msgpax.pack!(hashlist, iodata: false)
+    File.write!(file_path, packed)
 
-      Logger.debug("Saved #{length(hashlist)} packet hashlist entries")
-      :ok
-    rescue
-      e ->
-        Logger.error("Could not save packet hashlist: #{Exception.message(e)}")
-        {:error, Exception.message(e)}
-    end
+    Logger.debug("Saved #{length(hashlist)} packet hashlist entries")
+    :ok
+  rescue
+    e ->
+      Logger.error("Could not save packet hashlist: #{Exception.message(e)}")
+      {:error, Exception.message(e)}
   end
 
   @doc """
@@ -329,55 +325,53 @@ defmodule RNS.Transport.CacheManagement do
   """
   @spec save_tunnel_table(String.t()) :: :ok | {:error, term()}
   def save_tunnel_table(file_path) do
-    try do
-      serialized_tunnels =
-        :ets.tab2list(@tunnel_table)
-        |> Enum.map(fn {_tunnel_id, entry} ->
-          interface_hash =
-            if is_map(entry.interface) do
-              entry.interface.hash
-            else
-              nil
-            end
+    serialized_tunnels =
+      :ets.tab2list(@tunnel_table)
+      |> Enum.map(fn {_tunnel_id, entry} ->
+        interface_hash =
+          if is_map(entry.interface) do
+            entry.interface.hash
+          else
+            nil
+          end
 
-          serialized_paths =
-            Enum.map(entry.paths, fn {destination_hash, path_entry} ->
-              random_blobs =
-                (path_entry.random_blobs || [])
-                |> Enum.take(-@persist_random_blobs)
+        serialized_paths =
+          Enum.map(entry.paths, fn {destination_hash, path_entry} ->
+            random_blobs =
+              (path_entry.random_blobs || [])
+              |> Enum.take(-@persist_random_blobs)
 
-              path_interface_hash =
-                if is_map(path_entry.interface) do
-                  path_entry.interface.hash
-                else
-                  interface_hash
-                end
+            path_interface_hash =
+              if is_map(path_entry.interface) do
+                path_entry.interface.hash
+              else
+                interface_hash
+              end
 
-              [
-                destination_hash,
-                path_entry.timestamp,
-                path_entry.next_hop,
-                path_entry.hops,
-                path_entry.expires,
-                random_blobs,
-                path_interface_hash,
-                path_entry.packet_hash
-              ]
-            end)
+            [
+              destination_hash,
+              path_entry.timestamp,
+              path_entry.next_hop,
+              path_entry.hops,
+              path_entry.expires,
+              random_blobs,
+              path_interface_hash,
+              path_entry.packet_hash
+            ]
+          end)
 
-          [entry.tunnel_id, interface_hash, serialized_paths, entry.expires]
-        end)
+        [entry.tunnel_id, interface_hash, serialized_paths, entry.expires]
+      end)
 
-      packed = Msgpax.pack!(serialized_tunnels, iodata: false)
-      File.write!(file_path, packed)
+    packed = Msgpax.pack!(serialized_tunnels, iodata: false)
+    File.write!(file_path, packed)
 
-      Logger.debug("Saved #{length(serialized_tunnels)} tunnel table entries")
-      :ok
-    rescue
-      e ->
-        Logger.error("Could not save tunnel table: #{Exception.message(e)}")
-        {:error, Exception.message(e)}
-    end
+    Logger.debug("Saved #{length(serialized_tunnels)} tunnel table entries")
+    :ok
+  rescue
+    e ->
+      Logger.error("Could not save tunnel table: #{Exception.message(e)}")
+      {:error, Exception.message(e)}
   end
 
   @doc """

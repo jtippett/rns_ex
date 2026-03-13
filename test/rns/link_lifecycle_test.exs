@@ -1,10 +1,10 @@
 defmodule RNS.LinkLifecycleTest do
   use ExUnit.Case, async: true
 
-  alias RNS.Link
-  alias RNS.Identity
-  alias RNS.Cryptography.X25519
   alias RNS.Cryptography.Ed25519
+  alias RNS.Cryptography.X25519
+  alias RNS.Identity
+  alias RNS.Link
 
   # ── Helper: create a fully handshaken link pair ──────────────────
 

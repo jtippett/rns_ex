@@ -4,12 +4,12 @@ defmodule RNS.Interfaces.WeaveInterfaceTest do
   alias RNS.Interfaces.WeaveInterface
 
   alias RNS.Interfaces.WeaveInterface.{
-    WDCL,
     Cmd,
     Evt,
     LogFrame,
-    WeaveEndpoint,
+    WDCL,
     WeaveDevice,
+    WeaveEndpoint,
     WeaveInterfacePeer
   }
 
@@ -284,7 +284,7 @@ defmodule RNS.Interfaces.WeaveInterfaceTest do
     test "new/1 creates endpoint" do
       ep = WeaveEndpoint.new(<<1, 2, 3, 4, 5, 6, 7, 8>>)
       assert ep.endpoint_addr == <<1, 2, 3, 4, 5, 6, 7, 8>>
-      assert ep.alive != nil
+      assert is_float(ep.alive)
       assert ep.via == nil
     end
 
@@ -425,9 +425,9 @@ defmodule RNS.Interfaces.WeaveInterfaceTest do
       device = WeaveDevice.new()
       frame = LogFrame.new(event: Evt.et_stat_memory(), data: <<0, 1, 0, 0, 0, 2, 0, 0>>)
       device = WeaveDevice.log_handle(device, frame)
-      assert device.memory_free == 65536
+      assert device.memory_free == 65_536
       assert device.memory_total == 131_072
-      assert device.memory_used == 65536
+      assert device.memory_used == 65_536
       assert :queue.len(device.memory_stats) == 1
     end
 

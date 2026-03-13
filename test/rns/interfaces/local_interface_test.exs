@@ -1,10 +1,10 @@
 defmodule RNS.Interfaces.LocalInterfaceTest do
   use ExUnit.Case, async: false
 
-  alias RNS.Interfaces.LocalInterface
-  alias RNS.Interfaces.LocalClientInterface
-  alias RNS.Interfaces.LocalServerInterface
   alias RNS.Interfaces.Interface.HDLC
+  alias RNS.Interfaces.LocalClientInterface
+  alias RNS.Interfaces.LocalInterface
+  alias RNS.Interfaces.LocalServerInterface
 
   # ── LocalInterface constants ──────────────────────────────────────
 
@@ -436,7 +436,7 @@ defmodule RNS.Interfaces.LocalInterfaceTest do
 
   describe "LocalClientInterface String.Chars" do
     test "with port" do
-      iface = %LocalClientInterface{name: "local0", target_port: 37428}
+      iface = %LocalClientInterface{name: "local0", target_port: 37_428}
       assert to_string(iface) == "LocalInterface[37428]"
     end
 
@@ -453,7 +453,7 @@ defmodule RNS.Interfaces.LocalInterfaceTest do
 
   describe "LocalServerInterface String.Chars" do
     test "with port" do
-      iface = %LocalServerInterface{name: "Reticulum", bind_port: 37428}
+      iface = %LocalServerInterface{name: "Reticulum", bind_port: 37_428}
       assert to_string(iface) == "Shared Instance[37428]"
     end
 

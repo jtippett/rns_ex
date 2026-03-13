@@ -200,8 +200,8 @@ defmodule RNS.ReticulumTest do
       assert result.link_mtu_discovery == true
       assert result.remote_management_enabled == false
       assert result.panic_on_interface_error == false
-      assert result.local_interface_port == 37428
-      assert result.local_control_port == 37429
+      assert result.local_interface_port == 37_428
+      assert result.local_control_port == 37_429
     end
 
     test "applies transport enabled" do
@@ -235,8 +235,8 @@ defmodule RNS.ReticulumTest do
         """)
 
       result = Reticulum.apply_config(config)
-      assert result.local_interface_port == 55905
-      assert result.local_control_port == 55906
+      assert result.local_interface_port == 55_905
+      assert result.local_control_port == 55_906
     end
 
     test "applies use_implicit_proof = false" do
@@ -485,8 +485,8 @@ defmodule RNS.ReticulumTest do
 
         assert result.transport_enabled == false
         assert result.share_instance == true
-        assert result.local_interface_port == 55905
-        assert result.local_control_port == 55906
+        assert result.local_interface_port == 55_905
+        assert result.local_control_port == 55_906
         assert result.panic_on_interface_error == false
       end
     end

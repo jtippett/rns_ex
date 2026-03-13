@@ -9,11 +9,11 @@ defmodule RNS.Transport do
 
   import Bitwise
 
-  alias RNS.Transport.PathManagement
+  alias RNS.Identity
+  alias RNS.Packet
   alias RNS.Transport.AnnounceHandler
   alias RNS.Transport.CacheManagement
-  alias RNS.Packet
-  alias RNS.Identity
+  alias RNS.Transport.PathManagement
 
   # ── Transport Type Constants ──────────────────────────────────────────
   @broadcast 0x00
@@ -108,7 +108,6 @@ defmodule RNS.Transport do
   @dest_plain 0x02
   @dest_link 0x03
 
-  @context_none 0x00
   @context_resource 0x01
   @context_resource_req 0x03
   @context_resource_prf 0x05
@@ -1033,17 +1032,15 @@ defmodule RNS.Transport do
   """
   @spec transmit(map(), binary()) :: :ok | {:error, term()}
   def transmit(interface, raw) do
-    try do
-      if Map.get(interface, :ifac_identity) != nil do
-        transmit_with_ifac(interface, raw)
-      else
-        call_process_outgoing(interface, raw)
-      end
-    rescue
-      e ->
-        Logger.error("Error while transmitting on #{inspect(interface)}: #{Exception.message(e)}")
-        {:error, Exception.message(e)}
+    if Map.get(interface, :ifac_identity) != nil do
+      transmit_with_ifac(interface, raw)
+    else
+      call_process_outgoing(interface, raw)
     end
+  rescue
+    e ->
+      Logger.error("Error while transmitting on #{inspect(interface)}: #{Exception.message(e)}")
+      {:error, Exception.message(e)}
   end
 
   defp transmit_with_ifac(interface, raw) do
@@ -1213,11 +1210,11 @@ defmodule RNS.Transport do
       Enum.reduce(interfaces, {false, stored_hash}, fn interface, {sent_acc, hash_stored} ->
         if Map.get(interface, :out, true) and should_transmit_on_interface?(packet, interface) do
           hash_stored =
-            if not hash_stored do
+            if hash_stored do
+              hash_stored
+            else
               mark_packet_hash(packet.packet_hash)
               true
-            else
-              hash_stored
             end
 
           transmit(interface, packet.raw)
@@ -1797,7 +1794,8 @@ defmodule RNS.Transport do
         link ->
           if Map.get(link, :attached_interface) == packet.receiving_interface do
             if is_function(Map.get(link, :receive), 1) do
-              link.receive.(Map.put(packet, :link, link))
+              packet_with_link = Map.put(packet, :link, link)
+              link.receive.(packet_with_link)
             end
           end
       end
@@ -1930,7 +1928,7 @@ defmodule RNS.Transport do
     # Determine proof hash for explicit proofs
     hashlength_bytes = div(256, 8)
     siglength_bytes = div(512, 8)
-    expl_length = hashlength_bytes + siglength_bytes
+    _expl_length = hashlength_bytes + siglength_bytes
 
     proof_hash =
       case packet.data do
@@ -1942,11 +1940,12 @@ defmodule RNS.Transport do
 
     Enum.each(receipts, fn receipt ->
       validated =
-        cond do
+        if proof_hash != nil do
           # Explicit proof: only check if hash matches
-          proof_hash != nil -> receipt.hash == proof_hash
+          receipt.hash == proof_hash
+        else
           # Implicit proof: check every receipt
-          true -> true
+          true
         end
 
       if validated do
@@ -2092,11 +2091,11 @@ defmodule RNS.Transport do
 
   @impl true
   def handle_cast(:start_jobs, state) do
-    if not state.jobs_started do
+    if state.jobs_started do
+      {:noreply, state}
+    else
       schedule_job(:jobs_tick, @job_interval)
       {:noreply, %{state | jobs_started: true}}
-    else
-      {:noreply, state}
     end
   end
 

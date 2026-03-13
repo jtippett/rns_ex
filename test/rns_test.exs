@@ -205,11 +205,11 @@ defmodule RNSTest do
     end
 
     test "formats with verbose option" do
-      assert RNS.prettytime(90061, verbose: true) == "1 day, 1 hour, 1 minute and 1 second"
+      assert RNS.prettytime(90_061, verbose: true) == "1 day, 1 hour, 1 minute and 1 second"
     end
 
     test "formats with compact option" do
-      assert RNS.prettytime(90061, compact: true) == "1d and 1h"
+      assert RNS.prettytime(90_061, compact: true) == "1d and 1h"
     end
 
     test "formats negative time" do
@@ -260,10 +260,12 @@ defmodule RNSTest do
 
   describe "core module exports" do
     test "RNS.Reticulum is accessible" do
+      Code.ensure_loaded!(RNS.Reticulum)
       assert function_exported?(RNS.Reticulum, :mtu, 0)
     end
 
     test "RNS.Identity is accessible" do
+      Code.ensure_loaded!(RNS.Identity)
       assert function_exported?(RNS.Identity, :new, 0)
       assert function_exported?(RNS.Identity, :new, 1)
     end
@@ -281,6 +283,7 @@ defmodule RNSTest do
     end
 
     test "RNS.Packet is accessible" do
+      Code.ensure_loaded!(RNS.Packet)
       assert function_exported?(RNS.Packet, :mtu, 0)
       assert function_exported?(RNS.Packet, :plain_mdu, 0)
       assert function_exported?(RNS.Packet, :encrypted_mdu, 0)
@@ -292,6 +295,7 @@ defmodule RNSTest do
     end
 
     test "RNS.Link is accessible" do
+      Code.ensure_loaded!(RNS.Link)
       assert function_exported?(RNS.Link, :ecpubsize, 0)
       assert function_exported?(RNS.Link, :keysize, 0)
       assert function_exported?(RNS.Link, :mdu, 0)
@@ -346,11 +350,13 @@ defmodule RNSTest do
 
   describe "cryptography module exports" do
     test "RNS.Cryptography.Hashes is accessible" do
+      assert Code.ensure_loaded?(RNS.Cryptography.Hashes)
       assert function_exported?(RNS.Cryptography.Hashes, :sha256, 1)
       assert function_exported?(RNS.Cryptography.Hashes, :truncated_hash, 1)
     end
 
     test "RNS.Cryptography.HKDF is accessible" do
+      assert Code.ensure_loaded?(RNS.Cryptography.HKDF)
       assert function_exported?(RNS.Cryptography.HKDF, :derive_key, 4)
     end
 
@@ -363,14 +369,17 @@ defmodule RNSTest do
     end
 
     test "RNS.Cryptography.X25519 is accessible" do
+      assert Code.ensure_loaded?(RNS.Cryptography.X25519)
       assert function_exported?(RNS.Cryptography.X25519, :generate_keypair, 0)
     end
 
     test "RNS.Cryptography.Ed25519 is accessible" do
+      assert Code.ensure_loaded?(RNS.Cryptography.Ed25519)
       assert function_exported?(RNS.Cryptography.Ed25519, :generate_keypair, 0)
     end
 
     test "RNS.Cryptography.Token is accessible" do
+      assert Code.ensure_loaded?(RNS.Cryptography.Token)
       assert function_exported?(RNS.Cryptography.Token, :generate_key, 0)
     end
 

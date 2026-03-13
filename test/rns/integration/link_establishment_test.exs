@@ -13,13 +13,13 @@ defmodule RNS.Integration.LinkEstablishmentTest do
 
   use ExUnit.Case, async: false
 
-  alias RNS.Identity
+  alias RNS.Cryptography.Ed25519
+  alias RNS.Cryptography.X25519
   alias RNS.Destination
+  alias RNS.Identity
+  alias RNS.Link
   alias RNS.Packet
   alias RNS.Transport
-  alias RNS.Link
-  alias RNS.Cryptography.X25519
-  alias RNS.Cryptography.Ed25519
 
   # ── Setup ─────────────────────────────────────────────────────────
 
@@ -32,14 +32,12 @@ defmodule RNS.Integration.LinkEstablishmentTest do
   end
 
   defp stop_transport do
-    try do
-      case GenServer.whereis(RNS.Transport) do
-        nil -> :ok
-        pid -> GenServer.stop(pid, :normal)
-      end
-    catch
-      :exit, _ -> :ok
+    case GenServer.whereis(RNS.Transport) do
+      nil -> :ok
+      pid -> GenServer.stop(pid, :normal)
     end
+  catch
+    :exit, _ -> :ok
   end
 
   # ── Handshake: Step-by-step (unit integration) ───────────────────
@@ -181,7 +179,7 @@ defmodule RNS.Integration.LinkEstablishmentTest do
       test_pid = self()
 
       # Start a local server
-      port = Enum.random(40000..49999)
+      port = Enum.random(40_000..49_999)
 
       {:ok, server_pid} =
         RNS.Interfaces.LocalServerInterface.start_link(

@@ -120,7 +120,7 @@ defmodule RNS.Vendor.ConfigObjTest do
       # Use a config that starts with a comment (not a blank line from heredoc)
       config_with_comment = "# This is a comment\n# Another comment\n[reticulum]\nkey = value"
       {:ok, config} = ConfigObj.parse(config_with_comment)
-      assert length(config.initial_comment) > 0
+      assert config.initial_comment != []
       assert Enum.any?(config.initial_comment, &String.contains?(&1, "This is a comment"))
     end
 
@@ -526,14 +526,14 @@ defmodule RNS.Vendor.ConfigObjTest do
       {:ok, config} = ConfigObj.parse("[s]\nport = 55905\nneg = -42")
       s = Section.get(config, "s")
 
-      assert Section.as_int(s, "port") == 55905
+      assert Section.as_int(s, "port") == 55_905
       assert Section.as_int(s, "neg") == -42
     end
 
     test "as_int from test config", %{config: config} do
       reticulum = Section.get(config, "reticulum")
-      assert Section.as_int(reticulum, "shared_instance_port") == 55905
-      assert Section.as_int(reticulum, "instance_control_port") == 55906
+      assert Section.as_int(reticulum, "shared_instance_port") == 55_905
+      assert Section.as_int(reticulum, "instance_control_port") == 55_906
 
       logging = Section.get(config, "logging")
       assert Section.as_int(logging, "loglevel") == 1
@@ -991,8 +991,8 @@ defmodule RNS.Vendor.ConfigObjTest do
       assert results[:share_instance] == true
       assert results[:enable_transport] == false
       assert results[:instance_name] == "default"
-      assert results[:shared_instance_port] == 37428
-      assert results[:instance_control_port] == 37429
+      assert results[:shared_instance_port] == 37_428
+      assert results[:instance_control_port] == 37_429
       assert results[:panic_on_interface_error] == false
       assert results[:use_implicit_proof] == true
       assert results[:respond_to_probes] == true

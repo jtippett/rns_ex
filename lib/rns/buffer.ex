@@ -296,48 +296,46 @@ defmodule RNS.Buffer.RawChannelWriter do
   """
   @spec write(t(), binary(), Channel.t()) :: {non_neg_integer(), Channel.t()}
   def write(%__MODULE__{} = writer, data, %Channel{} = channel) do
-    try do
-      max_data_len = StreamDataMessage.max_data_len()
-      chunk_len = byte_size(data)
+    max_data_len = StreamDataMessage.max_data_len()
+    chunk_len = byte_size(data)
 
-      {data, chunk_len} =
-        if chunk_len > @max_chunk_len do
-          <<chunk::binary-size(@max_chunk_len), _::binary>> = data
-          {chunk, @max_chunk_len}
-        else
-          {data, chunk_len}
-        end
+    {data, chunk_len} =
+      if chunk_len > @max_chunk_len do
+        <<chunk::binary-size(@max_chunk_len), _::binary>> = data
+        {chunk, @max_chunk_len}
+      else
+        {data, chunk_len}
+      end
 
-      {comp_success, compressed_chunk, chunk_segment_length} =
-        try_compress(data, chunk_len, max_data_len)
+    {comp_success, compressed_chunk, chunk_segment_length} =
+      try_compress(data, chunk_len, max_data_len)
 
-      {chunk, processed_length} =
-        if comp_success do
-          {compressed_chunk, chunk_segment_length}
-        else
-          actual_len = min(byte_size(data), max_data_len)
-          <<chunk::binary-size(actual_len), _::binary>> = data
-          {chunk, actual_len}
-        end
+    {chunk, processed_length} =
+      if comp_success do
+        {compressed_chunk, chunk_segment_length}
+      else
+        actual_len = min(byte_size(data), max_data_len)
+        <<chunk::binary-size(actual_len), _::binary>> = data
+        {chunk, actual_len}
+      end
 
-      message =
-        StreamDataMessage.new(
-          stream_id: writer.stream_id,
-          data: chunk,
-          eof: writer.eof,
-          compressed: comp_success
-        )
+    message =
+      StreamDataMessage.new(
+        stream_id: writer.stream_id,
+        data: chunk,
+        eof: writer.eof,
+        compressed: comp_success
+      )
 
-      {:ok, channel, _envelope} = Channel.send(channel, message)
-      {processed_length, channel}
-    rescue
-      e in Channel.ChannelException ->
-        if e.type != @me_link_not_ready do
-          reraise e, __STACKTRACE__
-        end
+    {:ok, channel, _envelope} = Channel.send(channel, message)
+    {processed_length, channel}
+  rescue
+    e in Channel.ChannelException ->
+      if e.type != @me_link_not_ready do
+        reraise e, __STACKTRACE__
+      end
 
-        {0, channel}
-    end
+      {0, channel}
   end
 
   @doc """
@@ -391,7 +389,7 @@ defmodule RNS.Buffer do
   and receive binary data over a `Channel`.
   """
 
-  alias RNS.Buffer.{StreamDataMessage, RawChannelReader, RawChannelWriter}
+  alias RNS.Buffer.{RawChannelReader, RawChannelWriter, StreamDataMessage}
   alias RNS.Channel
 
   @doc """

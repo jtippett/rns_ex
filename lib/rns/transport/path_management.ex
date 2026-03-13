@@ -18,44 +18,42 @@ defmodule RNS.Transport.PathManagement do
   """
   @spec save_path_table(String.t()) :: :ok | {:error, term()}
   def save_path_table(file_path) do
-    try do
-      serialized =
-        :ets.tab2list(@path_table)
-        |> Enum.reduce([], fn {destination_hash, entry}, acc ->
-          interface_hash =
-            if is_map(entry.interface) do
-              entry.interface.hash
-            else
-              nil
-            end
-
-          # Only persist if the interface is still active
-          if interface_hash && Transport.find_interface_from_hash(interface_hash) do
-            random_blobs = Enum.take(entry.random_blobs || [], -Transport.persist_random_blobs())
-
-            serialized_entry = [
-              destination_hash,
-              entry.timestamp,
-              entry.next_hop,
-              entry.hops,
-              entry.expires,
-              random_blobs,
-              interface_hash,
-              entry.packet_hash
-            ]
-
-            [serialized_entry | acc]
+    serialized =
+      :ets.tab2list(@path_table)
+      |> Enum.reduce([], fn {destination_hash, entry}, acc ->
+        interface_hash =
+          if is_map(entry.interface) do
+            entry.interface.hash
           else
-            acc
+            nil
           end
-        end)
 
-      packed = Msgpax.pack!(serialized, iodata: false)
-      File.write!(file_path, packed)
-      :ok
-    rescue
-      e -> {:error, Exception.message(e)}
-    end
+        # Only persist if the interface is still active
+        if interface_hash && Transport.find_interface_from_hash(interface_hash) do
+          random_blobs = Enum.take(entry.random_blobs || [], -Transport.persist_random_blobs())
+
+          serialized_entry = [
+            destination_hash,
+            entry.timestamp,
+            entry.next_hop,
+            entry.hops,
+            entry.expires,
+            random_blobs,
+            interface_hash,
+            entry.packet_hash
+          ]
+
+          [serialized_entry | acc]
+        else
+          acc
+        end
+      end)
+
+    packed = Msgpax.pack!(serialized, iodata: false)
+    File.write!(file_path, packed)
+    :ok
+  rescue
+    e -> {:error, Exception.message(e)}
   end
 
   @doc """
@@ -99,6 +97,7 @@ defmodule RNS.Transport.PathManagement do
             # Check if a better path already exists
             case :ets.lookup(@path_table, destination_hash) do
               [{^destination_hash, existing}] ->
+                # credo:disable-for-next-line Credo.Check.Refactor.Nesting
                 if hops <= existing.hops or now > existing.expires do
                   :ets.insert(@path_table, {destination_hash, entry})
                 end

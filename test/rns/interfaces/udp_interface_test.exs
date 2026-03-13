@@ -50,7 +50,7 @@ defmodule RNS.Interfaces.UDPInterfaceTest do
           bind_ip: "127.0.0.1",
           bind_port: 0,
           forward_ip: "127.0.0.1",
-          forward_port: 19999
+          forward_port: 19_999
         )
 
       state = UDPInterface.get_state(pid)
@@ -60,7 +60,7 @@ defmodule RNS.Interfaces.UDPInterfaceTest do
       assert state.forwards == true
       assert state.bind_ip == "127.0.0.1"
       assert state.forward_ip == "127.0.0.1"
-      assert state.forward_port == 19999
+      assert state.forward_port == 19_999
       assert state.bitrate == 10_000_000
       assert state.hw_mtu == 1064
       assert state.in == true
@@ -96,7 +96,7 @@ defmodule RNS.Interfaces.UDPInterfaceTest do
         UDPInterface.start_link(
           name: "test_udp_forward_only",
           forward_ip: "127.0.0.1",
-          forward_port: 19998
+          forward_port: 19_998
         )
 
       state = UDPInterface.get_state(pid)
@@ -302,7 +302,7 @@ defmodule RNS.Interfaces.UDPInterfaceTest do
           bind_ip: "127.0.0.1",
           bind_port: 0,
           forward_ip: "127.0.0.1",
-          forward_port: 19997
+          forward_port: 19_997
         )
 
       state_before = UDPInterface.get_state(pid)

@@ -134,7 +134,8 @@ defmodule RNS.Cryptography.Token do
       padded = aes_decrypt(token.mode, ciphertext, token.encryption_key, iv)
       PKCS7.unpad(padded)
     rescue
-      e -> raise ArgumentError, "Could not decrypt token: #{Exception.message(e)}"
+      e ->
+        reraise ArgumentError, "Could not decrypt token: #{Exception.message(e)}", __STACKTRACE__
     end
   end
 

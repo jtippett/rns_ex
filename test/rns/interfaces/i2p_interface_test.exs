@@ -1,9 +1,9 @@
 defmodule RNS.Interfaces.I2PInterfaceTest do
   use ExUnit.Case, async: false
 
+  alias RNS.Interfaces.I2PController
   alias RNS.Interfaces.I2PInterface
   alias RNS.Interfaces.I2PInterfacePeer
-  alias RNS.Interfaces.I2PController
   alias RNS.Interfaces.Interface
   alias RNS.Interfaces.Interface.HDLC
   alias RNS.Interfaces.Interface.KISS
@@ -318,7 +318,7 @@ defmodule RNS.Interfaces.I2PInterfaceTest do
       port = I2PController.get_free_port()
       assert is_integer(port)
       assert port > 0
-      assert port < 65536
+      assert port < 65_536
     end
 
     test "server_name registration", %{storagepath: storagepath} do
@@ -651,7 +651,7 @@ defmodule RNS.Interfaces.I2PInterfaceTest do
       # Server should receive HDLC-framed data
       raw = Task.await(acceptor, 2000)
       {frames, _} = HDLC.deframe(raw)
-      assert length(frames) >= 1
+      assert frames != []
       assert hd(frames) == payload
 
       I2PInterfacePeer.stop(peer)

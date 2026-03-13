@@ -61,6 +61,7 @@ defmodule RNS.Log do
 
   def log(msg, level) when is_atom(level) do
     logger_level = Map.get(@level_map, level, :debug)
+    # credo:disable-for-next-line Credo.Check.Warning.MissedMetadataKeyInLoggerConfig
     Logger.log(logger_level, msg, rns_level: level)
     :ok
   end

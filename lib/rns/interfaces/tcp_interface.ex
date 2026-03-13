@@ -296,10 +296,10 @@ defmodule RNS.Interfaces.TCPClientInterface do
 
           case do_connect(state) do
             {:ok, connected_state} ->
-              if not kiss_framing do
-                %{connected_state | wants_tunnel: true}
-              else
+              if kiss_framing do
                 connected_state
+              else
+                %{connected_state | wants_tunnel: true}
               end
 
             {:error, _reason} ->
@@ -384,10 +384,10 @@ defmodule RNS.Interfaces.TCPClientInterface do
           end
 
           connected_state =
-            if not connected_state.kiss_framing do
-              %{connected_state | wants_tunnel: true}
-            else
+            if connected_state.kiss_framing do
               connected_state
+            else
+              %{connected_state | wants_tunnel: true}
             end
 
           {:noreply, connected_state}
@@ -600,33 +600,29 @@ defmodule RNS.Interfaces.TCPClientInterface do
     # Linux-specific TCP keepalive options via raw socket opts
     # TCP_KEEPIDLE = 4, TCP_KEEPINTVL = 5, TCP_KEEPCNT = 6
     # TCP_USER_TIMEOUT = 18 (on IPPROTO_TCP = 6)
-    try do
-      if i2p_tunneled do
-        :inet.setopts(socket, [{:raw, 6, 18, <<@i2p_user_timeout * 1000::native-32>>}])
-        :inet.setopts(socket, [{:raw, 6, 4, <<@i2p_probe_after::native-32>>}])
-        :inet.setopts(socket, [{:raw, 6, 5, <<@i2p_probe_interval::native-32>>}])
-        :inet.setopts(socket, [{:raw, 6, 6, <<@i2p_probes::native-32>>}])
-      else
-        :inet.setopts(socket, [{:raw, 6, 18, <<@tcp_user_timeout * 1000::native-32>>}])
-        :inet.setopts(socket, [{:raw, 6, 4, <<@tcp_probe_after::native-32>>}])
-        :inet.setopts(socket, [{:raw, 6, 5, <<@tcp_probe_interval::native-32>>}])
-        :inet.setopts(socket, [{:raw, 6, 6, <<@tcp_probes::native-32>>}])
-      end
-    rescue
-      _ -> :ok
+    if i2p_tunneled do
+      :inet.setopts(socket, [{:raw, 6, 18, <<@i2p_user_timeout * 1000::native-32>>}])
+      :inet.setopts(socket, [{:raw, 6, 4, <<@i2p_probe_after::native-32>>}])
+      :inet.setopts(socket, [{:raw, 6, 5, <<@i2p_probe_interval::native-32>>}])
+      :inet.setopts(socket, [{:raw, 6, 6, <<@i2p_probes::native-32>>}])
+    else
+      :inet.setopts(socket, [{:raw, 6, 18, <<@tcp_user_timeout * 1000::native-32>>}])
+      :inet.setopts(socket, [{:raw, 6, 4, <<@tcp_probe_after::native-32>>}])
+      :inet.setopts(socket, [{:raw, 6, 5, <<@tcp_probe_interval::native-32>>}])
+      :inet.setopts(socket, [{:raw, 6, 6, <<@tcp_probes::native-32>>}])
     end
+  rescue
+    _ -> :ok
   end
 
   defp set_darwin_keepalive(socket, i2p_tunneled) do
     # macOS TCP_KEEPALIVE = 0x10
-    try do
-      probe_after =
-        if i2p_tunneled, do: @i2p_probe_after, else: @tcp_probe_after
+    probe_after =
+      if i2p_tunneled, do: @i2p_probe_after, else: @tcp_probe_after
 
-      :inet.setopts(socket, [{:raw, 6, 0x10, <<probe_after::native-32>>}])
-    rescue
-      _ -> :ok
-    end
+    :inet.setopts(socket, [{:raw, 6, 0x10, <<probe_after::native-32>>}])
+  rescue
+    _ -> :ok
   end
 
   defp teardown(state) do

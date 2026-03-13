@@ -110,11 +110,11 @@ defmodule RNS.UtilitiesTest do
     end
 
     test "formats days" do
-      assert RNS.prettytime(90061) == "1d, 1h, 1m and 1s"
+      assert RNS.prettytime(90_061) == "1d, 1h, 1m and 1s"
     end
 
     test "verbose mode uses full words" do
-      assert RNS.prettytime(90061, verbose: true) == "1 day, 1 hour, 1 minute and 1 second"
+      assert RNS.prettytime(90_061, verbose: true) == "1 day, 1 hour, 1 minute and 1 second"
     end
 
     test "verbose mode pluralizes correctly" do
@@ -122,7 +122,7 @@ defmodule RNS.UtilitiesTest do
     end
 
     test "compact mode limits to 2 components" do
-      assert RNS.prettytime(90061, compact: true) == "1d and 1h"
+      assert RNS.prettytime(90_061, compact: true) == "1d and 1h"
     end
 
     test "handles negative time" do

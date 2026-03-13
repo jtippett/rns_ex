@@ -1,8 +1,8 @@
 defmodule RNS.Interfaces.BackboneInterfaceTest do
   use ExUnit.Case, async: false
 
-  alias RNS.Interfaces.BackboneInterface
   alias RNS.Interfaces.BackboneClientInterface
+  alias RNS.Interfaces.BackboneInterface
   alias RNS.Interfaces.Interface.HDLC
 
   # ── BackboneInterface constants ──────────────────────────────────
@@ -221,7 +221,7 @@ defmodule RNS.Interfaces.BackboneInterfaceTest do
       BackboneClientInterface.stop(client)
     end
 
-    test "HDLC framing roundtrip over backbone", %{server_port: server_port} do
+    test "HDLC framing roundtrip over backbone", %{server_port: _server_port} do
       test_pid = self()
 
       {:ok, server2} =

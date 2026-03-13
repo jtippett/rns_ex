@@ -98,34 +98,32 @@ defmodule RNS.Utilities.RNStatus do
         ]
       )
 
-    cond do
-      invalid != [] ->
-        {key, _} = hd(invalid)
-        {:error, "unknown option: #{key}"}
+    if invalid != [] do
+      {key, _} = hd(invalid)
+      {:error, "unknown option: #{key}"}
+    else
+      # Remaining positional args become the name filter
+      name_filter =
+        case rest do
+          [filter | _] -> filter
+          [] -> nil
+        end
 
-      true ->
-        # Remaining positional args become the name filter
-        name_filter =
-          case rest do
-            [filter | _] -> filter
-            [] -> nil
-          end
-
-        {:ok,
-         %{
-           configdir: Keyword.get(parsed, :config),
-           all: Keyword.get(parsed, :all, false),
-           announce_stats: Keyword.get(parsed, :announce_stats, false),
-           link_stats: Keyword.get(parsed, :link_stats, false),
-           totals: Keyword.get(parsed, :totals, false),
-           sort: Keyword.get(parsed, :sort),
-           reverse: Keyword.get(parsed, :reverse, false),
-           json: Keyword.get(parsed, :json, false),
-           verbosity: Keyword.get(parsed, :verbose, 0),
-           version: Keyword.get(parsed, :version, false),
-           help: Keyword.get(parsed, :help, false),
-           name_filter: name_filter
-         }}
+      {:ok,
+       %{
+         configdir: Keyword.get(parsed, :config),
+         all: Keyword.get(parsed, :all, false),
+         announce_stats: Keyword.get(parsed, :announce_stats, false),
+         link_stats: Keyword.get(parsed, :link_stats, false),
+         totals: Keyword.get(parsed, :totals, false),
+         sort: Keyword.get(parsed, :sort),
+         reverse: Keyword.get(parsed, :reverse, false),
+         json: Keyword.get(parsed, :json, false),
+         verbosity: Keyword.get(parsed, :verbose, 0),
+         version: Keyword.get(parsed, :version, false),
+         help: Keyword.get(parsed, :help, false),
+         name_filter: name_filter
+       }}
     end
   end
 
@@ -186,39 +184,37 @@ defmodule RNS.Utilities.RNStatus do
   """
   @spec collect_stats(map()) :: map() | nil
   def collect_stats(opts) do
-    try do
-      interfaces = RNS.Transport.get_interfaces()
+    interfaces = RNS.Transport.get_interfaces()
 
-      link_count =
-        if opts[:link_stats] do
-          try do
-            get_link_count()
-          rescue
-            _ -> nil
-          end
+    link_count =
+      if opts[:link_stats] do
+        try do
+          get_link_count()
+        rescue
+          _ -> nil
         end
+      end
 
-      interface_stats = Enum.map(interfaces, &interface_to_stat_map/1)
+    interface_stats = Enum.map(interfaces, &interface_to_stat_map/1)
 
-      transport_id = get_transport_id()
-      transport_uptime = get_transport_uptime()
+    transport_id = get_transport_id()
+    transport_uptime = get_transport_uptime()
 
-      total_rxb = Enum.reduce(interface_stats, 0, fn s, acc -> acc + (s["rxb"] || 0) end)
-      total_txb = Enum.reduce(interface_stats, 0, fn s, acc -> acc + (s["txb"] || 0) end)
+    total_rxb = Enum.reduce(interface_stats, 0, fn s, acc -> acc + (s["rxb"] || 0) end)
+    total_txb = Enum.reduce(interface_stats, 0, fn s, acc -> acc + (s["txb"] || 0) end)
 
-      %{
-        "interfaces" => interface_stats,
-        "transport_id" => transport_id,
-        "transport_uptime" => transport_uptime,
-        "link_count" => link_count,
-        "rxb" => total_rxb,
-        "txb" => total_txb,
-        "rxs" => 0,
-        "txs" => 0
-      }
-    rescue
-      _ -> nil
-    end
+    %{
+      "interfaces" => interface_stats,
+      "transport_id" => transport_id,
+      "transport_uptime" => transport_uptime,
+      "link_count" => link_count,
+      "rxb" => total_rxb,
+      "txb" => total_txb,
+      "rxs" => 0,
+      "txs" => 0
+    }
+  rescue
+    _ -> nil
   end
 
   @doc """
@@ -276,6 +272,7 @@ defmodule RNS.Utilities.RNStatus do
   Prints interface stats in human-readable format.
   """
   @spec print_stats(map(), map()) :: :ok
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def print_stats(stats, opts) do
     interfaces = stats["interfaces"] || []
     interfaces = sort_interfaces(interfaces, opts[:sort], opts[:reverse])
@@ -337,6 +334,7 @@ defmodule RNS.Utilities.RNStatus do
   Prints a single interface's status information.
   """
   @spec print_interface_stat(map(), map()) :: :ok
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def print_interface_stat(ifstat, opts) do
     IO.puts("")
 
@@ -517,6 +515,7 @@ defmodule RNS.Utilities.RNStatus do
   @spec sort_interfaces([map()], String.t() | nil, boolean()) :: [map()]
   def sort_interfaces(interfaces, nil, _reverse), do: interfaces
 
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def sort_interfaces(interfaces, sort_field, sort_reverse) do
     sort_field = String.downcase(sort_field)
 
@@ -581,12 +580,12 @@ defmodule RNS.Utilities.RNStatus do
       diff < 120 -> "1 minute"
       diff < 3600 -> "#{div(diff, 60)} minutes"
       diff < 7200 -> "an hour"
-      diff < 86400 -> "#{div(diff, 3600)} hours"
-      diff < 86400 * 2 -> "1 day"
-      diff < 86400 * 7 -> "#{div(diff, 86400)} days"
-      diff < 86400 * 31 -> "#{div(diff, 86400 * 7)} weeks"
-      diff < 86400 * 365 -> "#{div(diff, 86400 * 30)} months"
-      true -> "#{div(diff, 86400 * 365)} years"
+      diff < 86_400 -> "#{div(diff, 3600)} hours"
+      diff < 86_400 * 2 -> "1 day"
+      diff < 86_400 * 7 -> "#{div(diff, 86_400)} days"
+      diff < 86_400 * 31 -> "#{div(diff, 86_400 * 7)} weeks"
+      diff < 86_400 * 365 -> "#{div(diff, 86_400 * 30)} months"
+      true -> "#{div(diff, 86_400 * 365)} years"
     end
   end
 
@@ -670,43 +669,37 @@ defmodule RNS.Utilities.RNStatus do
   end
 
   defp get_transport_id do
-    try do
-      case GenServer.whereis(RNS.Transport) do
-        nil ->
-          nil
+    case GenServer.whereis(RNS.Transport) do
+      nil ->
+        nil
 
-        _pid ->
-          state = :sys.get_state(RNS.Transport)
-          Map.get(state, :identity_hash)
-      end
-    rescue
-      _ -> nil
+      _pid ->
+        state = :sys.get_state(RNS.Transport)
+        Map.get(state, :identity_hash)
     end
+  rescue
+    _ -> nil
   end
 
   defp get_transport_uptime do
-    try do
-      case GenServer.whereis(RNS.Transport) do
-        nil ->
-          nil
+    case GenServer.whereis(RNS.Transport) do
+      nil ->
+        nil
 
-        _pid ->
-          state = :sys.get_state(RNS.Transport)
-          started = Map.get(state, :started_at)
-          if started, do: System.system_time(:second) - started, else: nil
-      end
-    rescue
-      _ -> nil
+      _pid ->
+        state = :sys.get_state(RNS.Transport)
+        started = Map.get(state, :started_at)
+        if started, do: System.system_time(:second) - started, else: nil
     end
+  rescue
+    _ -> nil
   end
 
   defp get_link_count do
-    try do
-      # Count entries in the link table ETS
-      :ets.info(:rns_active_links, :size) || 0
-    rescue
-      _ -> 0
-    end
+    # Count entries in the link table ETS
+    :ets.info(:rns_active_links, :size) || 0
+  rescue
+    _ -> 0
   end
 
   defp ensure_application_started do

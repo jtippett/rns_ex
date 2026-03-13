@@ -12,9 +12,9 @@ defmodule RNS.Reticulum do
   use GenServer
   require Logger
 
+  alias RNS.Interfaces.Interface
   alias RNS.Vendor.ConfigObj
   alias RNS.Vendor.ConfigObj.Section
-  alias RNS.Interfaces.Interface
 
   # ── Protocol Constants ─────────────────────────────────────────────────
 
@@ -27,7 +27,7 @@ defmodule RNS.Reticulum do
   @default_per_hop_timeout 6
   @truncated_hashlength 128
 
-  @header_minsize 2 + 1 + div(@truncated_hashlength, 8) * 1
+  @header_minsize 2 + 1 + div(@truncated_hashlength, 8)
   @header_maxsize 2 + 1 + div(@truncated_hashlength, 8) * 2
   @ifac_min_size 1
   @ifac_salt Base.decode16!(
@@ -46,8 +46,8 @@ defmodule RNS.Reticulum do
 
   # ── Default Ports ──────────────────────────────────────────────────────
 
-  @default_local_interface_port 37428
-  @default_local_control_port 37429
+  @default_local_interface_port 37_428
+  @default_local_control_port 37_429
 
   # ── Constant Accessors ─────────────────────────────────────────────────
 
@@ -618,7 +618,9 @@ defmodule RNS.Reticulum do
         blackholed_identities: %{}
       })
 
-    unless skip_start do
+    if skip_start do
+      {:ok, state}
+    else
       # Start local interface (shared/client/standalone mode)
       state = start_local_interface(state)
 
@@ -633,8 +635,6 @@ defmodule RNS.Reticulum do
       # Start periodic jobs
       schedule_job()
 
-      {:ok, state}
-    else
       {:ok, state}
     end
   end
@@ -1013,10 +1013,7 @@ defmodule RNS.Reticulum do
         true -> false
       end
 
-    unless enabled do
-      Logger.debug("Skipping disabled interface \"#{name}\"")
-      state
-    else
+    if enabled do
       # Parse interface mode
       interface_mode = parse_interface_mode(c)
 
@@ -1043,6 +1040,9 @@ defmodule RNS.Reticulum do
 
           state
       end
+    else
+      Logger.debug("Skipping disabled interface \"#{name}\"")
+      state
     end
   rescue
     e ->
@@ -1080,6 +1080,7 @@ defmodule RNS.Reticulum do
   end
 
   @doc false
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def extract_interface_params(c, interface_mode, name) do
     # Parse interface mode from config (overrides passed-in mode if config specifies one)
     interface_mode =
@@ -1206,7 +1207,9 @@ defmodule RNS.Reticulum do
 
       # Auto-configure mode for discoverable interfaces
       interface_mode =
-        if interface_mode not in [Interface.mode_gateway(), Interface.mode_access_point()] do
+        if interface_mode in [Interface.mode_gateway(), Interface.mode_access_point()] do
+          interface_mode
+        else
           iface_type = get_optional_string(c, "type")
 
           if iface_type in ["RNodeInterface", "RNodeMultiInterface"] do
@@ -1222,8 +1225,6 @@ defmodule RNS.Reticulum do
 
             Interface.mode_gateway()
           end
-        else
-          interface_mode
         end
 
       {true, params, interface_mode}
@@ -1232,6 +1233,7 @@ defmodule RNS.Reticulum do
     end
   end
 
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   defp start_interface_by_type(c, name, params, state) do
     type = Section.get(c, "type")
 

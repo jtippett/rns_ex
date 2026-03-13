@@ -10,11 +10,11 @@ defmodule RNS.Identity do
   public keys.
   """
 
-  alias RNS.Cryptography.X25519
   alias RNS.Cryptography.Ed25519
-  alias RNS.Cryptography.Token
-  alias RNS.Cryptography.HKDF
   alias RNS.Cryptography.Hashes
+  alias RNS.Cryptography.HKDF
+  alias RNS.Cryptography.Token
+  alias RNS.Cryptography.X25519
 
   use RNS.Constants.Identity
 
@@ -125,24 +125,22 @@ defmodule RNS.Identity do
         %__MODULE__{} = id,
         <<enc_prv::binary-size(32), sig_prv::binary-size(32), _::binary>>
       ) do
-    try do
-      enc_kp = X25519.from_private_bytes(enc_prv)
-      sig_kp = Ed25519.from_private_bytes(sig_prv)
+    enc_kp = X25519.from_private_bytes(enc_prv)
+    sig_kp = Ed25519.from_private_bytes(sig_prv)
 
-      updated =
-        %{
-          id
-          | prv_bytes: enc_prv,
-            sig_prv_bytes: sig_prv,
-            pub_bytes: X25519.public_key(enc_kp),
-            sig_pub_bytes: Ed25519.public_key(sig_kp)
-        }
-        |> update_hashes()
+    updated =
+      %{
+        id
+        | prv_bytes: enc_prv,
+          sig_prv_bytes: sig_prv,
+          pub_bytes: X25519.public_key(enc_kp),
+          sig_pub_bytes: Ed25519.public_key(sig_kp)
+      }
+      |> update_hashes()
 
-      {:ok, updated}
-    rescue
-      e -> {:error, e}
-    end
+    {:ok, updated}
+  rescue
+    e -> {:error, e}
   end
 
   def load_private_key(%__MODULE__{}, _), do: {:error, :invalid_key_length}

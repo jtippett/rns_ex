@@ -242,9 +242,7 @@ defmodule RNS.Discovery.InterfaceAnnounceHandler do
   """
   @spec parse_interface_info(map(), String.t(), non_neg_integer(), integer()) :: map() | nil
   def parse_interface_info(unpacked, network_id_hex, hops, received_at) do
-    unless Map.has_key?(unpacked, Discovery.interface_type_field()) do
-      nil
-    else
+    if Map.has_key?(unpacked, Discovery.interface_type_field()) do
       interface_type = unpacked[Discovery.interface_type_field()]
       transport_id = unpacked[Discovery.transport_id_field()]
       transport_id_hex = RNS.hexrep(transport_id, false)
@@ -293,6 +291,8 @@ defmodule RNS.Discovery.InterfaceAnnounceHandler do
       discovery_hash_material = info["transport_id"] <> info["name"]
       discovery_hash = RNS.Identity.full_hash(discovery_hash_material)
       Map.put(info, "discovery_hash", discovery_hash)
+    else
+      nil
     end
   end
 
@@ -495,9 +495,7 @@ defmodule RNS.Discovery.InterfaceAnnouncer do
         type_name
       end
 
-    unless effective_type in @discoverable_interface_types do
-      nil
-    else
+    if effective_type in @discoverable_interface_types do
       info = %{
         Discovery.interface_type_field() => effective_type,
         Discovery.transport_field() => ctx.transport_enabled,
@@ -530,6 +528,8 @@ defmodule RNS.Discovery.InterfaceAnnouncer do
           info
         end
       end
+    else
+      nil
     end
   end
 
@@ -567,12 +567,12 @@ defmodule RNS.Discovery.InterfaceAnnouncer do
        when type in ["BackboneInterface", "TCPServerInterface"] do
     reachable_on = Discovery.sanitize(Map.get(interface, :reachable_on, ""))
 
-    unless Discovery.is_ip_address(reachable_on) or Discovery.is_hostname(reachable_on) do
-      nil
-    else
+    if Discovery.is_ip_address(reachable_on) or Discovery.is_hostname(reachable_on) do
       info
       |> Map.put(Discovery.reachable_on_field(), reachable_on)
       |> Map.put(Discovery.port_field(), Map.get(interface, :bind_port))
+    else
+      nil
     end
   end
 
@@ -747,6 +747,7 @@ defmodule RNS.Discovery.InterfaceDiscovery do
   Returns a list of interface info maps sorted by status, value, and last_heard (descending).
   """
   @spec list_discovered_interfaces(String.t(), keyword()) :: [map()]
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def list_discovered_interfaces(storage_path, opts \\ []) do
     only_available = Keyword.get(opts, :only_available, false)
     only_transport = Keyword.get(opts, :only_transport, false)

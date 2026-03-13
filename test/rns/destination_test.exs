@@ -1079,7 +1079,7 @@ defmodule RNS.DestinationStoreTest do
       # With ratchet: pub_key (64) + name_hash (10) + random_hash (10) + ratchet (32) + signature (64) = 180
       assert byte_size(packet.data) >= 180
       assert packet.context_flag == RNS.Packet.flag_set()
-      assert length(dest.ratchets) >= 1
+      assert dest.ratchets != []
     end
 
     test "announce stores ratchet in identity store" do

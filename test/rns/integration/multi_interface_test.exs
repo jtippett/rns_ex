@@ -13,8 +13,8 @@ defmodule RNS.Integration.MultiInterfaceTest do
 
   use ExUnit.Case, async: false
 
-  alias RNS.Identity
   alias RNS.Destination
+  alias RNS.Identity
   alias RNS.Packet
   alias RNS.Transport
 
@@ -29,14 +29,12 @@ defmodule RNS.Integration.MultiInterfaceTest do
   end
 
   defp stop_transport do
-    try do
-      case GenServer.whereis(RNS.Transport) do
-        nil -> :ok
-        pid -> GenServer.stop(pid, :normal)
-      end
-    catch
-      :exit, _ -> :ok
+    case GenServer.whereis(RNS.Transport) do
+      nil -> :ok
+      pid -> GenServer.stop(pid, :normal)
     end
+  catch
+    :exit, _ -> :ok
   end
 
   # ── Broadcast to All Interfaces ──────────────────────────────────
@@ -265,7 +263,7 @@ defmodule RNS.Integration.MultiInterfaceTest do
   describe "LocalInterface multi-client" do
     test "server handles multiple simultaneous clients" do
       test_pid = self()
-      port = Enum.random(41000..42999)
+      port = Enum.random(41_000..42_999)
 
       {:ok, server_pid} =
         RNS.Interfaces.LocalServerInterface.start_link(
@@ -318,7 +316,7 @@ defmodule RNS.Integration.MultiInterfaceTest do
     end
 
     test "client reconnection on server restart" do
-      port = Enum.random(43000..44999)
+      port = Enum.random(43_000..44_999)
 
       # Start server
       {:ok, server1} =

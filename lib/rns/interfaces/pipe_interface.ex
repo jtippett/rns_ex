@@ -281,22 +281,18 @@ defmodule RNS.Interfaces.PipeInterface do
   end
 
   defp do_write(%{port_ref: ref}, data) when is_port(ref) do
-    try do
-      Port.command(ref, data)
-      :ok
-    rescue
-      _ -> {:error, :write_failed}
-    end
+    Port.command(ref, data)
+    :ok
+  rescue
+    _ -> {:error, :write_failed}
   end
 
   defp do_write(_, _data), do: {:error, :no_pipe}
 
   defp close_pipe(%{port_ref: ref}) when is_port(ref) do
-    try do
-      Port.close(ref)
-    rescue
-      _ -> :ok
-    end
+    Port.close(ref)
+  rescue
+    _ -> :ok
   end
 
   defp close_pipe(_), do: :ok

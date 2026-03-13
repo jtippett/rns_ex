@@ -7,8 +7,8 @@ defmodule RNS.Transport.AnnounceHandler do
   decisions.
   """
 
-  alias RNS.Transport
   alias RNS.Identity
+  alias RNS.Transport
 
   @announce_table :rns_announce_table
   @announce_rate_table :rns_announce_rate_table

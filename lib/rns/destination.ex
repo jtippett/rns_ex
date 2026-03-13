@@ -7,9 +7,9 @@ defmodule RNS.Destination do
   The destination type determines if encryption is used and what kind.
   """
 
-  alias RNS.Identity
   alias RNS.Cryptography.Hashes
   alias RNS.Cryptography.Token
+  alias RNS.Identity
 
   use RNS.Constants.Packet
   use RNS.Constants.Destination
@@ -841,11 +841,9 @@ defmodule RNS.Destination do
            packet_type: @data
          } = packet
        ) do
-    try do
-      callback.(plaintext, packet)
-    rescue
-      _ -> :ok
-    end
+    callback.(plaintext, packet)
+  rescue
+    _ -> :ok
   end
 
   defp notify_packet_callback(_dest, _plaintext, _packet), do: :ok

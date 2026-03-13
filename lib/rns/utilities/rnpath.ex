@@ -115,42 +115,40 @@ defmodule RNS.Utilities.RNPath do
         ]
       )
 
-    cond do
-      invalid != [] ->
-        {key, _} = hd(invalid)
-        {:error, "unknown option: #{key}"}
+    if invalid != [] do
+      {key, _} = hd(invalid)
+      {:error, "unknown option: #{key}"}
+    else
+      # Positional args: destination [list_filter]
+      {destination, list_filter} =
+        case rest do
+          [dest, filter | _] -> {dest, filter}
+          [dest] -> {dest, nil}
+          [] -> {nil, nil}
+        end
 
-      true ->
-        # Positional args: destination [list_filter]
-        {destination, list_filter} =
-          case rest do
-            [dest, filter | _] -> {dest, filter}
-            [dest] -> {dest, nil}
-            [] -> {nil, nil}
-          end
-
-        {:ok,
-         %{
-           configdir: Keyword.get(parsed, :config),
-           table: Keyword.get(parsed, :table, false),
-           max_hops: Keyword.get(parsed, :max),
-           rates: Keyword.get(parsed, :rates, false),
-           drop: Keyword.get(parsed, :drop, false),
-           drop_announces: Keyword.get(parsed, :drop_announces, false),
-           drop_via: Keyword.get(parsed, :drop_via, false),
-           timeout: Keyword.get(parsed, :timeout, RNS.Transport.path_request_timeout() * 1.0),
-           blackholed: Keyword.get(parsed, :blackholed, false),
-           blackhole: Keyword.get(parsed, :blackhole, false),
-           unblackhole: Keyword.get(parsed, :unblackhole, false),
-           duration: Keyword.get(parsed, :duration),
-           reason: Keyword.get(parsed, :reason),
-           json: Keyword.get(parsed, :json, false),
-           verbosity: Keyword.get(parsed, :verbose, 0),
-           version: Keyword.get(parsed, :version, false),
-           help: Keyword.get(parsed, :help, false),
-           destination: destination,
-           list_filter: list_filter
-         }}
+      {:ok,
+       %{
+         configdir: Keyword.get(parsed, :config),
+         table: Keyword.get(parsed, :table, false),
+         max_hops: Keyword.get(parsed, :max),
+         rates: Keyword.get(parsed, :rates, false),
+         drop: Keyword.get(parsed, :drop, false),
+         drop_announces: Keyword.get(parsed, :drop_announces, false),
+         drop_via: Keyword.get(parsed, :drop_via, false),
+         timeout: Keyword.get(parsed, :timeout, RNS.Transport.path_request_timeout() * 1.0),
+         blackholed: Keyword.get(parsed, :blackholed, false),
+         blackhole: Keyword.get(parsed, :blackhole, false),
+         unblackhole: Keyword.get(parsed, :unblackhole, false),
+         duration: Keyword.get(parsed, :duration),
+         reason: Keyword.get(parsed, :reason),
+         json: Keyword.get(parsed, :json, false),
+         verbosity: Keyword.get(parsed, :verbose, 0),
+         version: Keyword.get(parsed, :version, false),
+         help: Keyword.get(parsed, :help, false),
+         destination: destination,
+         list_filter: list_filter
+       }}
     end
   end
 
@@ -263,6 +261,7 @@ defmodule RNS.Utilities.RNPath do
   end
 
   @doc false
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def handle_rates(opts) do
     destination_hash =
       if opts.destination do
@@ -543,34 +542,32 @@ defmodule RNS.Utilities.RNPath do
   """
   @spec get_path_table(non_neg_integer() | nil) :: [map()]
   def get_path_table(max_hops \\ nil) do
-    try do
-      entries = :ets.tab2list(:rns_path_table)
+    entries = :ets.tab2list(:rns_path_table)
 
-      entries
-      |> Enum.map(fn {hash, entry} ->
-        interface_name =
-          if is_map(entry.interface) and Map.has_key?(entry.interface, :name) do
-            entry.interface.name || "Unknown"
-          else
-            "Unknown"
-          end
+    entries
+    |> Enum.map(fn {hash, entry} ->
+      interface_name =
+        if is_map(entry.interface) and Map.has_key?(entry.interface, :name) do
+          entry.interface.name || "Unknown"
+        else
+          "Unknown"
+        end
 
-        %{
-          hash: hash,
-          via: entry.next_hop,
-          hops: entry.hops,
-          expires: entry.expires,
-          interface_name: interface_name,
-          interface: interface_name
-        }
-      end)
-      |> Enum.filter(fn path ->
-        max_hops == nil or path.hops <= max_hops
-      end)
-      |> Enum.sort_by(fn path -> {path.interface_name, path.hops} end)
-    rescue
-      _ -> []
-    end
+      %{
+        hash: hash,
+        via: entry.next_hop,
+        hops: entry.hops,
+        expires: entry.expires,
+        interface_name: interface_name,
+        interface: interface_name
+      }
+    end)
+    |> Enum.filter(fn path ->
+      max_hops == nil or path.hops <= max_hops
+    end)
+    |> Enum.sort_by(fn path -> {path.interface_name, path.hops} end)
+  rescue
+    _ -> []
   end
 
   @doc """
@@ -578,23 +575,21 @@ defmodule RNS.Utilities.RNPath do
   """
   @spec get_rate_table() :: [map()]
   def get_rate_table do
-    try do
-      entries = :ets.tab2list(:rns_announce_rate_table)
+    entries = :ets.tab2list(:rns_announce_rate_table)
 
-      entries
-      |> Enum.map(fn {hash, entry} ->
-        %{
-          hash: hash,
-          last: entry[:last] || 0,
-          timestamps: entry[:timestamps] || [],
-          rate_violations: entry[:rate_violations] || 0,
-          blocked_until: entry[:blocked_until] || 0
-        }
-      end)
-      |> Enum.sort_by(fn e -> e.last end)
-    rescue
-      _ -> []
-    end
+    entries
+    |> Enum.map(fn {hash, entry} ->
+      %{
+        hash: hash,
+        last: entry[:last] || 0,
+        timestamps: entry[:timestamps] || [],
+        rate_violations: entry[:rate_violations] || 0,
+        blocked_until: entry[:blocked_until] || 0
+      }
+    end)
+    |> Enum.sort_by(fn e -> e.last end)
+  rescue
+    _ -> []
   end
 
   @doc """
@@ -602,18 +597,16 @@ defmodule RNS.Utilities.RNPath do
   """
   @spec drop_path(binary()) :: boolean()
   def drop_path(destination_hash) do
-    try do
-      case :ets.lookup(:rns_path_table, destination_hash) do
-        [{^destination_hash, _}] ->
-          :ets.delete(:rns_path_table, destination_hash)
-          true
+    case :ets.lookup(:rns_path_table, destination_hash) do
+      [{^destination_hash, _}] ->
+        :ets.delete(:rns_path_table, destination_hash)
+        true
 
-        [] ->
-          false
-      end
-    rescue
-      _ -> false
+      [] ->
+        false
     end
+  rescue
+    _ -> false
   end
 
   @doc """
@@ -622,22 +615,20 @@ defmodule RNS.Utilities.RNPath do
   """
   @spec drop_all_via(binary()) :: boolean()
   def drop_all_via(transport_hash) do
-    try do
-      entries = :ets.tab2list(:rns_path_table)
+    entries = :ets.tab2list(:rns_path_table)
 
-      dropped =
-        Enum.filter(entries, fn {_hash, entry} ->
-          entry.next_hop == transport_hash
-        end)
-
-      Enum.each(dropped, fn {hash, _entry} ->
-        :ets.delete(:rns_path_table, hash)
+    dropped =
+      Enum.filter(entries, fn {_hash, entry} ->
+        entry.next_hop == transport_hash
       end)
 
-      length(dropped) > 0
-    rescue
-      _ -> false
-    end
+    Enum.each(dropped, fn {hash, _entry} ->
+      :ets.delete(:rns_path_table, hash)
+    end)
+
+    dropped != []
+  rescue
+    _ -> false
   end
 
   @doc """
@@ -698,11 +689,9 @@ defmodule RNS.Utilities.RNPath do
   """
   @spec get_blackholed_identities() :: map() | nil
   def get_blackholed_identities do
-    try do
-      GenServer.call(RNS.Reticulum, :get_blackholed_identities)
-    rescue
-      _ -> nil
-    end
+    GenServer.call(RNS.Reticulum, :get_blackholed_identities)
+  rescue
+    _ -> nil
   end
 
   @doc """
@@ -711,24 +700,22 @@ defmodule RNS.Utilities.RNPath do
   @spec blackhole_identity(binary(), non_neg_integer() | nil, String.t() | nil) ::
           :ok | :already | :error
   def blackhole_identity(identity_hash, until_val, reason) do
-    try do
-      existing = get_blackholed_identities() || %{}
+    existing = get_blackholed_identities() || %{}
 
-      if Map.has_key?(existing, identity_hash) do
-        :already
-      else
-        entry = %{
-          until: until_val,
-          reason: reason,
-          source: get_local_identity_hash()
-        }
+    if Map.has_key?(existing, identity_hash) do
+      :already
+    else
+      entry = %{
+        until: until_val,
+        reason: reason,
+        source: get_local_identity_hash()
+      }
 
-        GenServer.call(RNS.Reticulum, {:blackhole_identity, identity_hash, entry})
-        :ok
-      end
-    rescue
-      _ -> :error
+      GenServer.call(RNS.Reticulum, {:blackhole_identity, identity_hash, entry})
+      :ok
     end
+  rescue
+    _ -> :error
   end
 
   @doc """
@@ -736,18 +723,16 @@ defmodule RNS.Utilities.RNPath do
   """
   @spec unblackhole_identity(binary()) :: :ok | :not_found | :error
   def unblackhole_identity(identity_hash) do
-    try do
-      existing = get_blackholed_identities() || %{}
+    existing = get_blackholed_identities() || %{}
 
-      if Map.has_key?(existing, identity_hash) do
-        GenServer.call(RNS.Reticulum, {:unblackhole_identity, identity_hash})
-        :ok
-      else
-        :not_found
-      end
-    rescue
-      _ -> :error
+    if Map.has_key?(existing, identity_hash) do
+      GenServer.call(RNS.Reticulum, {:unblackhole_identity, identity_hash})
+      :ok
+    else
+      :not_found
     end
+  rescue
+    _ -> :error
   end
 
   @doc """
@@ -756,6 +741,7 @@ defmodule RNS.Utilities.RNPath do
   This matches the Python `pretty_date` function from rnpath.py.
   """
   @spec pretty_date(integer()) :: String.t()
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def pretty_date(timestamp) do
     now = System.system_time(:second)
     diff = now - timestamp
@@ -763,8 +749,8 @@ defmodule RNS.Utilities.RNPath do
     if diff < 0 do
       ""
     else
-      day_diff = div(diff, 86400)
-      second_diff = rem(diff, 86400)
+      day_diff = div(diff, 86_400)
+      second_diff = rem(diff, 86_400)
 
       cond do
         day_diff == 0 and second_diff < 10 -> "#{second_diff} seconds"
@@ -811,12 +797,10 @@ defmodule RNS.Utilities.RNPath do
   end
 
   defp get_local_identity_hash do
-    try do
-      state = :sys.get_state(RNS.Transport)
-      Map.get(state, :identity_hash)
-    rescue
-      _ -> nil
-    end
+    state = :sys.get_state(RNS.Transport)
+    Map.get(state, :identity_hash)
+  rescue
+    _ -> nil
   end
 
   defp print_json_path_table(table) do

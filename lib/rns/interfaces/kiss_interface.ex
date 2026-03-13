@@ -15,6 +15,8 @@ defmodule RNS.Interfaces.KISSInterface do
 
   require Logger
 
+  @compile {:no_warn_undefined, Circuits.UART}
+
   alias RNS.Interfaces.Interface.KISS
 
   @max_chunk 32_768
@@ -258,6 +260,7 @@ defmodule RNS.Interfaces.KISSInterface do
               if data == state.beacon_data do
                 %{state | first_tx: nil}
               else
+                # credo:disable-for-next-line Credo.Check.Refactor.Nesting
                 if state.first_tx == nil do
                   %{state | first_tx: System.system_time(:second)}
                 else
@@ -536,23 +539,21 @@ defmodule RNS.Interfaces.KISSInterface do
   end
 
   defp open_port(%{backend: :port} = state) do
-    try do
-      stty_cmd =
-        "stty -F #{state.port} #{state.speed} cs#{state.databits} " <>
-          "#{parity_to_stty(state.parity)} " <>
-          "#{stopbits_to_stty(state.stopbits)} " <>
-          "-echo raw"
+    stty_cmd =
+      "stty -F #{state.port} #{state.speed} cs#{state.databits} " <>
+        "#{parity_to_stty(state.parity)} " <>
+        "#{stopbits_to_stty(state.stopbits)} " <>
+        "-echo raw"
 
-      case System.cmd("stty", String.split(stty_cmd), stderr_to_stdout: true) do
-        {_, 0} -> :ok
-        _ -> :ok
-      end
-
-      port_ref = Port.open({:spawn, "cat #{state.port}"}, [:binary, :stream, :exit_status])
-      {:ok, %{state | port_ref: port_ref}}
-    rescue
-      e -> {:error, e}
+    case System.cmd("stty", String.split(stty_cmd), stderr_to_stdout: true) do
+      {_, 0} -> :ok
+      _ -> :ok
     end
+
+    port_ref = Port.open({:spawn, "cat #{state.port}"}, [:binary, :stream, :exit_status])
+    {:ok, %{state | port_ref: port_ref}}
+  rescue
+    e -> {:error, e}
   end
 
   defp parity_to_stty(:none), do: "-parenb"
@@ -568,12 +569,10 @@ defmodule RNS.Interfaces.KISSInterface do
   end
 
   defp do_write(%{backend: :port, port_ref: ref}, data) when ref != nil do
-    try do
-      Port.command(ref, data)
-      :ok
-    rescue
-      _ -> {:error, :write_failed}
-    end
+    Port.command(ref, data)
+    :ok
+  rescue
+    _ -> {:error, :write_failed}
   end
 
   defp do_write(%{skip_open: true}, _data), do: :ok
@@ -585,20 +584,16 @@ defmodule RNS.Interfaces.KISSInterface do
   end
 
   defp close_port(%{backend: :circuits_uart, uart_pid: pid}) when pid != nil do
-    try do
-      Circuits.UART.close(pid)
-      Circuits.UART.stop(pid)
-    rescue
-      _ -> :ok
-    end
+    Circuits.UART.close(pid)
+    Circuits.UART.stop(pid)
+  rescue
+    _ -> :ok
   end
 
   defp close_port(%{backend: :port, port_ref: ref}) when ref != nil do
-    try do
-      Port.close(ref)
-    rescue
-      _ -> :ok
-    end
+    Port.close(ref)
+  rescue
+    _ -> :ok
   end
 
   defp close_port(_), do: :ok
@@ -634,12 +629,12 @@ defmodule RNS.Interfaces.KISSInterface do
     close_port(state)
     updated = %{state | online: false, uart_pid: nil, port_ref: nil}
 
-    if not state.detached do
+    if state.detached do
+      {:noreply, updated}
+    else
       Logger.error("Interface #{state.name} is now offline. Will attempt reconnection.")
       schedule_reconnect()
       {:noreply, %{updated | reconnecting: true}}
-    else
-      {:noreply, updated}
     end
   end
 

@@ -18,6 +18,8 @@ defmodule RNS.Interfaces.RNodeInterface do
 
   import Bitwise
 
+  @compile {:no_warn_undefined, Circuits.UART}
+
   # ── RNode KISS command constants ──────────────────────────────────
 
   # Frame delimiters (same as standard KISS)
@@ -425,9 +427,8 @@ defmodule RNS.Interfaces.RNodeInterface do
          :ok <- validate_sf(Keyword.get(opts, :sf)),
          :ok <- validate_cr(Keyword.get(opts, :cr)),
          :ok <- validate_alock(Keyword.get(opts, :st_alock), "st_alock"),
-         :ok <- validate_alock(Keyword.get(opts, :lt_alock), "lt_alock"),
-         :ok <- validate_callsign(Keyword.get(opts, :id_callsign)) do
-      :ok
+         :ok <- validate_alock(Keyword.get(opts, :lt_alock), "lt_alock") do
+      validate_callsign(Keyword.get(opts, :id_callsign))
     end
   end
 
@@ -1038,6 +1039,7 @@ defmodule RNS.Interfaces.RNodeInterface do
               if state.id_callsign != nil and data == state.id_callsign do
                 %{state | first_tx: nil}
               else
+                # credo:disable-for-next-line Credo.Check.Refactor.Nesting
                 if state.first_tx == nil do
                   %{state | first_tx: System.system_time(:second)}
                 else
@@ -1311,21 +1313,19 @@ defmodule RNS.Interfaces.RNodeInterface do
   end
 
   defp open_port(%{backend: :port} = state) do
-    try do
-      stty_cmd =
-        "stty -F #{state.port} #{state.speed} cs#{state.databits} " <>
-          "-parenb -cstopb -echo raw"
+    stty_cmd =
+      "stty -F #{state.port} #{state.speed} cs#{state.databits} " <>
+        "-parenb -cstopb -echo raw"
 
-      case System.cmd("stty", String.split(stty_cmd), stderr_to_stdout: true) do
-        {_, 0} -> :ok
-        _ -> :ok
-      end
-
-      port_ref = Port.open({:spawn, "cat #{state.port}"}, [:binary, :stream, :exit_status])
-      {:ok, %{state | port_ref: port_ref}}
-    rescue
-      e -> {:error, e}
+    case System.cmd("stty", String.split(stty_cmd), stderr_to_stdout: true) do
+      {_, 0} -> :ok
+      _ -> :ok
     end
+
+    port_ref = Port.open({:spawn, "cat #{state.port}"}, [:binary, :stream, :exit_status])
+    {:ok, %{state | port_ref: port_ref}}
+  rescue
+    e -> {:error, e}
   end
 
   defp do_write(%{backend: :circuits_uart, uart_pid: pid}, data) when pid != nil do
@@ -1333,12 +1333,10 @@ defmodule RNS.Interfaces.RNodeInterface do
   end
 
   defp do_write(%{backend: :port, port_ref: ref}, data) when ref != nil do
-    try do
-      Port.command(ref, data)
-      :ok
-    rescue
-      _ -> {:error, :write_failed}
-    end
+    Port.command(ref, data)
+    :ok
+  rescue
+    _ -> {:error, :write_failed}
   end
 
   defp do_write(%{skip_open: true}, _data), do: :ok
@@ -1346,20 +1344,16 @@ defmodule RNS.Interfaces.RNodeInterface do
   defp do_write(_, _data), do: {:error, :no_port}
 
   defp close_port(%{backend: :circuits_uart, uart_pid: pid}) when pid != nil do
-    try do
-      Circuits.UART.close(pid)
-      Circuits.UART.stop(pid)
-    rescue
-      _ -> :ok
-    end
+    Circuits.UART.close(pid)
+    Circuits.UART.stop(pid)
+  rescue
+    _ -> :ok
   end
 
   defp close_port(%{backend: :port, port_ref: ref}) when ref != nil do
-    try do
-      Port.close(ref)
-    rescue
-      _ -> :ok
-    end
+    Port.close(ref)
+  rescue
+    _ -> :ok
   end
 
   defp close_port(_), do: :ok
@@ -1403,12 +1397,12 @@ defmodule RNS.Interfaces.RNodeInterface do
     close_port(state)
     updated = %{state | online: false, uart_pid: nil, port_ref: nil}
 
-    if not state.detached do
+    if state.detached do
+      {:noreply, updated}
+    else
       Logger.error("RNode #{state.name} is now offline. Will attempt reconnection.")
       schedule_reconnect()
       {:noreply, %{updated | reconnecting: true}}
-    else
-      {:noreply, updated}
     end
   end
 

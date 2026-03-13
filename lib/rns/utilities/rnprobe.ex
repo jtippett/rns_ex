@@ -91,32 +91,30 @@ defmodule RNS.Utilities.RNProbe do
         ]
       )
 
-    cond do
-      invalid != [] ->
-        {key, _} = hd(invalid)
-        {:error, "unknown option: #{key}"}
+    if invalid != [] do
+      {key, _} = hd(invalid)
+      {:error, "unknown option: #{key}"}
+    else
+      {full_name, destination_hash} =
+        case rest do
+          [name, hash | _] -> {name, hash}
+          [hash] -> {nil, hash}
+          [] -> {nil, nil}
+        end
 
-      true ->
-        {full_name, destination_hash} =
-          case rest do
-            [name, hash | _] -> {name, hash}
-            [hash] -> {nil, hash}
-            [] -> {nil, nil}
-          end
-
-        {:ok,
-         %{
-           configdir: Keyword.get(parsed, :config),
-           size: Keyword.get(parsed, :size, @default_probe_size),
-           probes: Keyword.get(parsed, :probes, 1),
-           timeout: Keyword.get(parsed, :timeout, @default_timeout * 1.0),
-           wait: Keyword.get(parsed, :wait, 0.0),
-           verbosity: Keyword.get(parsed, :verbose, 0),
-           version: Keyword.get(parsed, :version, false),
-           help: Keyword.get(parsed, :help, false),
-           full_name: full_name,
-           destination_hash: destination_hash
-         }}
+      {:ok,
+       %{
+         configdir: Keyword.get(parsed, :config),
+         size: Keyword.get(parsed, :size, @default_probe_size),
+         probes: Keyword.get(parsed, :probes, 1),
+         timeout: Keyword.get(parsed, :timeout, @default_timeout * 1.0),
+         wait: Keyword.get(parsed, :wait, 0.0),
+         verbosity: Keyword.get(parsed, :verbose, 0),
+         version: Keyword.get(parsed, :version, false),
+         help: Keyword.get(parsed, :help, false),
+         full_name: full_name,
+         destination_hash: destination_hash
+       }}
     end
   end
 
@@ -187,8 +185,12 @@ defmodule RNS.Utilities.RNProbe do
       |> maybe_add_opt(:configdir, opts.configdir)
 
     case start_reticulum(reticulum_opts) do
-      {:ok, _pid} -> :ok
-      {:error, {:already_started, _pid}} -> :ok
+      {:ok, _pid} ->
+        :ok
+
+      {:error, {:already_started, _pid}} ->
+        :ok
+
       {:error, reason} ->
         IO.puts(:stderr, "Could not start Reticulum: #{inspect(reason)}")
         System.halt(1)
@@ -373,12 +375,10 @@ defmodule RNS.Utilities.RNProbe do
   # ── Private Helpers ────────────────────────────────────────────────
 
   defp parse_full_name(full_name) do
-    try do
-      {app_name, aspects} = RNS.Destination.app_and_aspects_from_name(full_name)
-      {:ok, {app_name, aspects}}
-    rescue
-      e -> {:error, Exception.message(e)}
-    end
+    {app_name, aspects} = RNS.Destination.app_and_aspects_from_name(full_name)
+    {:ok, {app_name, aspects}}
+  rescue
+    e -> {:error, Exception.message(e)}
   end
 
   defp wait_for_path(destination_hash, timeout_at) do

@@ -8,8 +8,8 @@ defmodule RNS.Utilities.RNStatusTest do
 
   use ExUnit.Case, async: true
 
-  alias RNS.Utilities.RNStatus
   alias RNS.Interfaces.Interface
+  alias RNS.Utilities.RNStatus
 
   # ── Argument Parsing ──────────────────────────────────────────────
 
@@ -437,7 +437,7 @@ defmodule RNS.Utilities.RNStatusTest do
 
     test "formats days ago" do
       now = System.system_time(:second)
-      assert RNStatus.pretty_date(now - 3 * 86400) =~ "3 days"
+      assert RNStatus.pretty_date(now - 3 * 86_400) =~ "3 days"
     end
 
     test "formats one minute boundary" do

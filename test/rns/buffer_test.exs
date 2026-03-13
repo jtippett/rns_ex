@@ -11,7 +11,7 @@ defmodule RNS.Buffer.StreamDataMessageTest do
 
     test "STREAM_ID_MAX is 0x3FFF (16383)" do
       assert StreamDataMessage.stream_id_max() == 0x3FFF
-      assert StreamDataMessage.stream_id_max() == 16383
+      assert StreamDataMessage.stream_id_max() == 16_383
     end
 
     test "OVERHEAD is 8 (2 header + 6 envelope)" do
@@ -172,6 +172,11 @@ defmodule RNS.Buffer.StreamDataMessageTest do
   end
 
   describe "MessageBase behaviour" do
+    setup do
+      Code.ensure_loaded!(StreamDataMessage)
+      :ok
+    end
+
     test "implements msgtype/0" do
       assert function_exported?(StreamDataMessage, :msgtype, 0)
     end
@@ -450,7 +455,7 @@ defmodule RNS.BufferTest do
   use ExUnit.Case, async: true
 
   alias RNS.Buffer
-  alias RNS.Buffer.{StreamDataMessage, RawChannelReader, RawChannelWriter}
+  alias RNS.Buffer.{RawChannelReader, RawChannelWriter, StreamDataMessage}
   alias RNS.Channel
 
   defp setup_channel(_context \\ %{}) do

@@ -20,6 +20,8 @@ defmodule RNS.Interfaces.AX25KISSInterface do
   import Bitwise
   require Logger
 
+  @compile {:no_warn_undefined, Circuits.UART}
+
   alias RNS.Interfaces.Interface.KISS
 
   # ── AX.25 constants ──────────────────────────────────────────────
@@ -359,12 +361,8 @@ defmodule RNS.Interfaces.AX25KISSInterface do
     src_call = String.upcase(callsign)
 
     # Validate callsign and SSID
-    if not valid_callsign?(src_call) do
-      {:stop, {:error, :invalid_callsign}}
-    else
-      if not valid_ssid?(ssid) do
-        {:stop, {:error, :invalid_ssid}}
-      else
+    if valid_callsign?(src_call) do
+      if valid_ssid?(ssid) do
         state = %__MODULE__{
           name: name,
           port: serial_port,
@@ -403,6 +401,7 @@ defmodule RNS.Interfaces.AX25KISSInterface do
           if serial_port == nil do
             {:stop, {:error, :no_port_specified}}
           else
+            # credo:disable-for-next-line Credo.Check.Refactor.Nesting
             case open_port(state) do
               {:ok, new_state} ->
                 Logger.info("Serial port #{serial_port} is now open")
@@ -415,7 +414,11 @@ defmodule RNS.Interfaces.AX25KISSInterface do
             end
           end
         end
+      else
+        {:stop, {:error, :invalid_ssid}}
       end
+    else
+      {:stop, {:error, :invalid_callsign}}
     end
   end
 
@@ -590,23 +593,21 @@ defmodule RNS.Interfaces.AX25KISSInterface do
   end
 
   defp open_port(%{backend: :port} = state) do
-    try do
-      stty_cmd =
-        "stty -F #{state.port} #{state.speed} cs#{state.databits} " <>
-          "#{parity_to_stty(state.parity)} " <>
-          "#{stopbits_to_stty(state.stopbits)} " <>
-          "-echo raw"
+    stty_cmd =
+      "stty -F #{state.port} #{state.speed} cs#{state.databits} " <>
+        "#{parity_to_stty(state.parity)} " <>
+        "#{stopbits_to_stty(state.stopbits)} " <>
+        "-echo raw"
 
-      case System.cmd("stty", String.split(stty_cmd), stderr_to_stdout: true) do
-        {_, 0} -> :ok
-        _ -> :ok
-      end
-
-      port_ref = Port.open({:spawn, "cat #{state.port}"}, [:binary, :stream, :exit_status])
-      {:ok, %{state | port_ref: port_ref}}
-    rescue
-      e -> {:error, e}
+    case System.cmd("stty", String.split(stty_cmd), stderr_to_stdout: true) do
+      {_, 0} -> :ok
+      _ -> :ok
     end
+
+    port_ref = Port.open({:spawn, "cat #{state.port}"}, [:binary, :stream, :exit_status])
+    {:ok, %{state | port_ref: port_ref}}
+  rescue
+    e -> {:error, e}
   end
 
   defp parity_to_stty(:none), do: "-parenb"
@@ -622,12 +623,10 @@ defmodule RNS.Interfaces.AX25KISSInterface do
   end
 
   defp do_write(%{backend: :port, port_ref: ref}, data) when ref != nil do
-    try do
-      Port.command(ref, data)
-      :ok
-    rescue
-      _ -> {:error, :write_failed}
-    end
+    Port.command(ref, data)
+    :ok
+  rescue
+    _ -> {:error, :write_failed}
   end
 
   defp do_write(%{skip_open: true}, _data), do: :ok
@@ -639,20 +638,16 @@ defmodule RNS.Interfaces.AX25KISSInterface do
   end
 
   defp close_port(%{backend: :circuits_uart, uart_pid: pid}) when pid != nil do
-    try do
-      Circuits.UART.close(pid)
-      Circuits.UART.stop(pid)
-    rescue
-      _ -> :ok
-    end
+    Circuits.UART.close(pid)
+    Circuits.UART.stop(pid)
+  rescue
+    _ -> :ok
   end
 
   defp close_port(%{backend: :port, port_ref: ref}) when ref != nil do
-    try do
-      Port.close(ref)
-    rescue
-      _ -> :ok
-    end
+    Port.close(ref)
+  rescue
+    _ -> :ok
   end
 
   defp close_port(_), do: :ok
@@ -689,12 +684,12 @@ defmodule RNS.Interfaces.AX25KISSInterface do
     close_port(state)
     updated = %{state | online: false, uart_pid: nil, port_ref: nil}
 
-    if not state.detached do
+    if state.detached do
+      {:noreply, updated}
+    else
       Logger.error("Interface #{state.name} is now offline. Will attempt reconnection.")
       schedule_reconnect()
       {:noreply, %{updated | reconnecting: true}}
-    else
-      {:noreply, updated}
     end
   end
 

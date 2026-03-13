@@ -285,56 +285,52 @@ defmodule RNS.Interfaces.Interface do
   """
   @spec process_held_announces(map()) :: {map() | nil, map()}
   def process_held_announces(iface) do
-    try do
-      {should_limit, iface} = should_ingress_limit(iface)
-      now = System.system_time(:second)
+    {should_limit, iface} = should_ingress_limit(iface)
+    now = System.system_time(:second)
 
-      if not should_limit and map_size(iface.held_announces) > 0 and now > iface.ic_held_release do
-        freq_threshold =
-          if age(iface) < iface.ic_new_time,
-            do: iface.ic_burst_freq_new,
-            else: iface.ic_burst_freq
+    if not should_limit and map_size(iface.held_announces) > 0 and now > iface.ic_held_release do
+      freq_threshold =
+        if age(iface) < iface.ic_new_time,
+          do: iface.ic_burst_freq_new,
+          else: iface.ic_burst_freq
 
-        ia_freq = incoming_announce_frequency(iface)
+      ia_freq = incoming_announce_frequency(iface)
 
-        if ia_freq < freq_threshold do
-          # Select announce with lowest hop count
-          {selected_hash, selected_packet} =
-            iface.held_announces
-            |> Enum.min_by(fn {_hash, packet} -> Map.get(packet, :hops, 128) end)
+      if ia_freq < freq_threshold do
+        # Select announce with lowest hop count
+        {selected_hash, selected_packet} =
+          iface.held_announces
+          |> Enum.min_by(fn {_hash, packet} -> Map.get(packet, :hops, 128) end)
 
-          # Update release timing and remove from held
-          updated =
-            iface
-            |> Map.put(:ic_held_release, now + iface.ic_held_release_interval)
-            |> Map.update!(:held_announces, &Map.delete(&1, selected_hash))
+        # Update release timing and remove from held
+        updated =
+          iface
+          |> Map.put(:ic_held_release, now + iface.ic_held_release_interval)
+          |> Map.update!(:held_announces, &Map.delete(&1, selected_hash))
 
-          {selected_packet, updated}
-        else
-          {nil, iface}
-        end
+        {selected_packet, updated}
       else
         {nil, iface}
       end
-    rescue
-      e in [Enum.EmptyError] ->
-        require Logger
-
-        Logger.error(
-          "Empty held announces map for #{inspect(iface.name)}: #{Exception.message(e)}"
-        )
-
-        {nil, iface}
-
-      e ->
-        require Logger
-
-        Logger.error(
-          "Unexpected error processing held announces for #{inspect(iface.name)} (#{e.__struct__}): #{Exception.message(e)}"
-        )
-
-        {nil, iface}
+    else
+      {nil, iface}
     end
+  rescue
+    e in [Enum.EmptyError] ->
+      require Logger
+
+      Logger.error("Empty held announces map for #{inspect(iface.name)}: #{Exception.message(e)}")
+
+      {nil, iface}
+
+    e ->
+      require Logger
+
+      Logger.error(
+        "Unexpected error processing held announces for #{inspect(iface.name)} (#{e.__struct__}): #{Exception.message(e)}"
+      )
+
+      {nil, iface}
   end
 
   @doc """

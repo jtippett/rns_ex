@@ -744,10 +744,10 @@ defmodule RNS.Interfaces.I2PInterfacePeer do
               i2p_dest: target_i2p_dest
           }
 
-          if not kiss_framing do
-            %{state | wants_tunnel: true}
-          else
+          if kiss_framing do
             state
+          else
+            %{state | wants_tunnel: true}
           end
 
         true ->
@@ -831,10 +831,10 @@ defmodule RNS.Interfaces.I2PInterfacePeer do
           end
 
           connected_state =
-            if not connected_state.kiss_framing do
-              %{connected_state | wants_tunnel: true}
-            else
+            if connected_state.kiss_framing do
               connected_state
+            else
+              %{connected_state | wants_tunnel: true}
             end
 
           schedule_watchdog()
@@ -1362,9 +1362,7 @@ defmodule RNS.Interfaces.I2PController do
     base = "SESSION CREATE STYLE=#{style} ID=#{session_id} DESTINATION=#{destination}"
 
     opts_str =
-      opts
-      |> Enum.map(fn {k, v} -> "#{k}=#{v}" end)
-      |> Enum.join(" ")
+      Enum.map_join(opts, " ", fn {k, v} -> "#{k}=#{v}" end)
 
     if opts_str == "" do
       base <> "\n"

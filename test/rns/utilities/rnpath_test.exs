@@ -281,37 +281,37 @@ defmodule RNS.Utilities.RNPathTest do
 
     test "formats hours" do
       now = System.system_time(:second)
-      result = RNPath.pretty_date(now - 10800)
+      result = RNPath.pretty_date(now - 10_800)
       assert result =~ "3 hours"
     end
 
     test "formats 1 day" do
       now = System.system_time(:second)
-      result = RNPath.pretty_date(now - 86400)
+      result = RNPath.pretty_date(now - 86_400)
       assert result == "1 day"
     end
 
     test "formats days" do
       now = System.system_time(:second)
-      result = RNPath.pretty_date(now - 3 * 86400)
+      result = RNPath.pretty_date(now - 3 * 86_400)
       assert result =~ "3 days"
     end
 
     test "formats weeks" do
       now = System.system_time(:second)
-      result = RNPath.pretty_date(now - 14 * 86400)
+      result = RNPath.pretty_date(now - 14 * 86_400)
       assert result =~ "2 weeks"
     end
 
     test "formats months" do
       now = System.system_time(:second)
-      result = RNPath.pretty_date(now - 60 * 86400)
+      result = RNPath.pretty_date(now - 60 * 86_400)
       assert result =~ "2 months"
     end
 
     test "formats years" do
       now = System.system_time(:second)
-      result = RNPath.pretty_date(now - 400 * 86400)
+      result = RNPath.pretty_date(now - 400 * 86_400)
       assert result =~ "1 years"
     end
 

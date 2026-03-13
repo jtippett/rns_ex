@@ -14,8 +14,8 @@ defmodule RNS.Interfaces.AutoInterfaceTest do
     end
 
     test "default ports" do
-      assert AutoInterface.default_discovery_port() == 29716
-      assert AutoInterface.default_data_port() == 42671
+      assert AutoInterface.default_discovery_port() == 29_716
+      assert AutoInterface.default_data_port() == 42_671
     end
 
     test "default group ID" do
@@ -308,15 +308,15 @@ defmodule RNS.Interfaces.AutoInterfaceTest do
       {:ok, pid} =
         AutoInterface.start_link(
           name: "TestAutoPorts",
-          discovery_port: 30000,
-          data_port: 40000,
+          discovery_port: 30_000,
+          data_port: 40_000,
           allowed_interfaces: ["lo0"],
           skip_network: true
         )
 
       state = AutoInterface.get_state(pid)
-      assert state.discovery_port == 30000
-      assert state.data_port == 40000
+      assert state.discovery_port == 30_000
+      assert state.data_port == 40_000
       AutoInterface.stop(pid)
     end
 
@@ -324,13 +324,13 @@ defmodule RNS.Interfaces.AutoInterfaceTest do
       {:ok, pid} =
         AutoInterface.start_link(
           name: "TestAutoUnicast",
-          discovery_port: 30000,
+          discovery_port: 30_000,
           allowed_interfaces: ["lo0"],
           skip_network: true
         )
 
       state = AutoInterface.get_state(pid)
-      assert state.unicast_discovery_port == 30001
+      assert state.unicast_discovery_port == 30_001
       AutoInterface.stop(pid)
     end
 

@@ -71,12 +71,10 @@ defmodule RNS.Utilities.RNID do
   def main(args) do
     case parse_args(args) do
       {:ok, opts} ->
-        cond do
-          opts.version ->
-            IO.puts("rnid #{RNS.Version.version()}")
-
-          true ->
-            program_setup(opts)
+        if opts.version do
+          IO.puts("rnid #{RNS.Version.version()}")
+        else
+          program_setup(opts)
         end
 
       {:error, message} ->
@@ -150,40 +148,38 @@ defmodule RNS.Utilities.RNID do
         ]
       )
 
-    cond do
-      invalid != [] ->
-        {key, _} = hd(invalid)
-        {:error, "unknown option: #{key}"}
-
-      true ->
-        {:ok,
-         %{
-           configdir: Keyword.get(parsed, :config),
-           identity: Keyword.get(parsed, :identity),
-           generate: Keyword.get(parsed, :generate),
-           import_str: Keyword.get(parsed, :import),
-           export: Keyword.get(parsed, :export, false),
-           verbosity: Keyword.get(parsed, :verbose, 0),
-           quietness: Keyword.get(parsed, :quiet, 0),
-           announce: Keyword.get(parsed, :announce),
-           hash: Keyword.get(parsed, :hash),
-           encrypt: Keyword.get(parsed, :encrypt),
-           decrypt: Keyword.get(parsed, :decrypt),
-           sign: Keyword.get(parsed, :sign),
-           validate: Keyword.get(parsed, :validate),
-           read: Keyword.get(parsed, :read),
-           write: Keyword.get(parsed, :write),
-           force: Keyword.get(parsed, :force, false),
-           stdin: Keyword.get(parsed, :stdin, false),
-           stdout: Keyword.get(parsed, :stdout, false),
-           request: Keyword.get(parsed, :request, false),
-           timeout: Keyword.get(parsed, :timeout, RNS.Transport.path_request_timeout() * 1.0),
-           print_identity: Keyword.get(parsed, :print_identity, false),
-           print_private: Keyword.get(parsed, :print_private, false),
-           base64: Keyword.get(parsed, :base64, false),
-           base32: Keyword.get(parsed, :base32, false),
-           version: Keyword.get(parsed, :version, false)
-         }}
+    if invalid != [] do
+      {key, _} = hd(invalid)
+      {:error, "unknown option: #{key}"}
+    else
+      {:ok,
+       %{
+         configdir: Keyword.get(parsed, :config),
+         identity: Keyword.get(parsed, :identity),
+         generate: Keyword.get(parsed, :generate),
+         import_str: Keyword.get(parsed, :import),
+         export: Keyword.get(parsed, :export, false),
+         verbosity: Keyword.get(parsed, :verbose, 0),
+         quietness: Keyword.get(parsed, :quiet, 0),
+         announce: Keyword.get(parsed, :announce),
+         hash: Keyword.get(parsed, :hash),
+         encrypt: Keyword.get(parsed, :encrypt),
+         decrypt: Keyword.get(parsed, :decrypt),
+         sign: Keyword.get(parsed, :sign),
+         validate: Keyword.get(parsed, :validate),
+         read: Keyword.get(parsed, :read),
+         write: Keyword.get(parsed, :write),
+         force: Keyword.get(parsed, :force, false),
+         stdin: Keyword.get(parsed, :stdin, false),
+         stdout: Keyword.get(parsed, :stdout, false),
+         request: Keyword.get(parsed, :request, false),
+         timeout: Keyword.get(parsed, :timeout, RNS.Transport.path_request_timeout() * 1.0),
+         print_identity: Keyword.get(parsed, :print_identity, false),
+         print_private: Keyword.get(parsed, :print_private, false),
+         base64: Keyword.get(parsed, :base64, false),
+         base32: Keyword.get(parsed, :base32, false),
+         version: Keyword.get(parsed, :version, false)
+       }}
     end
   end
 
@@ -193,6 +189,7 @@ defmodule RNS.Utilities.RNID do
   Executes the identity operation specified by the given options.
   """
   @spec program_setup(map()) :: :ok | no_return()
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def program_setup(opts) do
     # Validate: only one crypto operation at a time
     ops =
@@ -233,8 +230,12 @@ defmodule RNS.Utilities.RNID do
       |> maybe_add_opt(:configdir, opts.configdir)
 
     case start_reticulum(reticulum_opts) do
-      {:ok, _pid} -> :ok
-      {:error, {:already_started, _pid}} -> :ok
+      {:ok, _pid} ->
+        :ok
+
+      {:error, {:already_started, _pid}} ->
+        :ok
+
       {:error, reason} ->
         IO.puts(:stderr, "Could not start Reticulum: #{inspect(reason)}")
         System.halt(1)
@@ -456,7 +457,7 @@ defmodule RNS.Utilities.RNID do
   def handle_hash(identity, opts) do
     aspects = String.split(opts.hash, ".")
 
-    if length(aspects) == 0 do
+    if aspects == [] do
       RNS.Log.log("Invalid destination aspects specified", :error)
       System.halt(32)
     end
@@ -591,6 +592,7 @@ defmodule RNS.Utilities.RNID do
   Handles file-based cryptographic operations: validate, sign, encrypt, decrypt.
   """
   @spec handle_validate_or_crypto(RNS.Identity.t(), map()) :: :ok | no_return()
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def handle_validate_or_crypto(identity, opts) do
     # Auto-derive signature read file if validate and no read specified
     opts =
@@ -728,16 +730,7 @@ defmodule RNS.Utilities.RNID do
 
       validated = RNS.Identity.validate(identity, sig_data, file_data)
 
-      if not validated do
-        if not opts.stdout do
-          RNS.Log.log(
-            "Signature #{opts.validate} for file #{opts.read} is invalid",
-            :error
-          )
-        end
-
-        System.halt(22)
-      else
+      if validated do
         if not opts.stdout do
           RNS.Log.log(
             "Signature #{opts.validate} for file #{opts.read} made by Identity #{inspect(identity)} is valid",
@@ -746,6 +739,15 @@ defmodule RNS.Utilities.RNID do
         end
 
         System.halt(0)
+      else
+        if not opts.stdout do
+          RNS.Log.log(
+            "Signature #{opts.validate} for file #{opts.read} is invalid",
+            :error
+          )
+        end
+
+        System.halt(22)
       end
     rescue
       e ->
@@ -876,29 +878,27 @@ defmodule RNS.Utilities.RNID do
   """
   @spec decode_identity_data(String.t(), map()) :: {:ok, binary()} | {:error, String.t()}
   def decode_identity_data(data_str, opts) do
-    try do
-      cond do
-        opts.base64 ->
-          case Base.url_decode64(data_str) do
-            {:ok, bytes} -> {:ok, bytes}
-            :error -> {:error, "Invalid base64 data"}
-          end
+    cond do
+      opts.base64 ->
+        case Base.url_decode64(data_str) do
+          {:ok, bytes} -> {:ok, bytes}
+          :error -> {:error, "Invalid base64 data"}
+        end
 
-        opts.base32 ->
-          case Base.decode32(data_str) do
-            {:ok, bytes} -> {:ok, bytes}
-            :error -> {:error, "Invalid base32 data"}
-          end
+      opts.base32 ->
+        case Base.decode32(data_str) do
+          {:ok, bytes} -> {:ok, bytes}
+          :error -> {:error, "Invalid base32 data"}
+        end
 
-        true ->
-          case Base.decode16(data_str, case: :mixed) do
-            {:ok, bytes} -> {:ok, bytes}
-            :error -> {:error, "Invalid hexadecimal data"}
-          end
-      end
-    rescue
-      e -> {:error, Exception.message(e)}
+      true ->
+        case Base.decode16(data_str, case: :mixed) do
+          {:ok, bytes} -> {:ok, bytes}
+          :error -> {:error, "Invalid hexadecimal data"}
+        end
     end
+  rescue
+    e -> {:error, Exception.message(e)}
   end
 
   # ── Spinner ────────────────────────────────────────────────────────
@@ -1018,34 +1018,28 @@ defmodule RNS.Utilities.RNID do
   end
 
   defp safe_from_bytes(bytes) do
-    try do
-      case RNS.Identity.from_bytes(bytes) do
-        nil -> {:error, "Could not parse identity data"}
-        identity -> {:ok, identity}
-      end
-    rescue
-      e -> {:error, Exception.message(e)}
+    case RNS.Identity.from_bytes(bytes) do
+      nil -> {:error, "Could not parse identity data"}
+      identity -> {:ok, identity}
     end
+  rescue
+    e -> {:error, Exception.message(e)}
   end
 
   defp safe_from_file(path) do
-    try do
-      case RNS.Identity.from_file(path) do
-        nil -> {:error, "Could not decode identity from file"}
-        identity -> {:ok, identity}
-      end
-    rescue
-      e -> {:error, Exception.message(e)}
+    case RNS.Identity.from_file(path) do
+      nil -> {:error, "Could not decode identity from file"}
+      identity -> {:ok, identity}
     end
+  rescue
+    e -> {:error, Exception.message(e)}
   end
 
   defp safe_to_file(identity, path) do
-    try do
-      RNS.Identity.to_file(identity, path)
-      :ok
-    rescue
-      e -> {:error, Exception.message(e)}
-    end
+    RNS.Identity.to_file(identity, path)
+    :ok
+  rescue
+    e -> {:error, Exception.message(e)}
   end
 
   defp ensure_application_started do

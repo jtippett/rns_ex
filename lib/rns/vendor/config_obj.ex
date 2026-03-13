@@ -107,6 +107,7 @@ defmodule RNS.Vendor.ConfigObj do
     {root, comment_list, root, errors}
   end
 
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   defp parse_lines([line | rest], index, root, cur_section, comment_list, errors) do
     sline = String.trim(line)
 
@@ -114,17 +115,17 @@ defmodule RNS.Vendor.ConfigObj do
       # Empty line or comment
       sline == "" or String.starts_with?(sline, "#") ->
         # Check if we haven't started real content yet (initial comment)
-        if not root.started do
+        if root.started do
+          parse_lines(rest, index + 1, root, cur_section, comment_list ++ [line], errors)
+        else
           root = %{root | initial_comment: root.initial_comment ++ [line]}
           parse_lines(rest, index + 1, root, cur_section, [], errors)
-        else
-          parse_lines(rest, index + 1, root, cur_section, comment_list ++ [line], errors)
         end
 
       # Section marker
       match = parse_section_marker(line) ->
         {sect_name, depth, inline_comment} = match
-        root = if not root.started, do: %{root | started: true}, else: root
+        root = if root.started, do: root, else: %{root | started: true}
         # Update cur_section if it was root (to pick up started/initial_comment changes)
         cur_section = if cur_section.path == [], do: root, else: cur_section
 
@@ -156,7 +157,7 @@ defmodule RNS.Vendor.ConfigObj do
 
       # Key = value
       match = parse_key_value(line) ->
-        root = if not root.started, do: %{root | started: true}, else: root
+        root = if root.started, do: root, else: %{root | started: true}
         cur_section = if cur_section.path == [], do: root, else: cur_section
         {key, raw_value, _indent} = match
 
@@ -275,14 +276,12 @@ defmodule RNS.Vendor.ConfigObj do
     {value_part, comment} = split_value_comment(raw)
     value_part = String.trim(value_part)
 
-    cond do
-      # Check if it's a list (contains unquoted commas)
-      is_list_value?(value_part) ->
-        items = parse_list_value(value_part)
-        {items, comment}
-
-      true ->
-        {unquote_value(value_part), comment}
+    if is_list_value?(value_part) do
+      # It's a list (contains unquoted commas)
+      items = parse_list_value(value_part)
+      {items, comment}
+    else
+      {unquote_value(value_part), comment}
     end
   end
 

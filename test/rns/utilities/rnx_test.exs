@@ -328,7 +328,7 @@ defmodule RNS.Utilities.RNXTest do
     end
 
     test "formats days" do
-      result = RNX.pretty_time(86400.0 + 3600.0 + 60.0 + 1.0)
+      result = RNX.pretty_time(86_400.0 + 3600.0 + 60.0 + 1.0)
       assert result =~ "1d"
       assert result =~ "1h"
       assert result =~ "1m"
@@ -355,7 +355,7 @@ defmodule RNS.Utilities.RNXTest do
     end
 
     test "uses comma separator for multiple components" do
-      result = RNX.pretty_time(86400.0 + 3600.0 + 60.0 + 1.0)
+      result = RNX.pretty_time(86_400.0 + 3600.0 + 60.0 + 1.0)
       assert result =~ ", "
       assert result =~ " and "
     end

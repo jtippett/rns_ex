@@ -309,10 +309,7 @@ defmodule RNS.Interfaces.LocalClientInterface do
     if state.detached do
       {:noreply, state}
     else
-      if not state.is_connected_to_shared_instance do
-        Logger.error("Attempt to reconnect on a non-initiator shared local interface.")
-        {:noreply, state}
-      else
+      if state.is_connected_to_shared_instance do
         case do_connect(state) do
           {:ok, connected_state} ->
             connected_state = %{connected_state | reconnecting: false}
@@ -331,6 +328,9 @@ defmodule RNS.Interfaces.LocalClientInterface do
             Process.send_after(self(), :reconnect, @reconnect_wait * 1000)
             {:noreply, state}
         end
+      else
+        Logger.error("Attempt to reconnect on a non-initiator shared local interface.")
+        {:noreply, state}
       end
     end
   end

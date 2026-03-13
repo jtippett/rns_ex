@@ -156,47 +156,45 @@ defmodule RNS.Utilities.RNCP do
         ]
       )
 
-    cond do
-      invalid != [] ->
-        {key, _} = hd(invalid)
-        {:error, "unknown option: #{key}"}
+    if invalid != [] do
+      {key, _} = hd(invalid)
+      {:error, "unknown option: #{key}"}
+    else
+      {file, destination} =
+        case rest do
+          [f, d | _] -> {f, d}
+          [f] -> {f, nil}
+          [] -> {nil, nil}
+        end
 
-      true ->
-        {file, destination} =
-          case rest do
-            [f, d | _] -> {f, d}
-            [f] -> {f, nil}
-            [] -> {nil, nil}
-          end
+      allowed_list =
+        Keyword.get_values(parsed, :allowed)
 
-        allowed_list =
-          Keyword.get_values(parsed, :allowed)
-
-        {:ok,
-         %{
-           configdir: Keyword.get(parsed, :config),
-           verbosity: Keyword.get(parsed, :verbose, 0),
-           quietness: Keyword.get(parsed, :quiet, 0),
-           silent: Keyword.get(parsed, :silent, false),
-           listen: Keyword.get(parsed, :listen, false),
-           no_compress: Keyword.get(parsed, :no_compress, false),
-           allow_fetch: Keyword.get(parsed, :allow_fetch, false),
-           fetch: Keyword.get(parsed, :fetch, false),
-           jail: Keyword.get(parsed, :jail),
-           save: Keyword.get(parsed, :save),
-           overwrite: Keyword.get(parsed, :overwrite, false),
-           announce: Keyword.get(parsed, :announce, -1),
-           allowed: allowed_list,
-           no_auth: Keyword.get(parsed, :no_auth, false),
-           print_identity: Keyword.get(parsed, :print_identity, false),
-           identity_path: Keyword.get(parsed, :identity),
-           timeout: Keyword.get(parsed, :timeout, 15.0),
-           phy_rates: Keyword.get(parsed, :phy_rates, false),
-           version: Keyword.get(parsed, :version, false),
-           help: Keyword.get(parsed, :help, false),
-           file: file,
-           destination: destination
-         }}
+      {:ok,
+       %{
+         configdir: Keyword.get(parsed, :config),
+         verbosity: Keyword.get(parsed, :verbose, 0),
+         quietness: Keyword.get(parsed, :quiet, 0),
+         silent: Keyword.get(parsed, :silent, false),
+         listen: Keyword.get(parsed, :listen, false),
+         no_compress: Keyword.get(parsed, :no_compress, false),
+         allow_fetch: Keyword.get(parsed, :allow_fetch, false),
+         fetch: Keyword.get(parsed, :fetch, false),
+         jail: Keyword.get(parsed, :jail),
+         save: Keyword.get(parsed, :save),
+         overwrite: Keyword.get(parsed, :overwrite, false),
+         announce: Keyword.get(parsed, :announce, -1),
+         allowed: allowed_list,
+         no_auth: Keyword.get(parsed, :no_auth, false),
+         print_identity: Keyword.get(parsed, :print_identity, false),
+         identity_path: Keyword.get(parsed, :identity),
+         timeout: Keyword.get(parsed, :timeout, 15.0),
+         phy_rates: Keyword.get(parsed, :phy_rates, false),
+         version: Keyword.get(parsed, :version, false),
+         help: Keyword.get(parsed, :help, false),
+         file: file,
+         destination: destination
+       }}
     end
   end
 
@@ -316,8 +314,12 @@ defmodule RNS.Utilities.RNCP do
       |> maybe_add_opt(:configdir, opts.configdir)
 
     case start_reticulum(reticulum_opts) do
-      {:ok, _pid} -> :ok
-      {:error, {:already_started, _pid}} -> :ok
+      {:ok, _pid} ->
+        :ok
+
+      {:error, {:already_started, _pid}} ->
+        :ok
+
       {:error, reason} ->
         IO.puts(:stderr, "Could not start Reticulum: #{inspect(reason)}")
         System.halt(1)
@@ -343,7 +345,7 @@ defmodule RNS.Utilities.RNCP do
     # Build allowed identity hashes
     {allow_all, allowed_hashes} = build_allowed_list(opts)
 
-    if length(allowed_hashes) < 1 and not opts.no_auth do
+    if allowed_hashes == [] and not opts.no_auth do
       IO.puts("Warning: No allowed identities configured, rncp will not accept any files!")
     end
 
@@ -356,7 +358,8 @@ defmodule RNS.Utilities.RNCP do
     Process.put(:rncp_fetch_jail, validate_jail_path(opts.jail))
     Process.put(:rncp_auto_compress, not opts.no_compress)
 
-    destination = RNS.Destination.set_link_established_callback(destination, &client_link_established/1)
+    destination =
+      RNS.Destination.set_link_established_callback(destination, &client_link_established/1)
 
     # Register fetch handler if allowed
     destination =
@@ -404,10 +407,13 @@ defmodule RNS.Utilities.RNCP do
   Sends a file to a remote rncp listener.
   """
   @spec handle_send(map()) :: :ok | no_return()
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def handle_send(opts) do
     destination_hash =
       case parse_destination_hash(opts.destination) do
-        {:ok, hash} -> hash
+        {:ok, hash} ->
+          hash
+
         {:error, msg} ->
           IO.puts(msg)
           System.halt(1)
@@ -420,7 +426,9 @@ defmodule RNS.Utilities.RNCP do
       System.halt(1)
     end
 
-    metadata = %{"name" => Path.basename(file_path) |> :binary.bin_to_list() |> :binary.list_to_bin()}
+    metadata = %{
+      "name" => Path.basename(file_path) |> :binary.bin_to_list() |> :binary.list_to_bin()
+    }
 
     targetloglevel = 3 + opts.verbosity - opts.quietness
 
@@ -431,8 +439,12 @@ defmodule RNS.Utilities.RNCP do
       |> maybe_add_opt(:configdir, opts.configdir)
 
     case start_reticulum(reticulum_opts) do
-      {:ok, _pid} -> :ok
-      {:error, {:already_started, _pid}} -> :ok
+      {:ok, _pid} ->
+        :ok
+
+      {:error, {:already_started, _pid}} ->
+        :ok
+
       {:error, reason} ->
         IO.puts(:stderr, "Could not start Reticulum: #{inspect(reason)}")
         System.halt(1)
@@ -454,7 +466,15 @@ defmodule RNS.Utilities.RNCP do
       spin(fn -> RNS.Transport.has_path(destination_hash) end, timeout_at)
     end
 
-    if not RNS.Transport.has_path(destination_hash) do
+    if RNS.Transport.has_path(destination_hash) do
+      if opts.silent do
+        IO.puts("Establishing link with #{RNS.prettyhexrep(destination_hash)}")
+      else
+        IO.write(
+          "\r#{String.duplicate(" ", 70)}\rEstablishing link with #{RNS.prettyhexrep(destination_hash)} "
+        )
+      end
+    else
       if opts.silent do
         IO.puts("Path not found")
       else
@@ -462,12 +482,6 @@ defmodule RNS.Utilities.RNCP do
       end
 
       System.halt(1)
-    else
-      if opts.silent do
-        IO.puts("Establishing link with #{RNS.prettyhexrep(destination_hash)}")
-      else
-        IO.write("\r#{String.duplicate(" ", 70)}\rEstablishing link with #{RNS.prettyhexrep(destination_hash)} ")
-      end
     end
 
     receiver_identity = RNS.Identity.recall(destination_hash)
@@ -482,7 +496,13 @@ defmodule RNS.Utilities.RNCP do
       )
 
     link = RNS.Link.new()
-    link = %{link | destination: receiver_destination, initiator: true, status: RNS.Link.pending()}
+
+    link = %{
+      link
+      | destination: receiver_destination,
+        initiator: true,
+        status: RNS.Link.pending()
+    }
 
     estab_timeout = System.system_time(:millisecond) + trunc(opts.timeout * 1000)
     spin(fn -> link.status == RNS.Link.active() end, estab_timeout)
@@ -491,7 +511,9 @@ defmodule RNS.Utilities.RNCP do
       if opts.silent do
         IO.puts("Link establishment with #{RNS.prettyhexrep(destination_hash)} timed out")
       else
-        IO.puts("\r#{String.duplicate(" ", 70)}\rLink establishment with #{RNS.prettyhexrep(destination_hash)} timed out")
+        IO.puts(
+          "\r#{String.duplicate(" ", 70)}\rLink establishment with #{RNS.prettyhexrep(destination_hash)} timed out"
+        )
       end
 
       System.halt(1)
@@ -536,7 +558,9 @@ defmodule RNS.Utilities.RNCP do
   def handle_fetch(opts) do
     destination_hash =
       case parse_destination_hash(opts.destination) do
-        {:ok, hash} -> hash
+        {:ok, hash} ->
+          hash
+
         {:error, msg} ->
           IO.puts(msg)
           System.halt(1)
@@ -553,8 +577,12 @@ defmodule RNS.Utilities.RNCP do
       |> maybe_add_opt(:configdir, opts.configdir)
 
     case start_reticulum(reticulum_opts) do
-      {:ok, _pid} -> :ok
-      {:error, {:already_started, _pid}} -> :ok
+      {:ok, _pid} ->
+        :ok
+
+      {:error, {:already_started, _pid}} ->
+        :ok
+
       {:error, reason} ->
         IO.puts(:stderr, "Could not start Reticulum: #{inspect(reason)}")
         System.halt(1)
@@ -576,7 +604,15 @@ defmodule RNS.Utilities.RNCP do
       spin(fn -> RNS.Transport.has_path(destination_hash) end, timeout_at)
     end
 
-    if not RNS.Transport.has_path(destination_hash) do
+    if RNS.Transport.has_path(destination_hash) do
+      if opts.silent do
+        IO.puts("Establishing link with #{RNS.prettyhexrep(destination_hash)}")
+      else
+        IO.write(
+          "\r#{String.duplicate(" ", 70)}\rEstablishing link with #{RNS.prettyhexrep(destination_hash)}  "
+        )
+      end
+    else
       if opts.silent do
         IO.puts("Path not found")
       else
@@ -584,12 +620,6 @@ defmodule RNS.Utilities.RNCP do
       end
 
       System.halt(1)
-    else
-      if opts.silent do
-        IO.puts("Establishing link with #{RNS.prettyhexrep(destination_hash)}")
-      else
-        IO.write("\r#{String.duplicate(" ", 70)}\rEstablishing link with #{RNS.prettyhexrep(destination_hash)}  ")
-      end
     end
 
     listener_identity = RNS.Identity.recall(destination_hash)
@@ -604,25 +634,33 @@ defmodule RNS.Utilities.RNCP do
       )
 
     link = RNS.Link.new()
-    link = %{link | destination: listener_destination, initiator: true, status: RNS.Link.pending()}
+
+    link = %{
+      link
+      | destination: listener_destination,
+        initiator: true,
+        status: RNS.Link.pending()
+    }
 
     estab_timeout = System.system_time(:millisecond) + trunc(opts.timeout * 1000)
     spin(fn -> link.status == RNS.Link.active() end, estab_timeout)
 
-    if not RNS.Transport.has_path(destination_hash) do
-      if opts.silent do
-        IO.puts("Could not establish link with #{RNS.prettyhexrep(destination_hash)}")
-      else
-        IO.puts("\r#{String.duplicate(" ", 70)}\rCould not establish link with #{RNS.prettyhexrep(destination_hash)}")
-      end
-
-      System.halt(1)
-    else
+    if RNS.Transport.has_path(destination_hash) do
       if opts.silent do
         IO.puts("Requesting file from remote...")
       else
         IO.write("\r#{String.duplicate(" ", 70)}\rRequesting file from remote  ")
       end
+    else
+      if opts.silent do
+        IO.puts("Could not establish link with #{RNS.prettyhexrep(destination_hash)}")
+      else
+        IO.puts(
+          "\r#{String.duplicate(" ", 70)}\rCould not establish link with #{RNS.prettyhexrep(destination_hash)}"
+        )
+      end
+
+      System.halt(1)
     end
 
     # In a real running system, this would use link.identify and link.request
@@ -740,27 +778,32 @@ defmodule RNS.Utilities.RNCP do
   @doc """
   Callback for fetch requests in listen mode.
   """
-  @spec fetch_request(String.t(), String.t(), binary(), binary(), RNS.Identity.t() | nil, number()) :: term()
+  @spec fetch_request(
+          String.t(),
+          String.t(),
+          binary(),
+          binary(),
+          RNS.Identity.t() | nil,
+          number()
+        ) :: term()
   def fetch_request(_path, data, _request_id, _link_id, _remote_identity, _requested_at) do
     allow_fetch = Process.get(:rncp_allow_fetch, false)
     fetch_jail = Process.get(:rncp_fetch_jail)
 
-    if not allow_fetch do
-      @req_fetch_not_allowed
-    else
+    if allow_fetch do
       file_path =
         if fetch_jail do
           resolved = Path.join(fetch_jail, data) |> Path.expand()
 
-          if not String.starts_with?(resolved, fetch_jail <> "/") do
+          if String.starts_with?(resolved, fetch_jail <> "/") do
+            resolved
+          else
             RNS.Log.log(
               "Disallowing fetch request for #{resolved} outside of fetch jail #{fetch_jail}",
               :warning
             )
 
             nil
-          else
-            resolved
           end
         else
           Path.expand(data)
@@ -779,6 +822,8 @@ defmodule RNS.Utilities.RNCP do
           _metadata = %{"name" => Path.basename(file_path)}
           true
       end
+    else
+      @req_fetch_not_allowed
     end
   end
 
@@ -830,47 +875,48 @@ defmodule RNS.Utilities.RNCP do
   # ── Private Helpers ──────────────────────────────────────────────────
 
   defp save_received_file(resource, save_path, allow_overwrite) do
-    try do
-      filename =
-        if is_binary(resource.metadata["name"]) do
-          Path.basename(resource.metadata["name"])
-        else
-          Path.basename(to_string(resource.metadata["name"]))
-        end
-
-      saved_filename =
-        if save_path do
-          full = Path.join(save_path, filename) |> Path.expand()
-
-          if not String.starts_with?(full, save_path <> "/") do
-            RNS.Log.log("Invalid save path #{full}, ignoring", :error)
-            nil
-          else
-            full
-          end
-        else
-          filename
-        end
-
-      if saved_filename do
-        full_save_path =
-          if allow_overwrite and File.regular?(saved_filename) do
-            File.rm(saved_filename)
-            saved_filename
-          else
-            find_unique_path(saved_filename, 0)
-          end
-
-        if is_map(resource.data) and Map.has_key?(resource.data, :name) do
-          File.rename(resource.data.name, full_save_path)
-        else
-          File.write!(full_save_path, resource.data)
-        end
+    filename =
+      if is_binary(resource.metadata["name"]) do
+        Path.basename(resource.metadata["name"])
+      else
+        Path.basename(to_string(resource.metadata["name"]))
       end
-    rescue
-      e ->
-        RNS.Log.log("An error occurred while saving received resource: #{Exception.message(e)}", :error)
+
+    saved_filename =
+      if save_path do
+        full = Path.join(save_path, filename) |> Path.expand()
+
+        if String.starts_with?(full, save_path <> "/") do
+          full
+        else
+          RNS.Log.log("Invalid save path #{full}, ignoring", :error)
+          nil
+        end
+      else
+        filename
+      end
+
+    if saved_filename do
+      full_save_path =
+        if allow_overwrite and File.regular?(saved_filename) do
+          File.rm(saved_filename)
+          saved_filename
+        else
+          find_unique_path(saved_filename, 0)
+        end
+
+      if is_map(resource.data) and Map.has_key?(resource.data, :name) do
+        File.rename(resource.data.name, full_save_path)
+      else
+        File.write!(full_save_path, resource.data)
+      end
     end
+  rescue
+    e ->
+      RNS.Log.log(
+        "An error occurred while saving received resource: #{Exception.message(e)}",
+        :error
+      )
   end
 
   defp find_unique_path(base_path, 0) do
@@ -910,7 +956,9 @@ defmodule RNS.Utilities.RNCP do
         end
 
         case Base.decode16(a, case: :mixed) do
-          {:ok, hash} -> [hash | acc]
+          {:ok, hash} ->
+            [hash | acc]
+
           :error ->
             IO.puts("Invalid destination entered. Check your input.")
             System.halt(1)
@@ -973,21 +1021,19 @@ defmodule RNS.Utilities.RNCP do
   defp validate_save_path(path) do
     sp = Path.expand(path)
 
-    cond do
-      not File.dir?(sp) ->
-        RNS.Log.log("Output directory not found", :error)
-        System.halt(3)
+    if File.dir?(sp) do
+      case File.stat(sp) do
+        {:ok, %{access: access}} when access in [:write, :read_write] ->
+          RNS.Log.log("Saving received files in \"#{sp}\"", :verbose)
+          sp
 
-      true ->
-        case File.stat(sp) do
-          {:ok, %{access: access}} when access in [:write, :read_write] ->
-            RNS.Log.log("Saving received files in \"#{sp}\"", :verbose)
-            sp
-
-          _ ->
-            RNS.Log.log("Output directory not writable", :error)
-            System.halt(4)
-        end
+        _ ->
+          RNS.Log.log("Output directory not writable", :error)
+          System.halt(4)
+      end
+    else
+      RNS.Log.log("Output directory not found", :error)
+      System.halt(3)
     end
   end
 

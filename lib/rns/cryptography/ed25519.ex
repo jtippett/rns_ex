@@ -98,15 +98,13 @@ defmodule RNS.Cryptography.Ed25519 do
   def verify(signature, message, pub_bytes)
       when byte_size(signature) == @sig_length and is_binary(message) and
              byte_size(pub_bytes) == @key_length do
-    try do
-      case Eddy.verify(signature, message, pub_bytes, encoding: :raw) do
-        true -> true
-        _ -> false
-      end
-    rescue
-      # Eddy raises WithClauseError when signature contains invalid curve points
+    case Eddy.verify(signature, message, pub_bytes, encoding: :raw) do
+      true -> true
       _ -> false
     end
+  rescue
+    # Eddy raises WithClauseError when signature contains invalid curve points
+    _ -> false
   end
 
   def verify(_signature, _message, _pub_bytes), do: false

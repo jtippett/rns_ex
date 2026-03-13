@@ -321,46 +321,44 @@ defmodule RNS.Packet do
   """
   @spec unpack(t()) :: t() | false
   def unpack(%__MODULE__{raw: raw} = packet) do
-    try do
-      <<flags::8, hops::8, rest::binary>> = raw
+    <<flags::8, hops::8, rest::binary>> = raw
 
-      header_type = (flags &&& 0b01000000) >>> 6
-      context_flag = (flags &&& 0b00100000) >>> 5
-      transport_type = (flags &&& 0b00010000) >>> 4
-      destination_type = (flags &&& 0b00001100) >>> 2
-      packet_type = flags &&& 0b00000011
+    header_type = (flags &&& 0b01000000) >>> 6
+    context_flag = (flags &&& 0b00100000) >>> 5
+    transport_type = (flags &&& 0b00010000) >>> 4
+    destination_type = (flags &&& 0b00001100) >>> 2
+    packet_type = flags &&& 0b00000011
 
-      {transport_id, destination_hash, context, data} =
-        if header_type == @header_2 do
-          <<tid::binary-size(@dst_len), dhash::binary-size(@dst_len), ctx::8, payload::binary>> =
-            rest
+    {transport_id, destination_hash, context, data} =
+      if header_type == @header_2 do
+        <<tid::binary-size(@dst_len), dhash::binary-size(@dst_len), ctx::8, payload::binary>> =
+          rest
 
-          {tid, dhash, ctx, payload}
-        else
-          <<dhash::binary-size(@dst_len), ctx::8, payload::binary>> = rest
-          {nil, dhash, ctx, payload}
-        end
+        {tid, dhash, ctx, payload}
+      else
+        <<dhash::binary-size(@dst_len), ctx::8, payload::binary>> = rest
+        {nil, dhash, ctx, payload}
+      end
 
-      packet = %{
-        packet
-        | flags: flags,
-          hops: hops,
-          header_type: header_type,
-          context_flag: context_flag,
-          transport_type: transport_type,
-          destination_type: destination_type,
-          packet_type: packet_type,
-          transport_id: transport_id,
-          destination_hash: destination_hash,
-          context: context,
-          data: data,
-          packed: false
-      }
+    packet = %{
+      packet
+      | flags: flags,
+        hops: hops,
+        header_type: header_type,
+        context_flag: context_flag,
+        transport_type: transport_type,
+        destination_type: destination_type,
+        packet_type: packet_type,
+        transport_id: transport_id,
+        destination_hash: destination_hash,
+        context: context,
+        data: data,
+        packed: false
+    }
 
-      update_hash(packet)
-    rescue
-      _ -> false
-    end
+    update_hash(packet)
+  rescue
+    _ -> false
   end
 
   # ── Hash computation ─────────────────────────────────────────────
@@ -438,7 +436,7 @@ defmodule RNS.Packet do
   end
 
   defp do_send(packet) do
-    packet = if not packet.packed, do: pack(packet), else: packet
+    packet = if packet.packed, do: packet, else: pack(packet)
 
     # Transport.outbound/1 will be implemented in Phase 4
     if transport_outbound(packet) do

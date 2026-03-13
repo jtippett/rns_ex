@@ -8,9 +8,9 @@ defmodule RNS.Transport.TunnelManagement do
 
   require Logger
 
+  alias RNS.Identity
   alias RNS.Transport
   alias RNS.Transport.TunnelEntry
-  alias RNS.Identity
 
   # ── Tunnel Synthesize Handler ─────────────────────────────────────
 

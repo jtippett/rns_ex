@@ -2,9 +2,9 @@ defmodule RNS.Interfaces.InterfaceTest do
   use ExUnit.Case, async: true
 
   alias RNS.Interfaces.Interface
+  alias RNS.Interfaces.Interface.AnnounceQueueEntry
   alias RNS.Interfaces.Interface.HDLC
   alias RNS.Interfaces.Interface.KISS
-  alias RNS.Interfaces.Interface.AnnounceQueueEntry
   import Bitwise
 
   # ── Helper: build a minimal interface struct-like map ───────────────
@@ -571,7 +571,7 @@ defmodule RNS.Interfaces.InterfaceTest do
       iface = new_interface(%{announce_queue: q})
       {selected, _wait, updated} = Interface.process_announce_queue(iface)
       assert selected.hops == 2
-      assert length(updated.announce_queue) == 0
+      assert updated.announce_queue == []
     end
 
     test "returns positive wait time" do
@@ -880,10 +880,10 @@ defmodule RNS.Interfaces.InterfaceTest do
 
   describe "AnnounceQueueEntry" do
     test "creates struct with all fields" do
-      entry = %AnnounceQueueEntry{raw: <<1, 2, 3>>, hops: 3, time: 12345}
+      entry = %AnnounceQueueEntry{raw: <<1, 2, 3>>, hops: 3, time: 12_345}
       assert entry.raw == <<1, 2, 3>>
       assert entry.hops == 3
-      assert entry.time == 12345
+      assert entry.time == 12_345
     end
 
     test "defaults to nil fields" do

@@ -160,7 +160,7 @@ defmodule RNS.Transport.AnnounceHandlerTest do
 
   describe "announce_emitted/1" do
     test "extracts emission time from packet data" do
-      emission_time = 12345
+      emission_time = 12_345
       packet = make_announce_packet(emission_time: emission_time)
       assert AnnounceHandler.announce_emitted(packet) == emission_time
     end
@@ -168,7 +168,7 @@ defmodule RNS.Transport.AnnounceHandlerTest do
 
   describe "extract_random_blob/1" do
     test "extracts 10-byte random blob from announce packet data" do
-      emission_time = 99999
+      emission_time = 99_999
       packet = make_announce_packet(emission_time: emission_time)
       blob = AnnounceHandler.extract_random_blob(packet)
       assert byte_size(blob) == 10

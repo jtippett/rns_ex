@@ -179,7 +179,7 @@ defmodule RNS.Channel do
   with `Link.channel/1`.
   """
 
-  alias RNS.Channel.{Envelope, Outlet, ChannelException}
+  alias RNS.Channel.{ChannelException, Envelope, Outlet}
 
   use RNS.Constants.Channel
 
@@ -313,10 +313,13 @@ defmodule RNS.Channel do
       message_module.new()
     rescue
       e ->
-        raise ChannelException,
-          type: @me_invalid_msg_type,
-          message:
-            "#{inspect(message_module)} raised an exception when constructed with no arguments: #{inspect(e)}"
+        reraise ChannelException,
+                [
+                  type: @me_invalid_msg_type,
+                  message:
+                    "#{inspect(message_module)} raised an exception when constructed with no arguments: #{inspect(e)}"
+                ],
+                __STACKTRACE__
     end
 
     %{channel | message_factories: Map.put(channel.message_factories, msgtype, message_module)}
@@ -378,9 +381,7 @@ defmodule RNS.Channel do
   def ready_to_send?(%__MODULE__{} = channel) do
     outlet = channel.outlet
 
-    if not Outlet.usable?(outlet) do
-      false
-    else
+    if Outlet.usable?(outlet) do
       outstanding =
         Enum.count(channel.tx_ring, fn envelope ->
           envelope.outlet == outlet and
@@ -389,6 +390,8 @@ defmodule RNS.Channel do
         end)
 
       outstanding < channel.window
+    else
+      false
     end
   end
 
@@ -479,52 +482,50 @@ defmodule RNS.Channel do
   """
   @spec receive_raw(t(), binary()) :: t()
   def receive_raw(%__MODULE__{} = channel, raw) do
-    try do
-      envelope = Envelope.new(outlet: channel.outlet, raw: raw)
-      envelope = Envelope.unpack(envelope, channel.message_factories)
+    envelope = Envelope.new(outlet: channel.outlet, raw: raw)
+    envelope = Envelope.unpack(envelope, channel.message_factories)
 
-      if invalid_rx_sequence?(channel, envelope.sequence) do
-        RNS.Log.log(
-          "Invalid packet sequence (#{envelope.sequence}) received on channel",
-          :extreme
-        )
+    if invalid_rx_sequence?(channel, envelope.sequence) do
+      RNS.Log.log(
+        "Invalid packet sequence (#{envelope.sequence}) received on channel",
+        :extreme
+      )
 
-        channel
+      channel
+    else
+      {channel, is_new} = emplace_envelope(channel, envelope, :rx)
+
+      if is_new do
+        deliver_contiguous(channel)
       else
-        {channel, is_new} = emplace_envelope(channel, envelope, :rx)
-
-        if not is_new do
-          RNS.Log.log("Duplicate message received on channel", :extreme)
-          channel
-        else
-          deliver_contiguous(channel)
-        end
+        RNS.Log.log("Duplicate message received on channel", :extreme)
+        channel
       end
-    rescue
-      e in [ChannelException] ->
-        RNS.Log.log(
-          "Channel protocol error while receiving data: #{Exception.message(e)}",
-          :error
-        )
-
-        channel
-
-      e in [MatchError] ->
-        RNS.Log.log(
-          "Malformed packet data received on channel: #{inspect(e)}",
-          :error
-        )
-
-        channel
-
-      e ->
-        RNS.Log.log(
-          "Unexpected error while receiving data on channel (#{e.__struct__}): #{Exception.message(e)}",
-          :error
-        )
-
-        channel
     end
+  rescue
+    e in [ChannelException] ->
+      RNS.Log.log(
+        "Channel protocol error while receiving data: #{Exception.message(e)}",
+        :error
+      )
+
+      channel
+
+    e in [MatchError] ->
+      RNS.Log.log(
+        "Malformed packet data received on channel: #{inspect(e)}",
+        :error
+      )
+
+      channel
+
+    e ->
+      RNS.Log.log(
+        "Unexpected error while receiving data on channel (#{e.__struct__}): #{Exception.message(e)}",
+        :error
+      )
+
+      channel
   end
 
   defp invalid_rx_sequence?(%__MODULE__{} = channel, sequence) do
@@ -569,11 +570,11 @@ defmodule RNS.Channel do
 
       envelope ->
         message =
-          if not envelope.unpacked do
+          if envelope.unpacked do
+            envelope.message
+          else
             env = Envelope.unpack(envelope, factories)
             env.message
-          else
-            envelope.message
           end
 
         new_next = rem(next_seq + 1, @seq_modulus)
@@ -594,11 +595,11 @@ defmodule RNS.Channel do
 
       envelope ->
         message =
-          if not envelope.unpacked do
+          if envelope.unpacked do
+            envelope.message
+          else
             env = Envelope.unpack(envelope, factories)
             env.message
-          else
-            envelope.message
           end
 
         new_next = rem(next_seq + 1, @seq_modulus)
@@ -725,24 +726,11 @@ defmodule RNS.Channel do
               timeout
             )
 
-            channel = replace_envelope_in_tx(channel, envelope)
-            channel = update_packet_timeouts(channel)
-
             channel =
-              if channel.window > channel.window_min do
-                new_window = channel.window - 1
-
-                new_window_max =
-                  if channel.window_max > channel.window_min + channel.window_flexibility do
-                    channel.window_max - 1
-                  else
-                    channel.window_max
-                  end
-
-                %{channel | window: new_window, window_max: new_window_max}
-              else
-                channel
-              end
+              channel
+              |> replace_envelope_in_tx(envelope)
+              |> update_packet_timeouts()
+              |> shrink_window()
 
             {:ok, channel}
           end
@@ -766,6 +754,20 @@ defmodule RNS.Channel do
     # structural compatibility.
     channel
   end
+
+  defp shrink_window(%__MODULE__{window: window, window_min: window_min} = channel)
+       when window > window_min do
+    new_window_max =
+      if channel.window_max > window_min + channel.window_flexibility do
+        channel.window_max - 1
+      else
+        channel.window_max
+      end
+
+    %{channel | window: window - 1, window_max: new_window_max}
+  end
+
+  defp shrink_window(channel), do: channel
 
   # ── Internal helpers ─────────────────────────────────────────
 

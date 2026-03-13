@@ -12,10 +12,10 @@ defmodule RNS.Integration.FileTransferTest do
 
   use ExUnit.Case, async: false
 
+  alias RNS.Cryptography.Token
   alias RNS.Link
   alias RNS.Resource
   alias RNS.Transport
-  alias RNS.Cryptography.Token
 
   # ── Setup ─────────────────────────────────────────────────────────
 
@@ -28,14 +28,12 @@ defmodule RNS.Integration.FileTransferTest do
   end
 
   defp stop_transport do
-    try do
-      case GenServer.whereis(RNS.Transport) do
-        nil -> :ok
-        pid -> GenServer.stop(pid, :normal)
-      end
-    catch
-      :exit, _ -> :ok
+    case GenServer.whereis(RNS.Transport) do
+      nil -> :ok
+      pid -> GenServer.stop(pid, :normal)
     end
+  catch
+    :exit, _ -> :ok
   end
 
   # ── Resource Creation ────────────────────────────────────────────

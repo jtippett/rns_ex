@@ -179,6 +179,7 @@ defmodule RNS.Interfaces.UDPInterface do
   # ── GenServer callbacks ──────────────────────────────────────────
 
   @impl GenServer
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def init(opts) do
     name = Keyword.fetch!(opts, :name)
     owner = Keyword.get(opts, :owner)

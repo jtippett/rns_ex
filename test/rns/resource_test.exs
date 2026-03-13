@@ -820,7 +820,7 @@ defmodule RNS.ResourceTest do
             _ -> false
           end)
 
-        assert length(send_parts) > 0
+        assert send_parts != []
       end
     end
   end

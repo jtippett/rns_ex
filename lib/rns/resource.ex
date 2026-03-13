@@ -755,12 +755,10 @@ defmodule RNS.Resource do
   """
   @spec reject(binary()) :: {:ok, binary()} | {:error, term()}
   def reject(advertisement_plaintext) do
-    try do
-      adv = RNS.Resource.Advertisement.unpack(advertisement_plaintext)
-      {:ok, adv.h}
-    rescue
-      e -> {:error, Exception.message(e)}
-    end
+    adv = RNS.Resource.Advertisement.unpack(advertisement_plaintext)
+    {:ok, adv.h}
+  rescue
+    e -> {:error, Exception.message(e)}
   end
 
   # ── Hashmap management ────────────────────────────────────────
@@ -832,6 +830,7 @@ defmodule RNS.Resource do
     {resource, :continue}
   end
 
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def receive_part(%__MODULE__{} = resource, part_data, opts) do
     packet_raw_len = Keyword.get(opts, :packet_raw_len, byte_size(part_data))
     now = now_float()
@@ -1005,6 +1004,7 @@ defmodule RNS.Resource do
                   slow_rounds = resource.very_slow_rate_rounds + 1
                   resource = %{resource | very_slow_rate_rounds: slow_rounds}
 
+                  # credo:disable-for-next-line Credo.Check.Refactor.Nesting
                   if slow_rounds == @very_slow_rate_threshold do
                     %{resource | window_max: @window_max_very_slow}
                   else
@@ -1082,6 +1082,7 @@ defmodule RNS.Resource do
               new_hashes = hashes <> part_hash
               new_out = out + 1
 
+              # credo:disable-for-next-line Credo.Check.Refactor.Nesting
               if new_out >= resource.window do
                 {:halt, {new_hashes, new_out, exhausted}}
               else
@@ -1285,63 +1286,61 @@ defmodule RNS.Resource do
   end
 
   def assemble(%__MODULE__{} = resource) do
-    try do
-      resource = %{resource | status: @status_assembling}
-      stream = IO.iodata_to_binary(resource.parts)
+    resource = %{resource | status: @status_assembling}
+    stream = IO.iodata_to_binary(resource.parts)
 
-      # Decrypt
-      data =
-        if resource.encrypted do
-          decrypt_data(resource.link, stream)
-        else
-          stream
-        end
-
-      # Strip random hash prefix
-      <<_random::binary-size(@random_hash_size), data::binary>> = data
-
-      # Decompress
-      data =
-        if resource.compressed do
-          :zlib.uncompress(data)
-        else
-          data
-        end
-
-      # Verify hash
-      calculated_hash = Identity.full_hash(data <> resource.random_hash)
-
-      if calculated_hash == resource.hash do
-        # Extract metadata if present
-        {metadata, payload} =
-          if resource.has_metadata and resource.segment_index == 1 do
-            <<metadata_size::unsigned-big-24, rest::binary>> = data
-            <<packed_metadata::binary-size(metadata_size), payload::binary>> = rest
-            metadata = Msgpax.unpack!(packed_metadata)
-            {metadata, payload}
-          else
-            {nil, data}
-          end
-
-        # Build proof
-        proof = Identity.full_hash(data <> resource.hash)
-        proof_data = resource.hash <> proof
-
-        resource = %{
-          resource
-          | status: @status_complete,
-            data: payload,
-            metadata: metadata
-        }
-
-        {resource, {:ok, proof_data}}
+    # Decrypt
+    data =
+      if resource.encrypted do
+        decrypt_data(resource.link, stream)
       else
-        {%{resource | status: @status_corrupt}, :corrupt}
+        stream
       end
-    rescue
-      e ->
-        {%{resource | status: @status_corrupt}, {:error, Exception.message(e)}}
+
+    # Strip random hash prefix
+    <<_random::binary-size(@random_hash_size), data::binary>> = data
+
+    # Decompress
+    data =
+      if resource.compressed do
+        :zlib.uncompress(data)
+      else
+        data
+      end
+
+    # Verify hash
+    calculated_hash = Identity.full_hash(data <> resource.random_hash)
+
+    if calculated_hash == resource.hash do
+      # Extract metadata if present
+      {metadata, payload} =
+        if resource.has_metadata and resource.segment_index == 1 do
+          <<metadata_size::unsigned-big-24, rest::binary>> = data
+          <<packed_metadata::binary-size(metadata_size), payload::binary>> = rest
+          metadata = Msgpax.unpack!(packed_metadata)
+          {metadata, payload}
+        else
+          {nil, data}
+        end
+
+      # Build proof
+      proof = Identity.full_hash(data <> resource.hash)
+      proof_data = resource.hash <> proof
+
+      resource = %{
+        resource
+        | status: @status_complete,
+          data: payload,
+          metadata: metadata
+      }
+
+      {resource, {:ok, proof_data}}
+    else
+      {%{resource | status: @status_corrupt}, :corrupt}
     end
+  rescue
+    e ->
+      {%{resource | status: @status_corrupt}, {:error, Exception.message(e)}}
   end
 
   # ── Validate proof (sender-side) ──────────────────────────────
@@ -1769,7 +1768,7 @@ defmodule RNS.Resource.Advertisement do
   def new(%RNS.Resource{} = resource) do
     {u, p} =
       if resource.request_id != nil do
-        if not resource.is_response, do: {true, false}, else: {false, true}
+        if resource.is_response, do: {false, true}, else: {true, false}
       else
         {false, false}
       end

@@ -2,18 +2,19 @@
 # Generate test vectors for cross-language compatibility verification
 # Run: mix run test/fixtures/gen_vectors.exs
 
-alias RNS.Cryptography.{Hashes, HMAC, HKDF, PKCS7, X25519, Ed25519, Token}
+alias RNS.Cryptography.{Ed25519, Hashes, HKDF, HMAC, PKCS7, Token, X25519}
 
 hex = fn data -> Base.encode16(data, case: :lower) end
 
 IO.puts("=== HASH FIXTURES ===")
+
 test_inputs = [
   {"empty", <<>>},
   {"hello", "hello"},
   {"rns", "Reticulum Network Stack"},
   {"range256", :binary.list_to_bin(Enum.to_list(0..255))},
   {"zeros32", :binary.copy(<<0>>, 32)},
-  {"ff64", :binary.copy(<<0xFF>>, 64)},
+  {"ff64", :binary.copy(<<0xFF>>, 64)}
 ]
 
 for {name, data} <- test_inputs do
@@ -24,13 +25,14 @@ for {name, data} <- test_inputs do
 end
 
 IO.puts("\n=== PKCS7 FIXTURES ===")
+
 pkcs7_inputs = [
   {"empty", <<>>},
   {"A", "A"},
   {"AB", "AB"},
   {"15bytes", "ABCDEFGHIJKLMNO"},
   {"16bytes", "ABCDEFGHIJKLMNOP"},
-  {"31bytes", :binary.list_to_bin(Enum.to_list(0..30))},
+  {"31bytes", :binary.list_to_bin(Enum.to_list(0..30))}
 ]
 
 for {name, data} <- pkcs7_inputs do
@@ -39,10 +41,11 @@ for {name, data} <- pkcs7_inputs do
 end
 
 IO.puts("\n=== HMAC FIXTURES ===")
+
 hmac_tests = [
   {"test1", "key", "data"},
   {"test2", :binary.copy(<<0x0B>>, 20), "Hi There"},
-  {"test3", :binary.list_to_bin(Enum.to_list(0..31)), :binary.list_to_bin(Enum.to_list(0..63))},
+  {"test3", :binary.list_to_bin(Enum.to_list(0..31)), :binary.list_to_bin(Enum.to_list(0..63))}
 ]
 
 for {name, key, data} <- hmac_tests do
@@ -51,11 +54,14 @@ for {name, key, data} <- hmac_tests do
 end
 
 IO.puts("\n=== HKDF FIXTURES ===")
+
 hkdf_tests = [
-  {"rfc5869_1", :binary.copy(<<0x0B>>, 22), 42, :binary.list_to_bin(Enum.to_list(0..12)), :binary.list_to_bin(Enum.to_list(0xF0..0xF9))},
-  {"rfc5869_2", :binary.list_to_bin(Enum.to_list(0..0x4F)), 82, :binary.list_to_bin(Enum.to_list(0x60..0xA0)), :binary.list_to_bin(Enum.to_list(0xB0..0xDF))},
+  {"rfc5869_1", :binary.copy(<<0x0B>>, 22), 42, :binary.list_to_bin(Enum.to_list(0..12)),
+   :binary.list_to_bin(Enum.to_list(0xF0..0xF9))},
+  {"rfc5869_2", :binary.list_to_bin(Enum.to_list(0..0x4F)), 82,
+   :binary.list_to_bin(Enum.to_list(0x60..0xA0)), :binary.list_to_bin(Enum.to_list(0xB0..0xDF))},
   {"rfc5869_3", :binary.copy(<<0x0B>>, 22), 42, nil, nil},
-  {"rns_pattern", :binary.copy(<<0xAA>>, 32), 64, :binary.copy(<<0xBB>>, 16), nil},
+  {"rns_pattern", :binary.copy(<<0xAA>>, 32), 64, :binary.copy(<<0xBB>>, 16), nil}
 ]
 
 for {name, ikm, length, salt, info} <- hkdf_tests do
@@ -113,7 +119,7 @@ dest_configs = [
   {"test_app", ["aspect1"]},
   {"test_app", ["aspect1", "aspect2"]},
   {"myapp", ["echo", "request"]},
-  {"rns_ex", ["compatibility", "test", "vectors"]},
+  {"rns_ex", ["compatibility", "test", "vectors"]}
 ]
 
 for {app_name, aspects} <- dest_configs do
@@ -125,10 +131,12 @@ for {app_name, aspects} <- dest_configs do
 end
 
 IO.puts("\n=== AES FIXTURES ===")
+
 aes_tests = [
   {"test1", :binary.copy(<<0x01>>, 32), :binary.copy(<<0x02>>, 16), "Hello AES-256-CBC!"},
-  {"test2", :binary.list_to_bin(Enum.to_list(0..31)), :binary.list_to_bin(Enum.to_list(0..15)), :binary.list_to_bin(Enum.to_list(0..47))},
-  {"test3", :binary.copy(<<0xFF>>, 32), :binary.copy(<<0x00>>, 16), <<>>},
+  {"test2", :binary.list_to_bin(Enum.to_list(0..31)), :binary.list_to_bin(Enum.to_list(0..15)),
+   :binary.list_to_bin(Enum.to_list(0..47))},
+  {"test3", :binary.copy(<<0xFF>>, 32), :binary.copy(<<0x00>>, 16), <<>>}
 ]
 
 for {name, key, iv, plaintext} <- aes_tests do
@@ -141,7 +149,9 @@ IO.puts("\n=== ANNOUNCE FIXTURES ===")
 id_announce = RNS.Identity.from_bytes(prv_bytes1)
 
 announce_configs = [
-  {"test_app", ["echo"], <<0xDE, 0xAD, 0xBE, 0xEF, 0x42>> <> <<0x00, 0x00, 0x00, 0x00, 0x65, 0x53, 0x60, 0x00::size(24)>>, nil},
+  {"test_app", ["echo"],
+   <<0xDE, 0xAD, 0xBE, 0xEF, 0x42>> <>
+     <<0x00, 0x00, 0x00, 0x00, 0x65, 0x53, 0x60, 0x00::size(24)>>, nil}
 ]
 
 for {app_name, aspects, random_hash, app_data} <- announce_configs do

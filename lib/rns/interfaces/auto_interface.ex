@@ -18,8 +18,8 @@ defmodule RNS.Interfaces.AutoInterface do
   @hw_mtu 1196
   @fixed_mtu true
 
-  @default_discovery_port 29716
-  @default_data_port 42671
+  @default_discovery_port 29_716
+  @default_data_port 42_671
   @default_group_id "reticulum"
   @default_ifac_size 16
 
@@ -278,7 +278,7 @@ defmodule RNS.Interfaces.AutoInterface do
         false
 
       # If allowed list is non-empty, interface must be in it
-      length(allowed) > 0 and ifname not in allowed ->
+      allowed != [] and ifname not in allowed ->
         false
 
       true ->
@@ -484,11 +484,11 @@ defmodule RNS.Interfaces.AutoInterface do
     # spawned_interfaces defaults to nil from default_fields, override to map
     state = %{state | hash: RNS.Interfaces.Interface.hash(state), spawned_interfaces: %{}}
 
-    if not skip_network do
-      state = setup_network(state)
-      schedule_peer_jobs(state)
+    if skip_network do
       {:ok, state}
     else
+      state = setup_network(state)
+      schedule_peer_jobs(state)
       {:ok, state}
     end
   end
@@ -614,51 +614,49 @@ defmodule RNS.Interfaces.AutoInterface do
   end
 
   defp setup_discovery_sockets(state, ifname, link_local_addr) do
-    try do
-      if_index = interface_name_to_index(ifname)
+    if_index = interface_name_to_index(ifname)
 
-      # Set up multicast discovery socket
-      case open_multicast_discovery_socket(state, ifname, if_index) do
-        {:ok, mcast_socket} ->
-          # Set up unicast discovery socket
-          case open_unicast_discovery_socket(state, ifname, link_local_addr, if_index) do
-            {:ok, ucast_socket} ->
-              discovery_sockets = Map.put(state.discovery_sockets, ifname, mcast_socket)
-              unicast_sockets = Map.put(state.unicast_discovery_sockets, ifname, ucast_socket)
+    # Set up multicast discovery socket
+    case open_multicast_discovery_socket(state, ifname, if_index) do
+      {:ok, mcast_socket} ->
+        # Set up unicast discovery socket
+        case open_unicast_discovery_socket(state, ifname, link_local_addr, if_index) do
+          {:ok, ucast_socket} ->
+            discovery_sockets = Map.put(state.discovery_sockets, ifname, mcast_socket)
+            unicast_sockets = Map.put(state.unicast_discovery_sockets, ifname, ucast_socket)
 
-              # Schedule announce loop for this interface
-              schedule_announce(state, ifname)
+            # Schedule announce loop for this interface
+            schedule_announce(state, ifname)
 
-              %{
-                state
-                | discovery_sockets: discovery_sockets,
-                  unicast_discovery_sockets: unicast_sockets
-              }
-
-            {:error, reason} ->
-              Logger.error(
-                "Could not open unicast discovery socket for #{ifname}: #{inspect(reason)}"
-              )
-
-              :gen_udp.close(mcast_socket)
+            %{
               state
-          end
+              | discovery_sockets: discovery_sockets,
+                unicast_discovery_sockets: unicast_sockets
+            }
 
-        {:error, reason} ->
-          Logger.error(
-            "Could not open multicast discovery socket for #{ifname}: #{inspect(reason)}"
-          )
+          {:error, reason} ->
+            Logger.error(
+              "Could not open unicast discovery socket for #{ifname}: #{inspect(reason)}"
+            )
 
-          state
-      end
-    rescue
-      e ->
+            :gen_udp.close(mcast_socket)
+            state
+        end
+
+      {:error, reason} ->
         Logger.error(
-          "Could not configure interface #{ifname} for #{state}: #{Exception.message(e)}"
+          "Could not open multicast discovery socket for #{ifname}: #{inspect(reason)}"
         )
 
         state
     end
+  rescue
+    e ->
+      Logger.error(
+        "Could not configure interface #{ifname} for #{state}: #{Exception.message(e)}"
+      )
+
+      state
   end
 
   defp open_multicast_discovery_socket(state, _ifname, if_index) do
@@ -781,7 +779,10 @@ defmodule RNS.Interfaces.AutoInterface do
         state
       end
     else
-      if not Map.has_key?(state.peers, addr) do
+      if Map.has_key?(state.peers, addr) do
+        # Refresh existing peer
+        do_refresh_peer(state, addr)
+      else
         now = System.system_time(:second)
         peer_ifname = ifname || find_ifname_for_peer(state, addr)
 
@@ -815,9 +816,6 @@ defmodule RNS.Interfaces.AutoInterface do
         Logger.debug("#{state} added peer #{addr} on #{peer_ifname}")
 
         %{state | peers: peers, spawned_interfaces: spawned_interfaces}
-      else
-        # Refresh existing peer
-        do_refresh_peer(state, addr)
       end
     end
   end
@@ -925,60 +923,56 @@ defmodule RNS.Interfaces.AutoInterface do
   end
 
   defp do_peer_announce(state, ifname) do
-    try do
-      link_local_addr = Map.get(state.adopted_interfaces, ifname)
+    link_local_addr = Map.get(state.adopted_interfaces, ifname)
 
-      if link_local_addr do
-        token = compute_discovery_token(state.group_id, link_local_addr)
-        if_index = interface_name_to_index(ifname)
-        mcast_addr = parse_ipv6!(state.mcast_discovery_address)
+    if link_local_addr do
+      token = compute_discovery_token(state.group_id, link_local_addr)
+      if_index = interface_name_to_index(ifname)
+      mcast_addr = parse_ipv6!(state.mcast_discovery_address)
 
-        case :gen_udp.open(0, [:binary, :inet6, {:multicast_if, if_index}]) do
-          {:ok, socket} ->
-            :gen_udp.send(socket, mcast_addr, state.discovery_port, token)
-            :gen_udp.close(socket)
+      case :gen_udp.open(0, [:binary, :inet6, {:multicast_if, if_index}]) do
+        {:ok, socket} ->
+          :gen_udp.send(socket, mcast_addr, state.discovery_port, token)
+          :gen_udp.close(socket)
 
-          {:error, reason} ->
-            timed_out = Map.get(state.timed_out_interfaces, ifname)
+        {:error, reason} ->
+          timed_out = Map.get(state.timed_out_interfaces, ifname)
 
-            if timed_out != true do
-              Logger.warning(
-                "#{state} Detected possible carrier loss on #{ifname}: #{inspect(reason)}"
-              )
-            end
-        end
+          if timed_out != true do
+            Logger.warning(
+              "#{state} Detected possible carrier loss on #{ifname}: #{inspect(reason)}"
+            )
+          end
       end
-    rescue
-      e ->
-        Logger.error("Error in peer_announce for #{ifname}: #{Exception.message(e)}")
     end
+  rescue
+    e ->
+      Logger.error("Error in peer_announce for #{ifname}: #{Exception.message(e)}")
   end
 
   defp do_reverse_announce(state, ifname, peer_addr) do
-    try do
-      link_local_addr = Map.get(state.adopted_interfaces, ifname)
+    link_local_addr = Map.get(state.adopted_interfaces, ifname)
 
-      if link_local_addr do
-        token = compute_discovery_token(state.group_id, link_local_addr)
-        addr = parse_ipv6!(peer_addr)
+    if link_local_addr do
+      token = compute_discovery_token(state.group_id, link_local_addr)
+      addr = parse_ipv6!(peer_addr)
 
-        case :gen_udp.open(0, [:binary, :inet6]) do
-          {:ok, socket} ->
-            :gen_udp.send(socket, addr, state.unicast_discovery_port, token)
-            :gen_udp.close(socket)
+      case :gen_udp.open(0, [:binary, :inet6]) do
+        {:ok, socket} ->
+          :gen_udp.send(socket, addr, state.unicast_discovery_port, token)
+          :gen_udp.close(socket)
 
-          {:error, reason} ->
-            Logger.error(
-              "Could not send reverse peering packet to #{peer_addr} on #{ifname}: #{inspect(reason)}"
-            )
-        end
+        {:error, reason} ->
+          Logger.error(
+            "Could not send reverse peering packet to #{peer_addr} on #{ifname}: #{inspect(reason)}"
+          )
       end
-    rescue
-      e ->
-        Logger.error(
-          "Could not send reverse peering packet to #{peer_addr} on #{ifname}: #{Exception.message(e)}"
-        )
     end
+  rescue
+    e ->
+      Logger.error(
+        "Could not send reverse peering packet to #{peer_addr} on #{ifname}: #{Exception.message(e)}"
+      )
   end
 
   defp do_detach(state) do
@@ -1022,8 +1016,7 @@ defmodule RNS.Interfaces.AutoInterface do
 
   defp format_ipv6({a, b, c, d, e, f, g, h}) do
     [a, b, c, d, e, f, g, h]
-    |> Enum.map(&Integer.to_string(&1, 16))
-    |> Enum.join(":")
+    |> Enum.map_join(":", &Integer.to_string(&1, 16))
     |> String.downcase()
   end
 

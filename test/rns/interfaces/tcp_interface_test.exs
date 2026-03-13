@@ -1,11 +1,11 @@
 defmodule RNS.Interfaces.TCPInterfaceTest do
   use ExUnit.Case, async: false
 
-  alias RNS.Interfaces.TCPInterface
-  alias RNS.Interfaces.TCPClientInterface
-  alias RNS.Interfaces.TCPServerInterface
   alias RNS.Interfaces.Interface.HDLC
   alias RNS.Interfaces.Interface.KISS
+  alias RNS.Interfaces.TCPClientInterface
+  alias RNS.Interfaces.TCPInterface
+  alias RNS.Interfaces.TCPServerInterface
 
   # ── TCPInterface constants ──────────────────────────────────────
 
@@ -237,7 +237,7 @@ defmodule RNS.Interfaces.TCPInterfaceTest do
       TCPClientInterface.stop(client)
     end
 
-    test "HDLC framing roundtrip over TCP", %{server_port: server_port} do
+    test "HDLC framing roundtrip over TCP", %{server_port: _server_port} do
       test_pid = self()
 
       # Start server with ourselves as owner

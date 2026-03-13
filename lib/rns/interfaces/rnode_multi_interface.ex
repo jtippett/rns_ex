@@ -20,6 +20,8 @@ defmodule RNS.Interfaces.RNodeMultiInterface do
 
   import Bitwise
 
+  @compile {:no_warn_undefined, Circuits.UART}
+
   # ── RNode Multi KISS command constants ──────────────────────────────
 
   # Frame delimiters
@@ -47,16 +49,13 @@ defmodule RNS.Interfaces.RNodeMultiInterface do
   @cmd_stat_snr 0x24
   @cmd_stat_chtm 0x25
   @cmd_stat_phyprm 0x26
-  @cmd_blink 0x30
+  # Defined in Python but not currently used:
+  # cmd_blink = 0x30, cmd_fb_ext = 0x41, cmd_fb_read = 0x42,
+  # cmd_fb_write = 0x43, cmd_bt_ctrl = 0x46, cmd_rom_read = 0x51
   @cmd_random 0x40
-  @cmd_fb_ext 0x41
-  @cmd_fb_read 0x42
-  @cmd_fb_write 0x43
-  @cmd_bt_ctrl 0x46
   @cmd_platform 0x48
   @cmd_mcu 0x49
   @cmd_fw_version 0x50
-  @cmd_rom_read 0x51
   @cmd_reset 0x55
   @cmd_interfaces 0x71
   @cmd_error 0x90
@@ -84,7 +83,7 @@ defmodule RNS.Interfaces.RNodeMultiInterface do
 
   # Radio states
   @radio_state_off 0x00
-  @radio_state_on 0x01
+  # Defined in Python but not currently used: radio_state_on = 0x01
 
   # Error codes
   @error_initradio 0x01
@@ -828,6 +827,7 @@ defmodule RNS.Interfaces.RNodeMultiInterface do
 
   # ── Process outgoing ───────────────────────────────────────────────
 
+  @impl true
   @doc "Process outgoing data for a sub-interface."
   @spec process_outgoing(map(), binary()) :: map()
   def process_outgoing(state, _data) do
@@ -867,6 +867,7 @@ defmodule RNS.Interfaces.RNodeMultiInterface do
 
   # ── Process incoming ───────────────────────────────────────────────
 
+  @impl true
   @doc "Process incoming data (called from sub-interface)."
   @spec process_incoming(map(), binary()) :: map()
   def process_incoming(state, data) do
@@ -875,6 +876,7 @@ defmodule RNS.Interfaces.RNodeMultiInterface do
 
   # ── Detach ─────────────────────────────────────────────────────────
 
+  @impl true
   @doc "Detach the interface."
   @spec detach(map()) :: map()
   def detach(state) do
@@ -898,20 +900,16 @@ defmodule RNS.Interfaces.RNodeMultiInterface do
   end
 
   defp close_port(%{backend: :circuits_uart, uart_pid: pid}) when pid != nil do
-    try do
-      Circuits.UART.close(pid)
-      Circuits.UART.stop(pid)
-    rescue
-      _ -> :ok
-    end
+    Circuits.UART.close(pid)
+    Circuits.UART.stop(pid)
+  rescue
+    _ -> :ok
   end
 
   defp close_port(%{backend: :port, port_ref: ref}) when is_port(ref) do
-    try do
-      Port.close(ref)
-    rescue
-      _ -> :ok
-    end
+    Port.close(ref)
+  rescue
+    _ -> :ok
   end
 
   defp close_port(_state), do: :ok
@@ -982,7 +980,6 @@ defmodule RNS.Interfaces.RNodeSubInterface do
                 # Sub-interface identity
                 index: 0,
                 interface_type: nil,
-                parent_interface: nil,
                 parent_pid: nil,
 
                 # Radio configuration (desired)
@@ -1095,6 +1092,7 @@ defmodule RNS.Interfaces.RNodeSubInterface do
 
   @doc "Validate radio parameters for a sub-interface."
   @spec validate_radio_params(%__MODULE__{}) :: :ok | {:error, String.t()}
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def validate_radio_params(sub) do
     cond do
       sub.frequency == nil ->
@@ -1203,6 +1201,7 @@ defmodule RNS.Interfaces.RNodeSubInterface do
     freq_ok and bw_ok and txp_ok and sf_ok and state_ok
   end
 
+  @impl true
   @doc "Process incoming data on this sub-interface."
   @spec process_incoming(%__MODULE__{}, binary()) :: %__MODULE__{}
   def process_incoming(sub, data) do
@@ -1211,6 +1210,7 @@ defmodule RNS.Interfaces.RNodeSubInterface do
     sub
   end
 
+  @impl true
   @doc "Process outgoing data through parent interface."
   @spec process_outgoing(%__MODULE__{}, binary()) :: %__MODULE__{}
   def process_outgoing(sub, data) do
@@ -1256,6 +1256,13 @@ defmodule RNS.Interfaces.RNodeSubInterface do
       {:empty, _} ->
         %{sub | interface_ready: true}
     end
+  end
+
+  @impl true
+  @doc "Detach the sub-interface."
+  @spec detach(%__MODULE__{}) :: %__MODULE__{}
+  def detach(sub) do
+    %{sub | online: false, detached: true}
   end
 
   @doc "Should ingress limit always returns false."

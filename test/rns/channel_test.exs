@@ -71,7 +71,7 @@ defmodule RNS.ChannelTest do
   use ExUnit.Case, async: true
 
   alias RNS.Channel
-  alias RNS.Channel.{Envelope, Outlet, TestOutlet, TestMessage, TestMessage2, ChannelException}
+  alias RNS.Channel.{ChannelException, Envelope, Outlet, TestMessage, TestMessage2, TestOutlet}
 
   # ── Helper ──────────────────────────────────────────────────
 
@@ -344,7 +344,7 @@ defmodule RNS.ChannelTest do
       assert env.sequence == 42
       assert env.message == %TestMessage{data: "test"}
       assert env.ts > 0
-      assert env.id != nil
+      assert is_reference(env.id)
       assert env.tries == 0
       assert env.packed == false
       assert env.unpacked == false
@@ -420,7 +420,7 @@ defmodule RNS.ChannelTest do
     end
 
     test "pack/unpack with TestMessage2 (integer encoding)" do
-      msg = %TestMessage2{value: 12345}
+      msg = %TestMessage2{value: 12_345}
       env = Envelope.new(sequence: 7, message: msg)
       env = Envelope.pack(env)
 
@@ -429,7 +429,7 @@ defmodule RNS.ChannelTest do
       env2 = Envelope.unpack(env2, factories)
 
       assert env2.sequence == 7
-      assert env2.message.value == 12345
+      assert env2.message.value == 12_345
     end
   end
 
@@ -559,7 +559,7 @@ defmodule RNS.ChannelTest do
 
       # Sequence 1 arrived but sequence 0 hasn't — nothing should be delivered yet
       [{:messages, msgs}] = :ets.lookup(received, :messages)
-      assert length(msgs) == 0
+      assert msgs == []
 
       # Now send sequence 0
       data0 = "msg0"

@@ -3,10 +3,10 @@ defmodule RNS.LinkTest do
 
   import Bitwise
 
-  alias RNS.Link
-  alias RNS.Identity
-  alias RNS.Cryptography.X25519
   alias RNS.Cryptography.Ed25519
+  alias RNS.Cryptography.X25519
+  alias RNS.Identity
+  alias RNS.Link
 
   # ── Constants ───────────────────────────────────────────────────
 

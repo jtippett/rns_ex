@@ -200,6 +200,7 @@ defmodule RNS.Interfaces.WeaveInterface do
     end
   end
 
+  @impl true
   @doc "Process incoming data from a specific endpoint."
   @spec process_incoming(map(), binary(), binary() | nil) :: map()
   def process_incoming(state, data, endpoint_addr \\ nil) do
@@ -213,10 +214,12 @@ defmodule RNS.Interfaces.WeaveInterface do
     end
   end
 
+  @impl true
   @doc "Process outgoing data (no-op on parent)."
   @spec process_outgoing(map(), binary()) :: map()
   def process_outgoing(state, _data), do: state
 
+  @impl true
   @doc "Detach the interface."
   @spec detach(map()) :: map()
   def detach(state) do
@@ -338,6 +341,7 @@ defmodule RNS.Interfaces.WeaveInterface.WDCL do
   """
 
   alias RNS.Interfaces.Interface.HDLC
+  alias RNS.Interfaces.WeaveInterface.WeaveDevice
 
   # WDCL packet types
   @wdcl_t_discover 0x00
@@ -431,7 +435,7 @@ defmodule RNS.Interfaces.WeaveInterface.WDCL do
     conn = %{conn | rxb: conn.rxb + byte_size(data)}
 
     if conn.device do
-      RNS.Interfaces.WeaveInterface.WeaveDevice.incoming_frame(conn.device, data)
+      WeaveDevice.incoming_frame(conn.device, data)
     end
 
     conn
@@ -468,9 +472,9 @@ defmodule RNS.Interfaces.WeaveInterface.WDCL do
            %{signed_id: binary(), pub_key: binary(), switch_id: binary(), signature: binary()}}
           | :error
   def parse_discovery_response(data) do
-    switch_id_len = RNS.Interfaces.WeaveInterface.WeaveDevice.switch_id_len()
-    pubkey_size = RNS.Interfaces.WeaveInterface.WeaveDevice.pubkey_size()
-    signature_len = RNS.Interfaces.WeaveInterface.WeaveDevice.signature_len()
+    switch_id_len = WeaveDevice.switch_id_len()
+    pubkey_size = WeaveDevice.pubkey_size()
+    signature_len = WeaveDevice.signature_len()
 
     expected_len = switch_id_len + 1 + pubkey_size + signature_len
 
@@ -496,7 +500,7 @@ defmodule RNS.Interfaces.WeaveInterface.WDCL do
   @doc "Extract the packet type from a WDCL frame."
   @spec packet_type(binary()) :: byte() | nil
   def packet_type(data) do
-    switch_id_len = RNS.Interfaces.WeaveInterface.WeaveDevice.switch_id_len()
+    switch_id_len = WeaveDevice.switch_id_len()
 
     if byte_size(data) > switch_id_len do
       :binary.at(data, switch_id_len)
@@ -552,7 +556,7 @@ defmodule RNS.Interfaces.WeaveInterface.Evt do
   @et_drv_usb_cdc_tx_timeout 0x1018
   @et_drv_i2c_init 0x1020
   @et_drv_nvs_init 0x1030
-  @et_drv_nvs_erase 0x1031
+  # Defined in Python but not currently used: et_drv_nvs_erase = 0x1031
   @et_drv_crypto_init 0x1040
   @et_drv_display_init 0x1050
   @et_drv_display_bus_available 0x1051
@@ -579,13 +583,12 @@ defmodule RNS.Interfaces.WeaveInterface.Evt do
   @et_proto_weave_ep_via 0x3104
   @et_srvctl_remote_display 0xA000
   @et_interface_registered 0xD000
-  @et_stat_state 0xE000
-  @et_stat_uptime 0xE001
-  @et_stat_timebase 0xE002
+  # Defined in Python but not currently used:
+  # et_stat_state = 0xE000, et_stat_uptime = 0xE001,
+  # et_stat_timebase = 0xE002, et_stat_storage = 0xE006
   @et_stat_cpu 0xE003
   @et_stat_task_cpu 0xE004
   @et_stat_memory 0xE005
-  @et_stat_storage 0xE006
   @et_syserr_mem_exhausted 0xF000
 
   # Interface types
@@ -810,8 +813,15 @@ defmodule RNS.Interfaces.WeaveInterface.LogFrame do
 
   defstruct [:timestamp, :level, :event, data: <<>>]
 
+  @type t :: %__MODULE__{
+          timestamp: non_neg_integer() | nil,
+          level: non_neg_integer() | nil,
+          event: non_neg_integer() | nil,
+          data: binary()
+        }
+
   @doc "Create a new LogFrame."
-  @spec new(keyword()) :: %__MODULE__{}
+  @spec new(keyword()) :: t()
   def new(opts \\ []) do
     %__MODULE__{
       timestamp: Keyword.get(opts, :timestamp),
@@ -872,7 +882,7 @@ defmodule RNS.Interfaces.WeaveInterface.WeaveDevice do
   and remote display for Weave-compatible devices.
   """
 
-  alias RNS.Interfaces.WeaveInterface.{WDCL, Cmd, Evt, LogFrame, WeaveEndpoint}
+  alias RNS.Interfaces.WeaveInterface.{Cmd, Evt, LogFrame, WDCL, WeaveEndpoint}
 
   @statlen_max 120
   @stat_update_throttle 0.5
@@ -911,6 +921,8 @@ defmodule RNS.Interfaces.WeaveInterface.WeaveDevice do
     next_update_memory: 0,
     next_update_cpu: 0
   ]
+
+  @type t :: %__MODULE__{}
 
   # Public constant accessors
   def switch_id_len, do: @weave_switch_id_len
@@ -1025,7 +1037,7 @@ defmodule RNS.Interfaces.WeaveInterface.WeaveDevice do
     end
   end
 
-  defp received_packet(device, source, data) do
+  defp received_packet(device, source, _data) do
     device = endpoint_alive(device, source)
 
     if device.as_interface and device.rns_interface do
@@ -1117,7 +1129,8 @@ defmodule RNS.Interfaces.WeaveInterface.WeaveDevice do
   end
 
   @doc "Handle a log event frame."
-  @spec log_handle(%__MODULE__{}, %LogFrame{}) :: %__MODULE__{}
+  @spec log_handle(t(), LogFrame.t()) :: t()
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def log_handle(device, frame) do
     cond do
       frame.event == Evt.et_proto_wdcl_connection() ->
@@ -1314,6 +1327,13 @@ defmodule RNS.Interfaces.WeaveInterface.WeaveInterfacePeer do
     }
   end
 
+  @impl true
+  @doc "Process incoming data (behaviour callback, no parent state)."
+  @spec process_incoming(%__MODULE__{}, binary()) :: %__MODULE__{}
+  def process_incoming(peer, data) do
+    %{peer | rxb: peer.rxb + byte_size(data)}
+  end
+
   @doc "Process incoming data with multi-interface deduplication."
   @spec process_incoming(%__MODULE__{}, binary(), map()) :: {%__MODULE__{}, map()}
   def process_incoming(peer, data, parent_state) do
@@ -1321,7 +1341,9 @@ defmodule RNS.Interfaces.WeaveInterface.WeaveInterfacePeer do
       {deque_hit, parent_state} =
         RNS.Interfaces.WeaveInterface.mif_deque_check(parent_state, data)
 
-      if not deque_hit do
+      if deque_hit do
+        {peer, parent_state}
+      else
         parent_state =
           RNS.Interfaces.WeaveInterface.refresh_peer(parent_state, peer.endpoint_addr)
 
@@ -1332,14 +1354,13 @@ defmodule RNS.Interfaces.WeaveInterface.WeaveInterfacePeer do
         notify_owner(parent_state, data, peer)
 
         {peer, parent_state}
-      else
-        {peer, parent_state}
       end
     else
       {peer, parent_state}
     end
   end
 
+  @impl true
   @doc "Process outgoing data through parent device."
   @spec process_outgoing(%__MODULE__{}, binary()) :: %__MODULE__{}
   def process_outgoing(peer, data) do
@@ -1352,6 +1373,7 @@ defmodule RNS.Interfaces.WeaveInterface.WeaveInterfacePeer do
     end
   end
 
+  @impl true
   @doc "Detach the peer."
   @spec detach(%__MODULE__{}) :: %__MODULE__{}
   def detach(peer) do

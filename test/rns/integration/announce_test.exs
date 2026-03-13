@@ -14,8 +14,8 @@ defmodule RNS.Integration.AnnounceTest do
 
   use ExUnit.Case, async: false
 
-  alias RNS.Identity
   alias RNS.Destination
+  alias RNS.Identity
   alias RNS.Packet
   alias RNS.Transport
 
@@ -31,14 +31,12 @@ defmodule RNS.Integration.AnnounceTest do
   end
 
   defp stop_transport do
-    try do
-      case GenServer.whereis(RNS.Transport) do
-        nil -> :ok
-        pid -> GenServer.stop(pid, :normal)
-      end
-    catch
-      :exit, _ -> :ok
+    case GenServer.whereis(RNS.Transport) do
+      nil -> :ok
+      pid -> GenServer.stop(pid, :normal)
     end
+  catch
+    :exit, _ -> :ok
   end
 
   # ── Announce Generation Tests ────────────────────────────────────
@@ -243,7 +241,7 @@ defmodule RNS.Integration.AnnounceTest do
       # depending on how announce handlers are dispatched in Transport.
       # We verify the handler was registered at minimum.
       handlers = Transport.get_announce_handlers()
-      assert length(handlers) >= 1
+      assert handlers != []
 
       Transport.deregister_announce_handler(handler)
       assert length(Transport.get_announce_handlers()) < length(handlers)
