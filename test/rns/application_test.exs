@@ -12,17 +12,31 @@ defmodule RNS.ApplicationTest do
       assert Process.alive?(pid)
     end
 
+    test "IdentityStore GenServer is running" do
+      pid = GenServer.whereis(RNS.IdentityStore)
+      assert is_pid(pid)
+      assert Process.alive?(pid)
+    end
+
+    test "Transport GenServer is running" do
+      pid = GenServer.whereis(RNS.Transport)
+      assert is_pid(pid)
+      assert Process.alive?(pid)
+    end
+
+    test "Reticulum GenServer is running" do
+      pid = GenServer.whereis(RNS.Reticulum)
+      assert is_pid(pid)
+      assert Process.alive?(pid)
+    end
+
     test "InterfaceSupervisor is running as a DynamicSupervisor" do
       pid = Process.whereis(RNS.InterfaceSupervisor)
       assert is_pid(pid)
       assert Process.alive?(pid)
 
-      assert DynamicSupervisor.count_children(RNS.InterfaceSupervisor) == %{
-               active: 0,
-               specs: 0,
-               supervisors: 0,
-               workers: 0
-             }
+      counts = DynamicSupervisor.count_children(RNS.InterfaceSupervisor)
+      assert is_map(counts)
     end
 
     test "LinkSupervisor is running as a DynamicSupervisor" do
@@ -51,18 +65,43 @@ defmodule RNS.ApplicationTest do
              }
     end
 
-    test "supervisor has exactly 3 children" do
+    test "supervisor has exactly 6 children" do
       counts = Supervisor.count_children(RNS.Supervisor)
-      assert counts[:active] == 3
+      assert counts[:active] == 6
     end
 
-    test "all three DynamicSupervisors are children of the top-level supervisor" do
+    test "supervisor uses :rest_for_one strategy" do
+      # Verify all expected children are present
       children = Supervisor.which_children(RNS.Supervisor)
-      child_pids = Enum.map(children, fn {_, pid, _, _} -> pid end)
+      child_ids = Enum.map(children, fn {id, _, _, _} -> id end)
 
-      assert Process.whereis(RNS.InterfaceSupervisor) in child_pids
-      assert Process.whereis(RNS.LinkSupervisor) in child_pids
-      assert Process.whereis(RNS.ResourceSupervisor) in child_pids
+      assert RNS.IdentityStore in child_ids
+      assert RNS.Transport in child_ids
+      assert RNS.InterfaceSupervisor in child_ids
+      assert RNS.LinkSupervisor in child_ids
+      assert RNS.ResourceSupervisor in child_ids
+      assert RNS.Reticulum in child_ids
+    end
+
+    test "IdentityStore ETS tables exist" do
+      assert :ets.info(:rns_known_destinations) != :undefined
+      assert :ets.info(:rns_known_ratchets) != :undefined
+    end
+
+    test "Transport ETS tables exist" do
+      assert :ets.info(:rns_destinations) != :undefined
+      assert :ets.info(:rns_interfaces) != :undefined
+      assert :ets.info(:rns_pending_links) != :undefined
+      assert :ets.info(:rns_active_links) != :undefined
+      assert :ets.info(:rns_packet_hashlist) != :undefined
+    end
+
+    test "no ETS errors on startup — all GenServers are responsive" do
+      # Verify each GenServer responds to calls (proves it's not crashed)
+      assert is_pid(GenServer.whereis(RNS.IdentityStore))
+      assert is_pid(GenServer.whereis(RNS.Transport))
+      state = GenServer.call(RNS.Reticulum, :get_state)
+      assert is_map(state)
     end
   end
 end

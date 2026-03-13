@@ -786,8 +786,9 @@ defmodule RNS.DestinationStoreTest do
   alias RNS.Identity
 
   setup do
-    store = start_supervised!(RNS.IdentityStore)
-    %{store: store}
+    # Clear ETS tables for clean state (IdentityStore is supervised by the application)
+    RNS.Test.SupervisedHelpers.clear_identity_store_tables()
+    %{store: GenServer.whereis(RNS.IdentityStore)}
   end
 
   # ── SINGLE encrypt/decrypt (needs IdentityStore for ratchet lookup) ──

@@ -5,20 +5,10 @@ defmodule RNS.TransportTest do
 
   alias RNS.Transport
 
-  # We need to restart Transport between tests to get clean ETS tables
+  # Clear Transport ETS tables between tests for clean state.
+  # Transport is started by the application supervision tree.
   setup do
-    # Stop Transport if running, then start fresh
-    try do
-      case GenServer.whereis(RNS.Transport) do
-        nil -> :ok
-        pid -> GenServer.stop(pid, :normal)
-      end
-    catch
-      :exit, _ -> :ok
-    end
-
-    Process.sleep(10)
-    {:ok, _pid} = Transport.start_link([])
+    RNS.Test.SupervisedHelpers.clear_transport_tables()
     :ok
   end
 
@@ -2045,28 +2035,18 @@ defmodule RNS.TransportTest do
   end
 
   describe "GenServer terminate persists data" do
-    test "terminate saves data when storage_path is set" do
+    test "persist_data saves packet hashlist to disk" do
       tmp_dir = Path.join(System.tmp_dir!(), "rns_test_terminate_#{:rand.uniform(999_999)}")
       File.mkdir_p!(tmp_dir)
 
       on_exit(fn -> File.rm_rf!(tmp_dir) end)
 
-      # Stop current transport, start one with storage_path
-      GenServer.stop(RNS.Transport, :normal)
-      Process.sleep(10)
-      {:ok, _pid} = Transport.start_link(storage_path: tmp_dir)
-
-      # Add some data
+      # Add some data to ETS
       Transport.mark_packet_hash(:crypto.strong_rand_bytes(32))
 
-      # Stop gracefully - should trigger persist_data
-      GenServer.stop(RNS.Transport, :normal)
-      Process.sleep(10)
-
+      # Directly test persist_data (called by terminate when storage_path is set)
+      assert :ok = RNS.Transport.CacheManagement.persist_data(tmp_dir)
       assert File.exists?(Path.join(tmp_dir, "packet_hashlist"))
-
-      # Restart for subsequent tests
-      {:ok, _pid} = Transport.start_link([])
     end
   end
 

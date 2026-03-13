@@ -86,9 +86,21 @@ defmodule RNS.IdentityStore do
 
   @impl true
   def init(_opts) do
-    :ets.new(@destinations_table, [:set, :public, :named_table, read_concurrency: true])
-    :ets.new(@ratchets_table, [:set, :public, :named_table, read_concurrency: true])
+    ets_opts = [:set, :public, :named_table, read_concurrency: true]
+    safe_create_table(@destinations_table, ets_opts)
+    safe_create_table(@ratchets_table, ets_opts)
     {:ok, %{}}
+  end
+
+  defp safe_create_table(name, opts) do
+    case :ets.info(name) do
+      :undefined ->
+        :ets.new(name, opts)
+
+      _ ->
+        :ets.delete_all_objects(name)
+        name
+    end
   end
 
   # --- Private ---

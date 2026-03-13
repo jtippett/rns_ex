@@ -6,32 +6,9 @@ defmodule RNS.Transport.AnnounceHandlerTest do
   alias RNS.Transport.AnnounceHandler.AnnounceEntry
 
   setup do
-    # Restart Transport for clean ETS tables
-    try do
-      case GenServer.whereis(RNS.Transport) do
-        nil -> :ok
-        pid -> GenServer.stop(pid, :normal)
-      end
-    catch
-      :exit, _ -> :ok
-    end
-
-    Process.sleep(10)
-    {:ok, _pid} = Transport.start_link([])
-
-    # Restart IdentityStore for clean ETS
-    try do
-      case GenServer.whereis(RNS.IdentityStore) do
-        nil -> :ok
-        pid -> GenServer.stop(pid, :normal)
-      end
-    catch
-      :exit, _ -> :ok
-    end
-
-    Process.sleep(10)
-    {:ok, _pid} = RNS.IdentityStore.start_link([])
-
+    # Clear ETS tables for clean state (processes are supervised by the application)
+    RNS.Test.SupervisedHelpers.clear_transport_tables()
+    RNS.Test.SupervisedHelpers.clear_identity_store_tables()
     :ok
   end
 

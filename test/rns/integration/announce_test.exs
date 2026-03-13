@@ -22,21 +22,9 @@ defmodule RNS.Integration.AnnounceTest do
   # ── Setup ─────────────────────────────────────────────────────────
 
   setup do
-    # Stop Transport if running, then start fresh
-    stop_transport()
-    Process.sleep(10)
-    {:ok, _pid} = Transport.start_link([])
-    on_exit(fn -> stop_transport() end)
+    # Clear ETS tables for clean state (Transport is supervised by the application)
+    RNS.Test.SupervisedHelpers.clear_transport_tables()
     :ok
-  end
-
-  defp stop_transport do
-    case GenServer.whereis(RNS.Transport) do
-      nil -> :ok
-      pid -> GenServer.stop(pid, :normal)
-    end
-  catch
-    :exit, _ -> :ok
   end
 
   # ── Announce Generation Tests ────────────────────────────────────

@@ -445,9 +445,9 @@ defmodule RNS.IdentityStoreTest do
   alias RNS.Identity
 
   setup do
-    # Start a fresh IdentityStore for each test
-    store = start_supervised!(RNS.IdentityStore)
-    %{store: store}
+    # Clear ETS tables for clean state (IdentityStore is supervised by the application)
+    RNS.Test.SupervisedHelpers.clear_identity_store_tables()
+    %{store: GenServer.whereis(RNS.IdentityStore)}
   end
 
   describe "remember/4" do
