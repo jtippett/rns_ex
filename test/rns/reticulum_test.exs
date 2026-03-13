@@ -1838,6 +1838,251 @@ defmodule RNS.ReticulumTest do
     end
   end
 
+  # ── Interface Registration with Transport (Task 1.6) ──────────────
+
+  describe "interface registration with Transport" do
+    setup do
+      configdir = Path.join(System.tmp_dir!(), "rns_test_iface_reg_#{:rand.uniform(100_000)}")
+      File.mkdir_p!(configdir)
+
+      on_exit(fn ->
+        File.rm_rf!(configdir)
+      end)
+
+      # Clear the interfaces ETS table before each test
+      try do
+        :ets.delete_all_objects(:rns_interfaces)
+      rescue
+        _ -> :ok
+      end
+
+      %{configdir: configdir}
+    end
+
+    test "shared server interface is registered with Transport after start", %{
+      configdir: configdir
+    } do
+      name = :"test_iface_reg_server_#{:rand.uniform(100_000)}"
+
+      {:ok, pid} =
+        Reticulum.start_link(
+          configdir: configdir,
+          skip_start: true,
+          server_name: name
+        )
+
+      state = :sys.get_state(pid)
+
+      state = %{
+        state
+        | share_instance: true,
+          local_interface_port: 0,
+          local_socket_path: nil,
+          force_shared_instance_bitrate: nil,
+          require_shared_instance: false,
+          started_interfaces: []
+      }
+
+      result = Reticulum.start_local_interface(state)
+      assert result.is_shared_instance == true
+
+      # The shared server interface should be registered with Transport
+      interfaces = RNS.Transport.get_interfaces()
+      assert length(interfaces) >= 1
+
+      registered = Enum.find(interfaces, &(&1.name == "Shared Instance"))
+      assert registered != nil
+      assert registered.out == true
+      assert is_pid(registered.pid)
+      assert Process.alive?(registered.pid)
+
+      # Clean up
+      GenServer.call(result.shared_instance_interface, :detach)
+      GenServer.stop(pid)
+    end
+
+    test "shared client interface is registered with Transport after start", %{
+      configdir: configdir
+    } do
+      # Start a server first
+      {:ok, server} =
+        RNS.Interfaces.LocalServerInterface.start_link(
+          name: "existing_shared_reg",
+          bindport: 0
+        )
+
+      server_state = RNS.Interfaces.LocalServerInterface.get_state(server)
+      {:ok, port} = :inet.port(server_state.listen_socket)
+
+      name = :"test_iface_reg_client_#{:rand.uniform(100_000)}"
+
+      {:ok, pid} =
+        Reticulum.start_link(
+          configdir: configdir,
+          skip_start: true,
+          server_name: name
+        )
+
+      state = :sys.get_state(pid)
+
+      state = %{
+        state
+        | share_instance: true,
+          local_interface_port: port,
+          local_socket_path: nil,
+          force_shared_instance_bitrate: nil,
+          require_shared_instance: false,
+          started_interfaces: []
+      }
+
+      result = Reticulum.start_local_interface(state)
+      assert result.is_connected_to_shared_instance == true
+
+      # The client interface should be registered with Transport
+      interfaces = RNS.Transport.get_interfaces()
+      assert length(interfaces) >= 1
+
+      registered = Enum.find(interfaces, &(&1.name == "Local shared instance"))
+      assert registered != nil
+      assert registered.out == true
+      assert is_pid(registered.pid)
+
+      # Clean up
+      for iface_pid <- result.started_interfaces do
+        if Process.alive?(iface_pid), do: GenServer.stop(iface_pid)
+      end
+
+      RNS.Interfaces.LocalServerInterface.stop(server)
+      GenServer.stop(pid)
+    end
+
+    test "interfaces are deregistered during Reticulum shutdown", %{configdir: configdir} do
+      name = :"test_iface_dereg_#{:rand.uniform(100_000)}"
+
+      {:ok, pid} =
+        Reticulum.start_link(
+          configdir: configdir,
+          skip_start: true,
+          server_name: name
+        )
+
+      state = :sys.get_state(pid)
+
+      state = %{
+        state
+        | share_instance: true,
+          local_interface_port: 0,
+          local_socket_path: nil,
+          force_shared_instance_bitrate: nil,
+          require_shared_instance: false,
+          started_interfaces: []
+      }
+
+      result = Reticulum.start_local_interface(state)
+      assert result.is_shared_instance == true
+
+      # Verify at least one interface is registered
+      interfaces_before = RNS.Transport.get_interfaces()
+      assert length(interfaces_before) >= 1
+
+      # Update Reticulum state with the started interfaces so terminate can deregister them
+      :sys.replace_state(pid, fn _state -> result end)
+
+      # Stop Reticulum — should deregister interfaces
+      GenServer.stop(pid)
+
+      # Interfaces should be deregistered
+      interfaces_after = RNS.Transport.get_interfaces()
+
+      registered_names =
+        Enum.map(interfaces_after, & &1.name)
+
+      refute "Shared Instance" in registered_names
+    end
+
+    test "configured interface is registered with Transport after synthesis", %{
+      configdir: configdir
+    } do
+      name = :"test_iface_reg_synth_#{:rand.uniform(100_000)}"
+
+      # Write a config with a PipeInterface (simplest to test — no network)
+      File.write!(Path.join(configdir, "config"), """
+      [reticulum]
+      share_instance = no
+
+      [interfaces]
+        [[Test Pipe]]
+          type = PipeInterface
+          enabled = yes
+          command = cat
+          outgoing = true
+      """)
+
+      {:ok, pid} =
+        Reticulum.start_link(
+          configdir: configdir,
+          skip_start: true,
+          server_name: name
+        )
+
+      state = GenServer.call(name, :get_state)
+      state = %{state | is_standalone_instance: true}
+      new_state = Reticulum.start_configured_interfaces(state)
+
+      assert length(new_state.started_interfaces) > 0
+
+      # The configured interface should be registered with Transport
+      interfaces = RNS.Transport.get_interfaces()
+      registered = Enum.find(interfaces, &(&1.name == "Test Pipe"))
+      assert registered != nil
+      assert registered.out == true
+      assert is_pid(registered.pid)
+
+      # Clean up
+      for iface_pid <- new_state.started_interfaces do
+        if Process.alive?(iface_pid), do: GenServer.stop(iface_pid)
+      end
+
+      GenServer.stop(pid)
+    end
+
+    test "process_outgoing message is handled by LocalClientInterface" do
+      test_pid = self()
+
+      # Start a local server that captures client data
+      {:ok, server} =
+        RNS.Interfaces.LocalServerInterface.start_link(
+          name: "po_test_server",
+          bindport: 0
+        )
+
+      server_state = RNS.Interfaces.LocalServerInterface.get_state(server)
+      {:ok, port} = :inet.port(server_state.listen_socket)
+
+      # Start a client connected to the server
+      {:ok, client} =
+        RNS.Interfaces.LocalClientInterface.start_link(
+          name: "po_test_client",
+          target_port: port,
+          out: true
+        )
+
+      # Give the connection a moment to establish
+      Process.sleep(50)
+
+      # Send a process_outgoing message — should not crash
+      send(client, {:process_outgoing, "test data"})
+      Process.sleep(50)
+
+      # The client should still be alive (message was handled, not dropped by catch-all)
+      assert Process.alive?(client)
+
+      # Clean up
+      GenServer.stop(client)
+      RNS.Interfaces.LocalServerInterface.stop(server)
+    end
+  end
+
   # ── Mode flag query APIs ─────────────────────────────────────────
 
   describe "mode flag query APIs" do

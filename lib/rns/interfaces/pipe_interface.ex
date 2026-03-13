@@ -236,6 +236,15 @@ defmodule RNS.Interfaces.PipeInterface do
     {:noreply, state}
   end
 
+  def handle_info({:set_field, field, value}, state) when is_atom(field) do
+    {:noreply, Map.put(state, field, value)}
+  end
+
+  def handle_info({:process_outgoing, raw}, state) when is_binary(raw) do
+    process_outgoing(state, raw)
+    {:noreply, %{state | txb: state.txb + byte_size(raw)}}
+  end
+
   def handle_info(_msg, state) do
     {:noreply, state}
   end

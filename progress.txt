@@ -126,3 +126,39 @@ packets correctly bypass the path table via `should_use_path_table?` returning f
 `packet_type == @announce`.
 
 **Result:** `mix test` passes with 0 failures (3030 tests, 13 pre-existing skipped fixture tests).
+
+## 2026-03-14 — Task 1.6: Register interfaces with Transport during startup
+
+**Changes:**
+- `lib/rns/reticulum.ex`:
+  - Added `register_interface_with_transport/2` function that gets the interface's GenServer
+    state via `:get_state`, converts from struct to plain map, merges in optional post-init
+    updates (out, mode, IFAC settings, etc.), adds a `:pid` field, computes hash if missing,
+    and calls `RNS.Transport.register_interface/1`.
+  - In `start_shared_server/1`: calls `register_interface_with_transport/1` after successful
+    server interface startup.
+  - In `start_shared_client/1`: calls `register_interface_with_transport/1` after successful
+    client interface startup.
+  - In `synthesize_interface/3`: after `apply_interface_post_init` and `start_interface_by_type`,
+    calls `register_interface_with_transport/2` with post-init updates merged in so Transport
+    has correct `out`, `mode`, IFAC, announce rate, and ingress control settings.
+  - In `detach_all_interfaces/1`: now calls `RNS.Transport.deregister_interface/1` for each
+    registered interface before detaching, ensuring clean ETS cleanup during shutdown.
+  - Changed `apply_interface_post_init/3` to send individual `{:set_field, key, value}`
+    messages instead of a single `{:apply_config, updates}` message (which had no handler
+    and was silently dropped). Interfaces with `set_field` handlers now actually apply config.
+- `lib/rns/interfaces/local_interface.ex`:
+  - Added `handle_info({:process_outgoing, raw}, state)` to `LocalClientInterface`, calling
+    the behaviour's `process_outgoing/2` and updating txb stats. This enables Transport's
+    `call_process_outgoing` to transmit through registered client interfaces via pid.
+- `lib/rns/interfaces/pipe_interface.ex`:
+  - Added `handle_info({:set_field, field, value}, state)` for runtime config updates.
+  - Added `handle_info({:process_outgoing, raw}, state)` for Transport transmit.
+- `test/rns/reticulum_test.exs`: Added 5 tests covering:
+  - Shared server interface is registered with Transport after start
+  - Shared client interface is registered with Transport after start
+  - Interfaces are deregistered during Reticulum shutdown
+  - Configured interface (PipeInterface) is registered after synthesis
+  - process_outgoing message is handled by LocalClientInterface
+
+**Result:** `mix test` passes with 0 failures (3035 tests, 13 pre-existing skipped fixture tests).

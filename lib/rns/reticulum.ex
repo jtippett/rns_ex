@@ -985,6 +985,9 @@ defmodule RNS.Reticulum do
           send(pid, {:set_field, :bitrate, state.force_shared_instance_bitrate})
         end
 
+        # Register the shared server interface with Transport
+        register_interface_with_transport(pid)
+
         {:ok,
          %{
            state
@@ -1018,6 +1021,9 @@ defmodule RNS.Reticulum do
         if state.force_shared_instance_bitrate do
           send(pid, {:set_field, :bitrate, state.force_shared_instance_bitrate})
         end
+
+        # Register the shared client interface with Transport
+        register_interface_with_transport(pid)
 
         {:ok,
          %{
@@ -1090,6 +1096,11 @@ defmodule RNS.Reticulum do
         {:ok, pid, state} ->
           # Apply post-init settings to the running interface process
           apply_interface_post_init(pid, params, state)
+          # Register the interface with Transport so it can be used for transmit.
+          # Post-init updates are merged into the registration map to ensure
+          # Transport has correct values (out, mode, IFAC, etc.)
+          post_init_updates = build_post_init_updates(params, state)
+          register_interface_with_transport(pid, post_init_updates)
           %{state | started_interfaces: [pid | state.started_interfaces]}
 
         {:error, reason} ->
@@ -1510,13 +1521,55 @@ defmodule RNS.Reticulum do
   end
 
   defp apply_interface_post_init(pid, params, state) when is_pid(pid) do
-    # Build updates to send to the interface process
+    # Build updates to send to the interface process via individual set_field messages
     updates = build_post_init_updates(params, state)
-    send(pid, {:apply_config, updates})
+
+    for {key, value} <- updates do
+      send(pid, {:set_field, key, value})
+    end
+
     :ok
   end
 
   defp apply_interface_post_init(_pid, _params, _state), do: :ok
+
+  @doc false
+  @spec register_interface_with_transport(pid(), map()) :: :ok
+  def register_interface_with_transport(pid, extra_updates \\ %{}) when is_pid(pid) do
+    # Get the interface's current state, merge any post-init updates,
+    # add the pid, compute the hash, and register with Transport.
+    state =
+      try do
+        GenServer.call(pid, :get_state)
+      catch
+        _, _ -> nil
+      end
+
+    if state do
+      registration =
+        state
+        |> Map.from_struct()
+        |> Map.merge(extra_updates)
+        |> Map.put(:pid, pid)
+
+      # Ensure hash is set
+      registration =
+        if registration[:hash] == nil do
+          Map.put(
+            registration,
+            :hash,
+            RNS.Interfaces.Interface.hash(registration)
+          )
+        else
+          registration
+        end
+
+      RNS.Transport.register_interface(registration)
+    else
+      Logger.warning("Could not get state from interface #{inspect(pid)} for registration")
+      :ok
+    end
+  end
 
   @doc false
   def build_post_init_updates(params, _state) do
@@ -1629,7 +1682,7 @@ defmodule RNS.Reticulum do
   end
 
   defp detach_all_interfaces(state) do
-    # Get all interfaces from Transport and detach them
+    # Get all interfaces from Transport, detach them, and deregister
     interfaces =
       try do
         RNS.Transport.get_interfaces()
@@ -1638,6 +1691,13 @@ defmodule RNS.Reticulum do
       end
 
     for interface <- interfaces do
+      try do
+        # Deregister from Transport
+        RNS.Transport.deregister_interface(interface)
+      rescue
+        _ -> :ok
+      end
+
       try do
         if is_map(interface) and Map.has_key?(interface, :pid) and is_pid(interface.pid) do
           send(interface.pid, :detach)

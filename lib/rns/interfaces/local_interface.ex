@@ -353,6 +353,11 @@ defmodule RNS.Interfaces.LocalClientInterface do
     {:noreply, Map.put(state, field, value)}
   end
 
+  def handle_info({:process_outgoing, raw}, state) when is_binary(raw) do
+    process_outgoing(state, raw)
+    {:noreply, %{state | txb: state.txb + byte_size(raw)}}
+  end
+
   def handle_info(_msg, state) do
     {:noreply, state}
   end
