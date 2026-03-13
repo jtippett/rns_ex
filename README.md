@@ -144,6 +144,14 @@ The following command-line utilities are included:
 - **rnid** — Identity management (generate, import, export, encrypt, sign)
 - **rncp** — Remote file copy via Resources
 - **rnx** — Remote command execution via Links
+- **rnir** — Distributed identity resolver
+- **rnpkg** — Meta package manager
+
+### Not Yet Supported
+
+The following Python RNS utilities are **not included** in this release:
+
+- **rnodeconf** — RNode hardware configuration and firmware management. This utility requires serial port communication with RNode LoRa hardware devices (ESP32, AVR, nRF52) and depends on platform-specific tools like `esptool`. It is out of scope for the initial Elixir release.
 
 ## Examples
 

@@ -477,3 +477,44 @@ timer (12h interval via :run_jobs) was already working.
 - rnsd enters shared-instance mode via Reticulum's normal init path (unchanged)
 
 **Result:** `mix test` passes with 0 failures (3140 tests, 13 pre-existing skipped fixture tests).
+
+## 2026-03-14 — Task 3.3: Scope and implement missing CLI utilities
+
+**Assessment:**
+- **rnir.py** (80 lines): "Reticulum Distributed Identity Resolver" — a stub that parses CLI
+  args, starts Reticulum, and exits. No hardware dependencies. No actual identity resolution
+  logic (just initializes Reticulum). **Decision: implement** (trivial, matches Python stub).
+- **rnpkg.py** (79 lines): "Reticulum Meta Package Manager" — nearly identical to rnir. Stub
+  with a placeholder example config. No hardware dependencies. No actual package management
+  logic. **Decision: implement** (trivial, matches Python stub).
+- **rnodeconf.py** (4,528 lines): RNode hardware configuration and firmware management utility.
+  Requires serial port communication with RNode LoRa devices (ESP32, AVR, nRF52), uses pyserial,
+  esptool, RSA signature verification, and KISS protocol. **Decision: defer** — out of scope
+  for first Elixir release due to hardware dependencies and massive complexity.
+
+**Changes:**
+- `lib/rns/utilities/rnir.ex`: New module implementing the `rnir` utility matching Python's
+  behavior: CLI argument parsing (--config, -v, -q, --version, -h), program_setup that starts
+  Reticulum via `CLI.start_for_cli/1` and returns. Uses the supervised runtime (no manual
+  start_link calls).
+- `lib/rns/utilities/rnpkg.ex`: New module implementing the `rnpkg` utility matching Python's
+  behavior: CLI argument parsing (--config, -v, -q, --exampleconfig, --version, -h),
+  `example_rnpkg_config/0` matching Python's placeholder config, program_setup via
+  `CLI.start_for_cli/1`.
+- `mix.exs`: Added `RNS.Utilities.RNIR` and `RNS.Utilities.RNPKG` to docs groups. Escript
+  config unchanged (only rnsd is the main escript entry point — other utilities are invoked
+  via `mix run` or as library calls).
+- `README.md`: Added rnir and rnpkg to supported CLI utilities list. Added "Not Yet Supported"
+  section documenting that rnodeconf is not included in this release, explaining the hardware
+  dependencies (serial communication with RNode LoRa devices, esptool).
+- `test/rns/utilities/rnir_test.exs`: New test file with 11 tests covering argument parsing
+  (empty args, --config, -v, -q, --version, unknown options, unexpected args, mixed flags),
+  program_setup (starts RNS and returns :ok), and no old startup helpers.
+- `test/rns/utilities/rnpkg_test.exs`: New test file with 13 tests covering argument parsing
+  (same as rnir plus --exampleconfig), example_rnpkg_config content, program_setup, and no
+  old startup helpers.
+- `test/rns/utilities/cli_test.exs`: Updated utilities list in "no old startup helpers" tests
+  to include RNIR and RNPKG (verifies they don't export ensure_application_started/0 or
+  start_reticulum/1).
+
+**Result:** `mix test` passes with 0 failures (3164 tests, 13 pre-existing skipped fixture tests).

@@ -92,7 +92,9 @@ defmodule RNS.MixProject do
           RNS.Utilities.RNProbe,
           RNS.Utilities.RNID,
           RNS.Utilities.RNCP,
-          RNS.Utilities.RNX
+          RNS.Utilities.RNX,
+          RNS.Utilities.RNIR,
+          RNS.Utilities.RNPKG
         ]
       ]
     ]
