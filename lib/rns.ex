@@ -3,12 +3,59 @@ defmodule RNS do
   Elixir port of the Reticulum Network Stack.
 
   RNS provides encrypted, self-configuring mesh networking with zero infrastructure
-  requirements. This module serves as the main entry point and public API.
+  requirements. This module serves as the main entry point and public API, re-exporting
+  all core modules and providing top-level utility functions matching the Python RNS API.
+
+  ## Core Modules
+
+    * `RNS.Reticulum` — Main system coordinator, configuration, startup
+    * `RNS.Identity` — Cryptographic identity management (X25519 + Ed25519)
+    * `RNS.Destination` — Named endpoints for communication
+    * `RNS.Transport` — Routing tables, announce handling, packet forwarding
+    * `RNS.Packet` — Wire-format packet encoding/decoding
+    * `RNS.PacketReceipt` — Delivery tracking for sent packets
+    * `RNS.Link` — Encrypted bidirectional communication channels
+    * `RNS.Channel` — Ordered message delivery over Links
+    * `RNS.Buffer` — Stream-oriented I/O over Channels
+    * `RNS.Resource` — Large data transfer over Links
+    * `RNS.Resolver` — Name resolution (stub for future expansion)
+    * `RNS.Discovery` — Interface announce and peer discovery
+
+  ## Cryptography
+
+    * `RNS.Cryptography.Hashes` — SHA-256/512, truncated hashes
+    * `RNS.Cryptography.HKDF` — HMAC-based Key Derivation Function
+    * `RNS.Cryptography.HMAC` — HMAC-SHA256/512
+    * `RNS.Cryptography.AES` — AES-256-CBC encryption
+    * `RNS.Cryptography.X25519` — Elliptic-curve Diffie-Hellman
+    * `RNS.Cryptography.Ed25519` — Digital signatures
+    * `RNS.Cryptography.Token` — Fernet-like authenticated encryption
+
+  ## Quick Start
+
+      # Start the application (happens automatically via mix)
+      # Create an identity
+      identity = RNS.Identity.new()
+
+      # Create a destination
+      destination = RNS.Destination.new(identity, :out, :single, "myapp", "service")
+
+      # Get the destination hash
+      hash = RNS.Destination.hash(destination)
+      RNS.log("Destination hash: \#{RNS.hexrep(hash)}")
+
+  ## Logging
+
+  RNS defines 8 log levels (0-7) plus LOG_NONE (-1):
+
+      RNS.log("Something happened", RNS.log_notice())   # Level 3 (default)
+      RNS.log("Debug info", RNS.log_debug())             # Level 6
   """
 
   @version RNS.Version.version()
 
-  # Re-export log level constants
+  # ── Log level constants ──────────────────────────────────────────
+
   defdelegate log_none(), to: RNS.Log
   defdelegate log_critical(), to: RNS.Log
   defdelegate log_error(), to: RNS.Log
@@ -19,24 +66,161 @@ defmodule RNS do
   defdelegate log_debug(), to: RNS.Log
   defdelegate log_extreme(), to: RNS.Log
 
+  # ── Log destination constants ────────────────────────────────────
+
+  defdelegate log_stdout(), to: RNS.Log
+  defdelegate log_file(), to: RNS.Log
+  defdelegate log_callback(), to: RNS.Log
+  defdelegate log_maxsize(), to: RNS.Log
+
+  # ── Version and system info ──────────────────────────────────────
+
   @doc """
   Returns the current RNS version string.
+
+  ## Examples
+
+      iex> is_binary(RNS.version())
+      true
+
   """
   @spec version() :: String.t()
   def version, do: @version
 
   @doc """
   Returns the host operating system identifier.
+
+  ## Examples
+
+      iex> os = RNS.host_os()
+      iex> os in ["darwin", "linux", "windows", "unknown"]
+      true
+
   """
   @spec host_os() :: String.t()
   def host_os, do: RNS.Vendor.PlatformUtils.get_platform()
 
+  # ── Logging ──────────────────────────────────────────────────────
+
   @doc """
   Logs a message at the given RNS log level.
   Delegates to `RNS.Log.log/3`.
+
+  ## Examples
+
+      RNS.log("Hello from RNS")                        # LOG_NOTICE (default)
+      RNS.log("Debug details", RNS.log_debug())        # LOG_DEBUG
+
   """
   @spec log(String.t(), integer()) :: :ok
   def log(msg, level \\ 3), do: RNS.Log.log(msg, level)
+
+  @doc """
+  Returns the human-readable name for a log level.
+  Delegates to `RNS.Log.loglevelname/1`.
+
+  ## Examples
+
+      iex> RNS.loglevelname(0)
+      "[Critical]"
+
+      iex> RNS.loglevelname(3)
+      "[Notice]  "
+
+  """
+  @spec loglevelname(integer()) :: String.t()
+  defdelegate loglevelname(level), to: RNS.Log
+
+  @doc """
+  Formats an epoch timestamp as a human-readable string.
+
+  Uses the format `"%Y-%m-%d %H:%M:%S"` matching Python's `RNS.timestamp_str()`.
+
+  ## Examples
+
+      iex> is_binary(RNS.timestamp_str(1_700_000_000))
+      true
+
+  """
+  @spec timestamp_str(number()) :: String.t()
+  def timestamp_str(time_s) do
+    time_s
+    |> trunc()
+    |> DateTime.from_unix!()
+    |> DateTime.shift_zone!("Etc/UTC")
+    |> Calendar.strftime("%Y-%m-%d %H:%M:%S")
+  end
+
+  @doc """
+  Returns a precise timestamp string with millisecond resolution.
+
+  Uses the format `"%H:%M:%S.fff"` matching Python's `RNS.precise_timestamp_str()`.
+
+  ## Examples
+
+      iex> str = RNS.precise_timestamp_str(0)
+      iex> String.match?(str, ~r/^\\d{2}:\\d{2}:\\d{2}\\.\\d{3}$/)
+      true
+
+  """
+  @spec precise_timestamp_str(number()) :: String.t()
+  def precise_timestamp_str(_time_s) do
+    now = NaiveDateTime.utc_now()
+    ms = div(now.microsecond |> elem(0), 1000)
+
+    Calendar.strftime(now, "%H:%M:%S") <>
+      "." <> String.pad_leading(Integer.to_string(ms), 3, "0")
+  end
+
+  @doc """
+  Logs an exception with its message and type at LOG_ERROR level.
+
+  Matches Python's `RNS.trace_exception(e)`.
+
+  ## Examples
+
+      try do
+        raise "something broke"
+      rescue
+        e -> RNS.trace_exception(e)
+      end
+
+  """
+  @spec trace_exception(Exception.t(), list()) :: :ok
+  def trace_exception(exception, stacktrace \\ []) do
+    type = exception.__struct__ |> Module.split() |> Enum.join(".")
+    message = Exception.message(exception)
+
+    RNS.Log.log("An unhandled #{type} exception occurred: #{message}", RNS.Log.log_error())
+
+    if stacktrace != [] do
+      formatted = Exception.format(:error, exception, stacktrace)
+      RNS.Log.log(formatted, RNS.Log.log_error())
+    end
+
+    :ok
+  end
+
+  # ── Randomness ───────────────────────────────────────────────────
+
+  @doc """
+  Returns a random float in [0.0, 1.0).
+
+  Matches Python's `RNS.rand()` which uses a seeded Random instance.
+
+  ## Examples
+
+      iex> r = RNS.rand()
+      iex> r >= 0.0 and r < 1.0
+      true
+
+  """
+  @spec rand() :: float()
+  def rand do
+    :rand.uniform()
+  end
+
+  # ── Data formatting ──────────────────────────────────────────────
 
   @doc """
   Returns a hex representation of binary data.
@@ -171,7 +355,6 @@ defmodule RNS do
     else
       case rest do
         [] ->
-          # Exhausted all units, use last_unit
           formatter.(num / 1000.0, last_unit, suffix)
 
         _ ->
@@ -191,7 +374,6 @@ defmodule RNS do
     else
       case rest do
         [] ->
-          # Exhausted all units, divide and use last_unit
           format_float(num / divisor, 2) <> " " <> last_unit <> suffix
 
         _ ->
@@ -343,12 +525,56 @@ defmodule RNS do
     Enum.join(rest, ", ") <> " and " <> last
   end
 
+  # ── Physical layer info ──────────────────────────────────────────
+
+  @doc """
+  Prints physical layer parameters to stdout.
+
+  Matches Python's `RNS.phyparams()`. Displays MTU, MDU values,
+  link curve, and key sizes.
+  """
+  @spec phyparams() :: :ok
+  def phyparams do
+    IO.puts("Required Physical Layer MTU : #{RNS.Reticulum.mtu()} bytes")
+    IO.puts("Plaintext Packet MDU        : #{RNS.Packet.plain_mdu()} bytes")
+    IO.puts("Encrypted Packet MDU        : #{RNS.Packet.encrypted_mdu()} bytes")
+    IO.puts("Link Curve                  : #{RNS.Identity.curve()}")
+    IO.puts("Link Packet MDU             : #{RNS.Link.mdu()} bytes")
+    IO.puts("Link Public Key Size        : #{RNS.Link.ecpubsize() * 8} bits")
+    IO.puts("Link Private Key Size       : #{RNS.Link.keysize() * 8} bits")
+    :ok
+  end
+
+  # ── System control ───────────────────────────────────────────────
+
   @doc """
   Terminates the BEAM VM immediately with exit code 255.
-  Equivalent to Python's `os._exit(255)`.
+  Equivalent to Python's `RNS.panic()` / `os._exit(255)`.
   """
   @spec panic() :: no_return()
   def panic do
     System.halt(255)
+  end
+
+  @doc """
+  Gracefully exits the RNS system.
+
+  Stops the `:rns_ex` application (which triggers `terminate/2` callbacks
+  in Reticulum, Transport, etc. to persist state), then halts the VM
+  with the given exit code.
+
+  Matches Python's `RNS.exit(code)`.
+  """
+  @spec rns_exit(non_neg_integer()) :: no_return()
+  def rns_exit(code \\ 0) do
+    try do
+      Application.stop(:rns_ex)
+    rescue
+      _ -> :ok
+    catch
+      _, _ -> :ok
+    end
+
+    System.halt(code)
   end
 end

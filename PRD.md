@@ -357,7 +357,7 @@ This is the largest module (3312 LOC in Python). Split into manageable sub-modul
 
 ### Phase 9: Public API and Module Integration
 
-- [ ] **9.1 — Wire up public API in lib/rns.ex**
+- [x] **9.1 — Wire up public API in lib/rns.ex**
   Update `lib/rns.ex` to require/alias all modules. Export public API matching Python's `RNS.__init__`: `RNS.Reticulum`, `RNS.Identity`, `RNS.Destination`, `RNS.Transport`, `RNS.Packet`, `RNS.Link`, `RNS.Channel`, `RNS.Buffer`, `RNS.Resource`, `RNS.Resolver`. Ensure `RNS.log/2`, `RNS.version/0`, `RNS.host_os/0`, `RNS.hexrep/1` are accessible at module level. Add `@moduledoc` with usage examples. Write a comprehensive test exercising the full public API: start application, create Identity, create Destination, verify exports.
 
 - [ ] **9.2 — Cross-module integration testing**
