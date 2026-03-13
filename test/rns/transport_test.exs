@@ -361,6 +361,58 @@ defmodule RNS.TransportTest do
     end
   end
 
+  describe "announce handler registration" do
+    setup do
+      # Clear any previously registered handlers
+      Enum.each(Transport.get_announce_handlers(), fn handler ->
+        Transport.deregister_announce_handler(handler)
+      end)
+
+      :ok
+    end
+
+    test "register_announce_handler/1 adds a handler" do
+      handler = %{
+        aspect_filter: nil,
+        received_announce: fn _dest_hash, _identity, _app_data -> :ok end
+      }
+
+      assert :ok == Transport.register_announce_handler(handler)
+      handlers = Transport.get_announce_handlers()
+      assert length(handlers) == 1
+      assert hd(handlers).aspect_filter == nil
+    end
+
+    test "deregister_announce_handler/1 removes a handler" do
+      handler = %{
+        aspect_filter: nil,
+        received_announce: fn _dest_hash, _identity, _app_data -> :ok end
+      }
+
+      Transport.register_announce_handler(handler)
+      assert length(Transport.get_announce_handlers()) == 1
+
+      Transport.deregister_announce_handler(handler)
+      assert Transport.get_announce_handlers() == []
+    end
+
+    test "multiple handlers can be registered" do
+      handler1 = %{
+        aspect_filter: nil,
+        received_announce: fn _dest_hash, _identity, _app_data -> :ok end
+      }
+
+      handler2 = %{
+        aspect_filter: "myapp.service",
+        received_announce: fn _dest_hash, _identity, _app_data -> :ok end
+      }
+
+      Transport.register_announce_handler(handler1)
+      Transport.register_announce_handler(handler2)
+      assert length(Transport.get_announce_handlers()) == 2
+    end
+  end
+
   describe "find_interface_from_hash/1" do
     test "returns nil for unknown hash" do
       hash = :crypto.strong_rand_bytes(16)

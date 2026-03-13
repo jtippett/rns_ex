@@ -162,3 +162,37 @@ packets correctly bypass the path table via `should_use_path_table?` returning f
   - process_outgoing message is handled by LocalClientInterface
 
 **Result:** `mix test` passes with 0 failures (3035 tests, 13 pre-existing skipped fixture tests).
+
+## 2026-03-14 — Task 1.7: Register destinations and wire announce handlers
+
+**Changes:**
+- `lib/rns/destination.ex`:
+  - Added `register/1` function that calls `Transport.register_destination/1`, with
+    rescue/catch for cases where Transport isn't running (unit tests).
+  - Added `deregister/1` function that calls `Transport.deregister_destination/1`.
+  - `new/5` now auto-calls `register/1` after construction, matching Python's
+    `Destination.__init__` which calls `RNS.Transport.register_destination(self)`.
+  - Removed the "Phase 4" placeholder comment.
+- `lib/rns/transport.ex`:
+  - Added `call_announce_handlers/1` private function in `handle_inbound_announce/2`.
+    After updating the path table, iterates over registered announce handlers, checks
+    `aspect_filter` matching (nil = match all, otherwise compares destination hash),
+    respects `receive_path_responses` opt-in for path response announces, and invokes
+    `received_announce` callbacks via `Task.start/1` (matching Python's threaded dispatch).
+    Supports 3-arity (dest_hash, identity, app_data), 4-arity (+packet_hash), and
+    5-arity (+is_path_response) callbacks.
+- `test/rns/destination_test.exs`: Added 6 tests covering auto-registration on
+  creation (IN, OUT, PLAIN destinations), deregistration, re-registration, and
+  `get_destinations/0` querying.
+- `test/rns/transport_test.exs`: Added 3 tests for announce handler registration,
+  deregistration, and multiple handler support. Added setup to clear announce handlers
+  between tests (stored in GenServer state, not ETS).
+- Updated 3 integration test files to account for auto-registration:
+  - `test/rns/integration/announce_test.exs`: Tests that process inbound announces now
+    call `Transport.deregister_destination/1` before inbound to simulate remote announces
+    (Transport correctly rejects paths for locally registered destinations). Destination
+    registration tests updated to expect auto-registration from `new/5`.
+  - `test/rns/integration/multi_interface_test.exs`: Same deregister-before-inbound pattern.
+  - `test/rns/integration/link_establishment_test.exs`: Same pattern.
+
+**Result:** `mix test` passes with 0 failures (3044 tests, 13 pre-existing skipped fixture tests).

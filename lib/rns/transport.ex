@@ -1768,10 +1768,95 @@ defmodule RNS.Transport do
         }
 
         put_path_entry(packet.destination_hash, path_entry)
+
+        # Call externally registered announce handler callbacks
+        call_announce_handlers(packet)
       end
     end
 
     :ok
+  end
+
+  defp call_announce_handlers(packet) do
+    handlers = get_announce_handlers()
+
+    if handlers != [] do
+      announce_identity = Identity.recall(packet.destination_hash)
+      app_data = Identity.recall_app_data(packet.destination_hash)
+      is_path_response = packet.context == @context_path_response
+
+      Enum.each(handlers, fn handler ->
+        try do
+          execute_callback =
+            cond do
+              # nil aspect_filter means match all announces
+              handler.aspect_filter == nil ->
+                true
+
+              announce_identity != nil ->
+                handler_expected_hash =
+                  RNS.Destination.hash_from_name_and_identity(
+                    handler.aspect_filter,
+                    announce_identity
+                  )
+
+                packet.destination_hash == handler_expected_hash
+
+              true ->
+                false
+            end
+
+          # Path responses are only delivered to handlers that opt in
+          execute_callback =
+            if execute_callback and is_path_response do
+              Map.get(handler, :receive_path_responses, false) == true
+            else
+              execute_callback
+            end
+
+          if execute_callback do
+            callback = handler.received_announce
+            arity = :erlang.fun_info(callback)[:arity]
+
+            case arity do
+              3 ->
+                Task.start(fn ->
+                  callback.(packet.destination_hash, announce_identity, app_data)
+                end)
+
+              4 ->
+                Task.start(fn ->
+                  callback.(
+                    packet.destination_hash,
+                    announce_identity,
+                    app_data,
+                    packet.packet_hash
+                  )
+                end)
+
+              5 ->
+                Task.start(fn ->
+                  callback.(
+                    packet.destination_hash,
+                    announce_identity,
+                    app_data,
+                    packet.packet_hash,
+                    is_path_response
+                  )
+                end)
+
+              _ ->
+                Logger.error("Invalid arity #{arity} for announce handler callback")
+            end
+          end
+        rescue
+          e ->
+            Logger.error(
+              "Error while processing external announce callback: #{inspect(e)}"
+            )
+        end
+      end)
+    end
   end
 
   # ── Link Request Handling ─────────────────────────────────────────────

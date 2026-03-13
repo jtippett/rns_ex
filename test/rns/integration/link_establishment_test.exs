@@ -362,8 +362,9 @@ defmodule RNS.Integration.LinkEstablishmentTest do
           ["linkflow"]
         )
 
-      # Don't register destination — simulate client side receiving an announce
-      # from a remote server (client doesn't have the destination registered)
+      # Deregister destination — simulate client side receiving an announce
+      # from a remote server (client doesn't have the destination registered locally)
+      Transport.deregister_destination(server_dest)
 
       # Server announces
       {announce_packet, _} = Destination.announce(server_dest, send: false)

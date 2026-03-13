@@ -155,7 +155,8 @@ defmodule RNS.Integration.MultiInterfaceTest do
       {announce, _} = Destination.announce(dest, send: false)
       packed_announce = Packet.pack(announce)
 
-      # Simulate receiving announce on iface1
+      # Deregister to simulate remote announce, then receive on iface1
+      Transport.deregister_destination(dest)
       Transport.inbound(packed_announce.raw, iface1)
 
       assert Transport.has_path(dest.hash)
@@ -204,6 +205,9 @@ defmodule RNS.Integration.MultiInterfaceTest do
       {announce, _} = Destination.announce(remote_dest, send: false)
       packed = Packet.pack(announce)
 
+      # Deregister to simulate remote announce (local destinations don't get paths)
+      Transport.deregister_destination(remote_dest)
+
       # Receive announce on the radio interface
       Transport.inbound(packed.raw, iface1)
 
@@ -229,10 +233,11 @@ defmodule RNS.Integration.MultiInterfaceTest do
           ])
         end
 
-      # Send announces from each
+      # Send announces from each — deregister first to simulate remote announces
       for dest <- dests do
         {announce, _} = Destination.announce(dest, send: false)
         packed = Packet.pack(announce)
+        Transport.deregister_destination(dest)
         Transport.inbound(packed.raw, iface)
       end
 
@@ -414,7 +419,8 @@ defmodule RNS.Integration.MultiInterfaceTest do
       {announce, _} = Destination.announce(remote_dest, send: false)
       packed_ann = Packet.pack(announce)
 
-      # Receive on radio interface
+      # Deregister to simulate remote announce, then receive on radio
+      Transport.deregister_destination(remote_dest)
       Transport.inbound(packed_ann.raw, radio)
 
       assert Transport.has_path(remote_dest.hash)

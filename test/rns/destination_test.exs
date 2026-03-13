@@ -1286,4 +1286,67 @@ defmodule RNS.DestinationStoreTest do
       assert received_packet.context == RNS.Packet.context_path_response()
     end
   end
+
+  describe "register/1 and deregister/1" do
+    setup do
+      RNS.Test.SupervisedHelpers.clear_transport_tables()
+      :ok
+    end
+
+    test "new/5 auto-registers IN destinations with Transport" do
+      id = Identity.new()
+      dest = Destination.new(id, Destination.direction_in(), Destination.single(), "autoregtest")
+
+      assert RNS.Transport.destination_registered?(dest.hash)
+      registered = RNS.Transport.get_destinations()
+      assert Enum.any?(registered, fn d -> d.hash == dest.hash end)
+    end
+
+    test "new/5 auto-registers OUT destinations with Transport" do
+      id = Identity.new()
+      dest = Destination.new(id, Destination.direction_out(), Destination.single(), "outregtest")
+
+      assert RNS.Transport.destination_registered?(dest.hash)
+    end
+
+    test "new/5 auto-registers PLAIN destinations with Transport" do
+      dest = Destination.new(nil, Destination.direction_in(), Destination.plain(), "plainregtest")
+
+      assert RNS.Transport.destination_registered?(dest.hash)
+    end
+
+    test "deregister/1 removes destination from Transport" do
+      id = Identity.new()
+      dest = Destination.new(id, Destination.direction_in(), Destination.single(), "deregtest")
+
+      assert RNS.Transport.destination_registered?(dest.hash)
+
+      Destination.deregister(dest)
+      refute RNS.Transport.destination_registered?(dest.hash)
+    end
+
+    test "register/1 can re-register a deregistered destination" do
+      id = Identity.new()
+      dest = Destination.new(id, Destination.direction_in(), Destination.single(), "reregtest")
+
+      Destination.deregister(dest)
+      refute RNS.Transport.destination_registered?(dest.hash)
+
+      assert :ok == Destination.register(dest)
+      assert RNS.Transport.destination_registered?(dest.hash)
+    end
+
+    test "get_destinations/0 returns all registered destinations" do
+      id1 = Identity.new()
+      id2 = Identity.new()
+      dest1 = Destination.new(id1, Destination.direction_in(), Destination.single(), "getdest1")
+      dest2 = Destination.new(id2, Destination.direction_in(), Destination.single(), "getdest2")
+
+      destinations = RNS.Transport.get_destinations()
+      hashes = Enum.map(destinations, & &1.hash)
+
+      assert dest1.hash in hashes
+      assert dest2.hash in hashes
+    end
+  end
 end

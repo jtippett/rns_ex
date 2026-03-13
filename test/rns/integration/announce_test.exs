@@ -106,6 +106,10 @@ defmodule RNS.Integration.AnnounceTest do
       # Pack the announce to get raw bytes
       packed = Packet.pack(announce_packet)
 
+      # Deregister local destination to simulate receiving a remote announce
+      # (Transport won't add paths for locally registered destinations)
+      Transport.deregister_destination(dest)
+
       # No path should exist yet
       refute Transport.has_path(dest.hash)
 
@@ -135,6 +139,9 @@ defmodule RNS.Integration.AnnounceTest do
 
       packed = Packet.pack(announce_packet)
 
+      # Deregister to simulate remote announce
+      Transport.deregister_destination(dest)
+
       mock_interface = %{name: "TestInterface", out: true, mode: nil, ifac_identity: nil}
       Transport.inbound(packed.raw, mock_interface)
 
@@ -151,6 +158,9 @@ defmodule RNS.Integration.AnnounceTest do
 
       {announce_packet, _updated_dest} = Destination.announce(dest, send: false)
       packed = Packet.pack(announce_packet)
+
+      # Deregister to simulate remote announce
+      Transport.deregister_destination(dest)
 
       mock_interface = %{name: "TestInterface", out: true, mode: nil, ifac_identity: nil}
 
@@ -184,6 +194,10 @@ defmodule RNS.Integration.AnnounceTest do
 
       packed1 = Packet.pack(ann1)
       packed2 = Packet.pack(ann2)
+
+      # Deregister to simulate remote announces
+      Transport.deregister_destination(dest1)
+      Transport.deregister_destination(dest2)
 
       mock_interface = %{name: "TestInterface", out: true, mode: nil, ifac_identity: nil}
 
@@ -221,6 +235,9 @@ defmodule RNS.Integration.AnnounceTest do
       {announce_packet, _} = Destination.announce(dest, send: false, app_data: "handler-test")
       packed = Packet.pack(announce_packet)
 
+      # Deregister to simulate remote announce (local destinations don't get path entries)
+      Transport.deregister_destination(dest)
+
       mock_interface = %{name: "TestInterface", out: true, mode: nil, ifac_identity: nil}
       Transport.inbound(packed.raw, mock_interface)
 
@@ -252,7 +269,7 @@ defmodule RNS.Integration.AnnounceTest do
   # ── Destination Registration with Transport ──────────────────────
 
   describe "destination registration" do
-    test "destination can be registered and queried" do
+    test "destination is auto-registered on creation and queryable" do
       identity = Identity.new()
 
       dest =
@@ -260,7 +277,7 @@ defmodule RNS.Integration.AnnounceTest do
           "reg"
         ])
 
-      :ok = Transport.register_destination(dest)
+      # Destination.new/5 auto-registers (matching Python's __init__)
       assert Transport.destination_registered?(dest.hash)
 
       destinations = Transport.get_destinations()
@@ -275,7 +292,7 @@ defmodule RNS.Integration.AnnounceTest do
           "dereg"
         ])
 
-      :ok = Transport.register_destination(dest)
+      # Auto-registered by new/5
       assert Transport.destination_registered?(dest.hash)
 
       :ok = Transport.deregister_destination(dest)
@@ -290,7 +307,7 @@ defmodule RNS.Integration.AnnounceTest do
           "dup"
         ])
 
-      :ok = Transport.register_destination(dest)
+      # Already auto-registered by new/5, so manual register returns error
       assert {:error, :already_registered} = Transport.register_destination(dest)
     end
   end
@@ -417,6 +434,9 @@ defmodule RNS.Integration.AnnounceTest do
       # Capture the raw bytes that were sent
       assert_receive {:sent_data, raw_data}, 1000
 
+      # Deregister the local destination to simulate a remote announce arriving
+      Transport.deregister_destination(dest)
+
       # Now simulate receiving this data on a "receiver" interface
       receiver = %{
         name: "ReceiverInterface",
@@ -450,6 +470,9 @@ defmodule RNS.Integration.AnnounceTest do
       {announce_packet, _} = Destination.announce(dest, send: false)
       packed = Packet.pack(announce_packet)
 
+      # Deregister to simulate remote announce
+      Transport.deregister_destination(dest)
+
       mock_interface = %{name: "TestInterface", out: true, mode: nil, ifac_identity: nil}
       Transport.inbound(packed.raw, mock_interface)
 
@@ -476,6 +499,9 @@ defmodule RNS.Integration.AnnounceTest do
       {announce_packet, _} = Destination.announce(dest, send: false)
       packed = Packet.pack(announce_packet)
 
+      # Deregister to simulate remote announce
+      Transport.deregister_destination(dest)
+
       mock_interface = %{name: "TestInterface", out: true, mode: nil, ifac_identity: nil}
       Transport.inbound(packed.raw, mock_interface)
 
@@ -501,6 +527,9 @@ defmodule RNS.Integration.AnnounceTest do
       # First announce
       {ann1, updated_dest} = Destination.announce(dest, send: false)
       packed1 = Packet.pack(ann1)
+
+      # Deregister to simulate remote announce
+      Transport.deregister_destination(dest)
 
       mock_interface = %{name: "TestInterface", out: true, mode: nil, ifac_identity: nil}
       Transport.inbound(packed1.raw, mock_interface)

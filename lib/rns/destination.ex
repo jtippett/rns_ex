@@ -234,8 +234,43 @@ defmodule RNS.Destination do
       enforce_ratchets: false
     }
 
-    # Transport.register_destination will be wired in Phase 4
+    register(dest)
     dest
+  end
+
+  @doc """
+  Registers a destination with the Transport system.
+
+  In Python, destinations are automatically registered in `__init__`.
+  This function is called by `new/5` and can also be called explicitly
+  to re-register a destination after deregistration.
+
+  Returns `:ok` or `{:error, :already_registered}` for duplicate IN destinations.
+  If Transport is not running (e.g., in unit tests), silently returns `:ok`.
+  """
+  @spec register(t()) :: :ok | {:error, :already_registered}
+  def register(%__MODULE__{} = dest) do
+    RNS.Transport.register_destination(dest)
+  rescue
+    # Transport GenServer may not be running in unit tests
+    _ -> :ok
+  catch
+    :exit, _ -> :ok
+  end
+
+  @doc """
+  Deregisters a destination from the Transport system.
+
+  After deregistration, the destination will no longer receive incoming
+  packets or be listed in `Transport.get_destinations/0`.
+  """
+  @spec deregister(t()) :: :ok
+  def deregister(%__MODULE__{} = dest) do
+    RNS.Transport.deregister_destination(dest)
+  rescue
+    _ -> :ok
+  catch
+    :exit, _ -> :ok
   end
 
   defp resolve_identity(nil, @in_direction, @plain, aspects), do: {nil, aspects}
