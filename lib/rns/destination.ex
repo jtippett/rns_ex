@@ -280,18 +280,32 @@ defmodule RNS.Destination do
   def announce(dest, opts \\ [])
 
   def announce(%__MODULE__{type: @single, direction: @in_direction} = dest, opts) do
-    app_data = Keyword.get(opts, :app_data)
-    path_response = Keyword.get(opts, :path_response, false)
-    attached_interface = Keyword.get(opts, :attached_interface)
-    tag = Keyword.get(opts, :tag)
-    send_announce = Keyword.get(opts, :send, true)
+    dest
+    |> clean_stale_path_responses()
+    |> build_or_cache_announce_data(opts)
+    |> build_announce_packet(opts)
+    |> maybe_send_announce(opts)
+  end
 
-    # Clean stale path responses
+  def announce(%__MODULE__{type: type}, _opts) when type != @single do
+    raise ArgumentError, "Only SINGLE destination types can be announced"
+  end
+
+  def announce(%__MODULE__{direction: dir}, _opts) when dir != @in_direction do
+    raise ArgumentError, "Only IN destination types can be announced"
+  end
+
+  defp clean_stale_path_responses(%__MODULE__{} = dest) do
     now = System.system_time(:second)
     path_responses = clean_path_responses(dest.path_responses, now)
-    dest = %{dest | path_responses: path_responses}
+    %{dest | path_responses: path_responses}
+  end
 
-    # Check for cached path response
+  defp build_or_cache_announce_data(%__MODULE__{} = dest, opts) do
+    path_response = Keyword.get(opts, :path_response, false)
+    tag = Keyword.get(opts, :tag)
+    app_data = Keyword.get(opts, :app_data)
+
     {announce_data, ratchet_used, dest} =
       if path_response and tag != nil and Map.has_key?(dest.path_responses, tag) do
         {_ts, cached_data} = Map.get(dest.path_responses, tag)
@@ -300,13 +314,20 @@ defmodule RNS.Destination do
         build_announce_data(dest, app_data)
       end
 
-    # Cache the announce data
     dest =
       if tag != nil do
+        now = System.system_time(:second)
         %{dest | path_responses: Map.put(dest.path_responses, tag, {now, announce_data})}
       else
         dest
       end
+
+    {dest, announce_data, ratchet_used}
+  end
+
+  defp build_announce_packet({dest, announce_data, ratchet_used}, opts) do
+    path_response = Keyword.get(opts, :path_response, false)
+    attached_interface = Keyword.get(opts, :attached_interface)
 
     context =
       if path_response, do: @context_path_response, else: @context_none
@@ -322,20 +343,16 @@ defmodule RNS.Destination do
         context_flag: context_flag
       )
 
-    if send_announce do
+    {dest, announce_packet}
+  end
+
+  defp maybe_send_announce({dest, announce_packet}, opts) do
+    if Keyword.get(opts, :send, true) do
       result = RNS.Packet.send(announce_packet)
       {result, dest}
     else
       {announce_packet, dest}
     end
-  end
-
-  def announce(%__MODULE__{type: type}, _opts) when type != @single do
-    raise ArgumentError, "Only SINGLE destination types can be announced"
-  end
-
-  def announce(%__MODULE__{direction: dir}, _opts) when dir != @in_direction do
-    raise ArgumentError, "Only IN destination types can be announced"
   end
 
   defp build_announce_data(dest, app_data) do
@@ -801,27 +818,34 @@ defmodule RNS.Destination do
   Returns `{success, updated_destination}`.
   """
   @spec receive_packet(t(), RNS.Packet.t()) :: {boolean(), t()}
+  def receive_packet(%__MODULE__{} = dest, %{packet_type: @linkrequest} = packet) do
+    incoming_link_request(dest, packet.data, packet)
+  end
+
   def receive_packet(%__MODULE__{} = dest, packet) do
-    if packet.packet_type == @linkrequest do
-      incoming_link_request(dest, packet.data, packet)
-    else
-      plaintext = decrypt(dest, packet.data)
-
-      if plaintext == nil do
+    case decrypt(dest, packet.data) do
+      nil ->
         {false, dest}
-      else
-        if packet.packet_type == @data and dest.callbacks.packet != nil do
-          try do
-            dest.callbacks.packet.(plaintext, packet)
-          rescue
-            _ -> :ok
-          end
-        end
 
+      plaintext ->
+        notify_packet_callback(dest, plaintext, packet)
         {true, dest}
-      end
     end
   end
+
+  defp notify_packet_callback(%__MODULE__{callbacks: %{packet: nil}}, _plaintext, _packet), do: :ok
+
+  defp notify_packet_callback(%__MODULE__{callbacks: %{packet: callback}}, plaintext, %{
+         packet_type: @data
+       } = packet) do
+    try do
+      callback.(plaintext, packet)
+    rescue
+      _ -> :ok
+    end
+  end
+
+  defp notify_packet_callback(_dest, _plaintext, _packet), do: :ok
 
   defp incoming_link_request(dest, _data, _packet) do
     if dest.accept_link_requests do
