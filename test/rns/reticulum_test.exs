@@ -821,4 +821,743 @@ defmodule RNS.ReticulumTest do
       assert GenServer.call(name, :interfacepath) == Path.join(configdir, "interfaces")
     end
   end
+
+  # ── Interface Mode Parsing ───────────────────────────────────────────
+
+  describe "parse_interface_mode (via synthesize_interface)" do
+    test "parses all interface mode strings" do
+      alias RNS.Interfaces.Interface
+
+      modes = %{
+        "full" => Interface.mode_full(),
+        "access_point" => Interface.mode_access_point(),
+        "accesspoint" => Interface.mode_access_point(),
+        "ap" => Interface.mode_access_point(),
+        "pointtopoint" => Interface.mode_point_to_point(),
+        "ptp" => Interface.mode_point_to_point(),
+        "roaming" => Interface.mode_roaming(),
+        "boundary" => Interface.mode_boundary(),
+        "gateway" => Interface.mode_gateway(),
+        "gw" => Interface.mode_gateway()
+      }
+
+      for {mode_str, expected_mode} <- modes do
+        section =
+          Section.new()
+          |> Section.put_scalar("type", "UDPInterface")
+          |> Section.put_scalar("enabled", "yes")
+          |> Section.put_scalar("interface_mode", mode_str)
+
+        params = Reticulum.extract_interface_params(section, Interface.mode_full(), "test")
+        assert params.interface_mode == expected_mode, "Mode '#{mode_str}' should be #{expected_mode}"
+      end
+    end
+
+    test "defaults to full mode when no mode specified" do
+      alias RNS.Interfaces.Interface
+
+      section =
+        Section.new()
+        |> Section.put_scalar("type", "UDPInterface")
+        |> Section.put_scalar("enabled", "yes")
+
+      params = Reticulum.extract_interface_params(section, Interface.mode_full(), "test")
+      assert params.interface_mode == Interface.mode_full()
+    end
+  end
+
+  # ── Interface Parameter Extraction ──────────────────────────────────
+
+  describe "extract_interface_params" do
+    test "extracts IFAC settings" do
+      section =
+        Section.new()
+        |> Section.put_scalar("type", "UDPInterface")
+        |> Section.put_scalar("networkname", "mynet")
+        |> Section.put_scalar("passphrase", "secret123")
+        |> Section.put_scalar("ifac_size", "64")
+
+      params = Reticulum.extract_interface_params(section, 0x00, "test")
+      assert params.ifac_netname == "mynet"
+      assert params.ifac_netkey == "secret123"
+      assert params.ifac_size == 8
+    end
+
+    test "ignores ifac_size below minimum" do
+      section =
+        Section.new()
+        |> Section.put_scalar("type", "UDPInterface")
+        |> Section.put_scalar("ifac_size", "4")
+
+      params = Reticulum.extract_interface_params(section, 0x00, "test")
+      assert params.ifac_size == nil
+    end
+
+    test "extracts bitrate with minimum check" do
+      section =
+        Section.new()
+        |> Section.put_scalar("type", "UDPInterface")
+        |> Section.put_scalar("bitrate", "9600")
+
+      params = Reticulum.extract_interface_params(section, 0x00, "test")
+      assert params.configured_bitrate == 9600
+    end
+
+    test "ignores bitrate below minimum" do
+      section =
+        Section.new()
+        |> Section.put_scalar("type", "UDPInterface")
+        |> Section.put_scalar("bitrate", "2")
+
+      params = Reticulum.extract_interface_params(section, 0x00, "test")
+      assert params.configured_bitrate == nil
+    end
+
+    test "extracts announce rate parameters" do
+      section =
+        Section.new()
+        |> Section.put_scalar("type", "UDPInterface")
+        |> Section.put_scalar("announce_rate_target", "30")
+        |> Section.put_scalar("announce_rate_grace", "5")
+        |> Section.put_scalar("announce_rate_penalty", "10")
+
+      params = Reticulum.extract_interface_params(section, 0x00, "test")
+      assert params.announce_rate_target == 30
+      assert params.announce_rate_grace == 5
+      assert params.announce_rate_penalty == 10
+    end
+
+    test "defaults announce rate grace and penalty to 0 when target set" do
+      section =
+        Section.new()
+        |> Section.put_scalar("type", "UDPInterface")
+        |> Section.put_scalar("announce_rate_target", "60")
+
+      params = Reticulum.extract_interface_params(section, 0x00, "test")
+      assert params.announce_rate_target == 60
+      assert params.announce_rate_grace == 0
+      assert params.announce_rate_penalty == 0
+    end
+
+    test "extracts announce cap percentage" do
+      section =
+        Section.new()
+        |> Section.put_scalar("type", "UDPInterface")
+        |> Section.put_scalar("announce_cap", "5.0")
+
+      params = Reticulum.extract_interface_params(section, 0x00, "test")
+      assert_in_delta params.announce_cap, 0.05, 0.001
+    end
+
+    test "extracts bootstrap_only and outgoing" do
+      section =
+        Section.new()
+        |> Section.put_scalar("type", "UDPInterface")
+        |> Section.put_scalar("bootstrap_only", "true")
+        |> Section.put_scalar("outgoing", "false")
+
+      params = Reticulum.extract_interface_params(section, 0x00, "test")
+      assert params.bootstrap_only == true
+      assert params.outgoing == false
+    end
+
+    test "extracts ingress control parameters" do
+      section =
+        Section.new()
+        |> Section.put_scalar("type", "UDPInterface")
+        |> Section.put_scalar("ingress_control", "false")
+        |> Section.put_scalar("ic_max_held_announces", "100")
+        |> Section.put_scalar("ic_burst_hold", "30.0")
+
+      params = Reticulum.extract_interface_params(section, 0x00, "test")
+      assert params.ingress_control == false
+      assert params.ic_max_held_announces == 100
+      assert_in_delta params.ic_burst_hold, 30.0, 0.01
+    end
+  end
+
+  # ── Discovery Parameters ─────────────────────────────────────────────
+
+  describe "extract_discovery_params" do
+    test "extracts discovery settings when discoverable" do
+      section =
+        Section.new()
+        |> Section.put_scalar("type", "UDPInterface")
+        |> Section.put_scalar("discoverable", "true")
+        |> Section.put_scalar("announce_interval", "10")
+        |> Section.put_scalar("discovery_name", "my_interface")
+        |> Section.put_scalar("discovery_encrypt", "true")
+        |> Section.put_scalar("latitude", "51.5074")
+        |> Section.put_scalar("longitude", "-0.1278")
+
+      alias RNS.Interfaces.Interface
+
+      params =
+        Reticulum.extract_interface_params(section, Interface.mode_full(), "TestIface")
+
+      assert params.discoverable == true
+      assert params.discovery_params.discovery_announce_interval == 10 * 60
+      assert params.discovery_params.discovery_name == "my_interface"
+      assert params.discovery_params.discovery_encrypt == true
+      assert_in_delta params.discovery_params.latitude, 51.5074, 0.001
+      assert_in_delta params.discovery_params.longitude, -0.1278, 0.001
+    end
+
+    test "enforces minimum announce interval of 5 minutes" do
+      section =
+        Section.new()
+        |> Section.put_scalar("type", "UDPInterface")
+        |> Section.put_scalar("discoverable", "true")
+        |> Section.put_scalar("announce_interval", "1")
+
+      params = Reticulum.extract_interface_params(section, 0x00, "test")
+      assert params.discovery_params.discovery_announce_interval == 5 * 60
+    end
+
+    test "defaults announce interval to 6 hours" do
+      section =
+        Section.new()
+        |> Section.put_scalar("type", "UDPInterface")
+        |> Section.put_scalar("discoverable", "true")
+
+      params = Reticulum.extract_interface_params(section, 0x00, "test")
+      assert params.discovery_params.discovery_announce_interval == 6 * 60 * 60
+    end
+
+    test "auto-configures RNode to AP mode when discoverable" do
+      alias RNS.Interfaces.Interface
+
+      section =
+        Section.new()
+        |> Section.put_scalar("type", "RNodeInterface")
+        |> Section.put_scalar("discoverable", "true")
+
+      params =
+        Reticulum.extract_interface_params(section, Interface.mode_full(), "TestRNode")
+
+      assert params.interface_mode == Interface.mode_access_point()
+    end
+
+    test "auto-configures non-RNode to gateway mode when discoverable" do
+      alias RNS.Interfaces.Interface
+
+      section =
+        Section.new()
+        |> Section.put_scalar("type", "UDPInterface")
+        |> Section.put_scalar("discoverable", "true")
+
+      params =
+        Reticulum.extract_interface_params(section, Interface.mode_full(), "TestUDP")
+
+      assert params.interface_mode == Interface.mode_gateway()
+    end
+
+    test "preserves AP mode when discoverable" do
+      alias RNS.Interfaces.Interface
+
+      section =
+        Section.new()
+        |> Section.put_scalar("type", "UDPInterface")
+        |> Section.put_scalar("discoverable", "true")
+
+      params =
+        Reticulum.extract_interface_params(section, Interface.mode_access_point(), "TestUDP")
+
+      assert params.interface_mode == Interface.mode_access_point()
+    end
+  end
+
+  # ── Config Key to Atom Mapping ───────────────────────────────────────
+
+  describe "config_section_to_opts" do
+    test "converts config section to keyword list with name" do
+      section =
+        Section.new()
+        |> Section.put_scalar("type", "UDPInterface")
+        |> Section.put_scalar("listen_ip", "0.0.0.0")
+        |> Section.put_scalar("listen_port", "4242")
+        |> Section.put_scalar("forward_ip", "255.255.255.255")
+        |> Section.put_scalar("forward_port", "4242")
+
+      params = %{configured_bitrate: nil}
+      opts = Reticulum.config_section_to_opts(section, "My UDP", params)
+
+      assert Keyword.get(opts, :name) == "My UDP"
+      assert Keyword.get(opts, :type) == "UDPInterface"
+      assert Keyword.get(opts, :listen_ip) == "0.0.0.0"
+      assert Keyword.get(opts, :listen_port) == 4242
+      assert Keyword.get(opts, :forward_ip) == "255.255.255.255"
+      assert Keyword.get(opts, :forward_port) == 4242
+    end
+
+    test "maps 'remote' to target_host" do
+      section =
+        Section.new()
+        |> Section.put_scalar("type", "BackboneInterface")
+        |> Section.put_scalar("remote", "10.0.0.1")
+
+      params = %{configured_bitrate: nil}
+      opts = Reticulum.config_section_to_opts(section, "Backbone", params)
+
+      assert Keyword.get(opts, :target_host) == "10.0.0.1"
+    end
+
+    test "includes configured_bitrate when present" do
+      section =
+        Section.new()
+        |> Section.put_scalar("type", "UDPInterface")
+
+      params = %{configured_bitrate: 115_200}
+      opts = Reticulum.config_section_to_opts(section, "test", params)
+
+      assert Keyword.get(opts, :configured_bitrate) == 115_200
+    end
+  end
+
+  # ── Synthesize Interface ─────────────────────────────────────────────
+
+  describe "synthesize_interface" do
+    setup do
+      tmpdir = System.tmp_dir!()
+      configdir = Path.join(tmpdir, "rns_test_synth_#{:rand.uniform(100_000)}")
+      on_exit(fn -> File.rm_rf!(configdir) end)
+      {:ok, configdir: configdir}
+    end
+
+    test "skips disabled interface", %{configdir: configdir} do
+      name = :"test_synth_disabled_#{:rand.uniform(100_000)}"
+
+      {:ok, pid} =
+        Reticulum.start_link(
+          configdir: configdir,
+          skip_start: true,
+          server_name: name
+        )
+
+      state = GenServer.call(name, :get_state)
+
+      section =
+        Section.new()
+        |> Section.put_scalar("type", "UDPInterface")
+        |> Section.put_scalar("enabled", "no")
+
+      new_state = Reticulum.synthesize_interface(state, section, "Disabled Interface")
+      assert new_state.started_interfaces == state.started_interfaces
+
+      GenServer.stop(pid)
+    end
+
+    test "skips interface with no enabled flag", %{configdir: configdir} do
+      name = :"test_synth_noflag_#{:rand.uniform(100_000)}"
+
+      {:ok, pid} =
+        Reticulum.start_link(
+          configdir: configdir,
+          skip_start: true,
+          server_name: name
+        )
+
+      state = GenServer.call(name, :get_state)
+
+      section =
+        Section.new()
+        |> Section.put_scalar("type", "UDPInterface")
+
+      new_state = Reticulum.synthesize_interface(state, section, "No Flag")
+      assert new_state.started_interfaces == state.started_interfaces
+
+      GenServer.stop(pid)
+    end
+
+    test "handles unknown interface type gracefully", %{configdir: configdir} do
+      name = :"test_synth_unknown_#{:rand.uniform(100_000)}"
+
+      {:ok, pid} =
+        Reticulum.start_link(
+          configdir: configdir,
+          skip_start: true,
+          server_name: name
+        )
+
+      state = GenServer.call(name, :get_state)
+
+      section =
+        Section.new()
+        |> Section.put_scalar("type", "NonExistentInterface")
+        |> Section.put_scalar("enabled", "yes")
+
+      new_state = Reticulum.synthesize_interface(state, section, "Unknown")
+      # Should not crash, returns state unchanged
+      assert new_state.started_interfaces == state.started_interfaces
+
+      GenServer.stop(pid)
+    end
+
+    test "starts a UDPInterface from config", %{configdir: configdir} do
+      name = :"test_synth_udp_#{:rand.uniform(100_000)}"
+
+      {:ok, pid} =
+        Reticulum.start_link(
+          configdir: configdir,
+          skip_start: true,
+          server_name: name
+        )
+
+      state = GenServer.call(name, :get_state)
+
+      section =
+        Section.new()
+        |> Section.put_scalar("type", "UDPInterface")
+        |> Section.put_scalar("enabled", "yes")
+        |> Section.put_scalar("listen_ip", "127.0.0.1")
+        |> Section.put_scalar("listen_port", "#{49_000 + :rand.uniform(1000)}")
+        |> Section.put_scalar("forward_ip", "127.0.0.1")
+        |> Section.put_scalar("forward_port", "#{49_000 + :rand.uniform(1000)}")
+
+      new_state = Reticulum.synthesize_interface(state, section, "Test UDP")
+      assert length(new_state.started_interfaces) == length(state.started_interfaces) + 1
+
+      # Clean up the started interface
+      [iface_pid | _] = new_state.started_interfaces
+
+      if Process.alive?(iface_pid) do
+        DynamicSupervisor.terminate_child(RNS.InterfaceSupervisor, iface_pid)
+      end
+
+      GenServer.stop(pid)
+    end
+  end
+
+  # ── Start Local Interface ────────────────────────────────────────────
+
+  describe "start_local_interface" do
+    setup do
+      tmpdir = System.tmp_dir!()
+      configdir = Path.join(tmpdir, "rns_test_local_#{:rand.uniform(100_000)}")
+      on_exit(fn -> File.rm_rf!(configdir) end)
+      {:ok, configdir: configdir}
+    end
+
+    test "standalone mode when share_instance is false", %{configdir: configdir} do
+      name = :"test_standalone_#{:rand.uniform(100_000)}"
+
+      File.mkdir_p!(configdir)
+
+      File.write!(Path.join(configdir, "config"), """
+      [reticulum]
+      share_instance = no
+
+      [logging]
+      loglevel = 4
+      """)
+
+      {:ok, pid} =
+        Reticulum.start_link(
+          configdir: configdir,
+          skip_start: true,
+          server_name: name
+        )
+
+      state = GenServer.call(name, :get_state)
+
+      # Manually call start_local_interface
+      new_state = Reticulum.start_local_interface(state)
+
+      assert new_state.is_standalone_instance == true
+      assert new_state.is_shared_instance == false
+      assert new_state.is_connected_to_shared_instance == false
+
+      GenServer.stop(pid)
+    end
+  end
+
+  # ── Interface Instantiation from Config (full pipeline) ─────────────
+
+  describe "start_configured_interfaces" do
+    setup do
+      tmpdir = System.tmp_dir!()
+      configdir = Path.join(tmpdir, "rns_test_ifaces_#{:rand.uniform(100_000)}")
+      on_exit(fn -> File.rm_rf!(configdir) end)
+      {:ok, configdir: configdir}
+    end
+
+    test "starts interfaces from config sections", %{configdir: configdir} do
+      name = :"test_ifaces_#{:rand.uniform(100_000)}"
+
+      port1 = 50_000 + :rand.uniform(1000)
+      port2 = 51_000 + :rand.uniform(1000)
+
+      File.mkdir_p!(configdir)
+
+      File.write!(Path.join(configdir, "config"), """
+      [reticulum]
+      share_instance = no
+
+      [logging]
+      loglevel = 4
+
+      [interfaces]
+        [[Test UDP 1]]
+          type = UDPInterface
+          enabled = yes
+          listen_ip = 127.0.0.1
+          listen_port = #{port1}
+          forward_ip = 127.0.0.1
+          forward_port = #{port1}
+
+        [[Test UDP 2]]
+          type = UDPInterface
+          enabled = yes
+          listen_ip = 127.0.0.1
+          listen_port = #{port2}
+          forward_ip = 127.0.0.1
+          forward_port = #{port2}
+      """)
+
+      {:ok, pid} =
+        Reticulum.start_link(
+          configdir: configdir,
+          skip_start: true,
+          server_name: name
+        )
+
+      state = GenServer.call(name, :get_state)
+
+      # Mark as standalone so interfaces will be started
+      state = %{state | is_standalone_instance: true}
+      new_state = Reticulum.start_configured_interfaces(state)
+
+      assert length(new_state.started_interfaces) >= 2
+
+      # Clean up
+      for iface_pid <- new_state.started_interfaces do
+        if is_pid(iface_pid) and Process.alive?(iface_pid) do
+          DynamicSupervisor.terminate_child(RNS.InterfaceSupervisor, iface_pid)
+        end
+      end
+
+      GenServer.stop(pid)
+    end
+
+    test "skips disabled interfaces", %{configdir: configdir} do
+      name = :"test_skip_disabled_#{:rand.uniform(100_000)}"
+
+      File.mkdir_p!(configdir)
+
+      File.write!(Path.join(configdir, "config"), """
+      [reticulum]
+      share_instance = no
+
+      [logging]
+      loglevel = 4
+
+      [interfaces]
+        [[Disabled UDP]]
+          type = UDPInterface
+          enabled = no
+          listen_ip = 127.0.0.1
+          listen_port = 55555
+          forward_ip = 127.0.0.1
+          forward_port = 55555
+      """)
+
+      {:ok, pid} =
+        Reticulum.start_link(
+          configdir: configdir,
+          skip_start: true,
+          server_name: name
+        )
+
+      state = GenServer.call(name, :get_state)
+      state = %{state | is_standalone_instance: true}
+      new_state = Reticulum.start_configured_interfaces(state)
+
+      assert new_state.started_interfaces == state.started_interfaces
+
+      GenServer.stop(pid)
+    end
+
+    test "returns unchanged state when no interfaces section", %{configdir: configdir} do
+      name = :"test_no_ifaces_#{:rand.uniform(100_000)}"
+
+      File.mkdir_p!(configdir)
+
+      File.write!(Path.join(configdir, "config"), """
+      [reticulum]
+      share_instance = no
+
+      [logging]
+      loglevel = 4
+      """)
+
+      {:ok, pid} =
+        Reticulum.start_link(
+          configdir: configdir,
+          skip_start: true,
+          server_name: name
+        )
+
+      state = GenServer.call(name, :get_state)
+      state = %{state | is_standalone_instance: true}
+      new_state = Reticulum.start_configured_interfaces(state)
+
+      assert new_state.started_interfaces == state.started_interfaces
+
+      GenServer.stop(pid)
+    end
+  end
+
+  # ── IFAC Key Derivation ──────────────────────────────────────────────
+
+  describe "build_post_init_updates IFAC computation" do
+    test "computes IFAC identity when netname is set" do
+      params = %{
+        outgoing: true,
+        interface_mode: 0x00,
+        announce_cap: 0.02,
+        bootstrap_only: false,
+        configured_bitrate: nil,
+        ifac_size: nil,
+        ifac_netname: "testnet",
+        ifac_netkey: nil,
+        ingress_control: true,
+        ic_max_held_announces: nil,
+        ic_burst_hold: nil,
+        ic_burst_freq_new: nil,
+        ic_burst_freq: nil,
+        ic_new_time: nil,
+        ic_burst_penalty: nil,
+        ic_held_release_interval: nil,
+        announce_rate_target: nil,
+        announce_rate_grace: nil,
+        announce_rate_penalty: nil,
+        discoverable: false,
+        discovery_params: %{}
+      }
+
+      updates = Reticulum.build_post_init_updates(params, %{})
+      assert is_binary(updates.ifac_key)
+      assert byte_size(updates.ifac_key) == 64
+      assert updates.ifac_identity != nil
+      assert is_binary(updates.ifac_signature)
+    end
+
+    test "computes IFAC identity when both netname and netkey are set" do
+      params = %{
+        outgoing: true,
+        interface_mode: 0x00,
+        announce_cap: 0.02,
+        bootstrap_only: false,
+        configured_bitrate: nil,
+        ifac_size: nil,
+        ifac_netname: "testnet",
+        ifac_netkey: "secret",
+        ingress_control: true,
+        ic_max_held_announces: nil,
+        ic_burst_hold: nil,
+        ic_burst_freq_new: nil,
+        ic_burst_freq: nil,
+        ic_new_time: nil,
+        ic_burst_penalty: nil,
+        ic_held_release_interval: nil,
+        announce_rate_target: nil,
+        announce_rate_grace: nil,
+        announce_rate_penalty: nil,
+        discoverable: false,
+        discovery_params: %{}
+      }
+
+      updates = Reticulum.build_post_init_updates(params, %{})
+      assert is_binary(updates.ifac_key)
+      assert byte_size(updates.ifac_key) == 64
+    end
+
+    test "skips IFAC computation when neither netname nor netkey is set" do
+      params = %{
+        outgoing: true,
+        interface_mode: 0x00,
+        announce_cap: 0.02,
+        bootstrap_only: false,
+        configured_bitrate: nil,
+        ifac_size: nil,
+        ifac_netname: nil,
+        ifac_netkey: nil,
+        ingress_control: true,
+        ic_max_held_announces: nil,
+        ic_burst_hold: nil,
+        ic_burst_freq_new: nil,
+        ic_burst_freq: nil,
+        ic_new_time: nil,
+        ic_burst_penalty: nil,
+        ic_held_release_interval: nil,
+        announce_rate_target: nil,
+        announce_rate_grace: nil,
+        announce_rate_penalty: nil,
+        discoverable: false,
+        discovery_params: %{}
+      }
+
+      updates = Reticulum.build_post_init_updates(params, %{})
+      refute Map.has_key?(updates, :ifac_key)
+      refute Map.has_key?(updates, :ifac_identity)
+    end
+  end
+
+  # ── Persist Data ─────────────────────────────────────────────────────
+
+  describe "persist and terminate" do
+    setup do
+      tmpdir = System.tmp_dir!()
+      configdir = Path.join(tmpdir, "rns_test_persist_#{:rand.uniform(100_000)}")
+      on_exit(fn -> File.rm_rf!(configdir) end)
+      {:ok, configdir: configdir}
+    end
+
+    test "terminate does not crash", %{configdir: configdir} do
+      name = :"test_persist_term_#{:rand.uniform(100_000)}"
+
+      {:ok, pid} =
+        Reticulum.start_link(
+          configdir: configdir,
+          skip_start: true,
+          server_name: name
+        )
+
+      # Stopping should invoke terminate gracefully
+      GenServer.stop(pid)
+      refute Process.alive?(pid)
+    end
+  end
+
+  # ── Add Interface API ───────────────────────────────────────────────
+
+  describe "add_interface" do
+    setup do
+      tmpdir = System.tmp_dir!()
+      configdir = Path.join(tmpdir, "rns_test_add_#{:rand.uniform(100_000)}")
+      on_exit(fn -> File.rm_rf!(configdir) end)
+      {:ok, configdir: configdir}
+    end
+
+    test "rejects when connected to shared instance", %{configdir: configdir} do
+      name = :"test_add_reject_#{:rand.uniform(100_000)}"
+
+      {:ok, pid} =
+        Reticulum.start_link(
+          configdir: configdir,
+          skip_start: true,
+          server_name: name
+        )
+
+      # Manually set state to connected_to_shared_instance
+      :sys.replace_state(pid, fn state ->
+        %{state | is_connected_to_shared_instance: true}
+      end)
+
+      result = GenServer.call(name, {:add_interface, self(), %{}})
+      assert result == {:error, :connected_to_shared_instance}
+
+      GenServer.stop(pid)
+    end
+  end
 end

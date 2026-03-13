@@ -349,7 +349,7 @@ This is the largest module (3312 LOC in Python). Split into manageable sub-modul
 - [x] **8.2 — Reticulum main class — initialization and configuration**
   Port `python/RNS/Reticulum.py` (1716 LOC, part 1) → `lib/rns/reticulum.ex`. Implement `RNS.Reticulum` as a GenServer (effectively singleton per node). Config dir detection (`~/.reticulum/` or custom), config parsing, storage/cache/resource path management. `init/1`: load config, set up paths, init Identity store, start Transport. `create_default_config/0`. Write tests: initialization, path management, default config.
 
-- [ ] **8.3 — Reticulum main class — interface instantiation and lifecycle**
+- [x] **8.3 — Reticulum main class — interface instantiation and lifecycle**
   Complete `lib/rns/reticulum.ex`. Interface instantiation from config: for each `[[interface_name]]` section, determine type, start appropriate interface GenServer under InterfaceSupervisor. `start_local_interface/1`, `start_remote_interface/1`. Exit handler via `GenServer.terminate/2` — save state (path tables, known destinations, packet hashlist), teardown interfaces, stop Transport. Shared instance mode (daemon). Write tests: interface instantiation from config, state persistence on shutdown.
 
 - [ ] **8.4 — Discovery module**

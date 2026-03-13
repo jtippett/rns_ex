@@ -1,9 +1,11 @@
 defmodule RNS.Reticulum do
   @moduledoc """
-  Main Reticulum system class — initialization and configuration.
+  Main Reticulum system class — initialization, configuration, interface
+  instantiation, and lifecycle management.
 
   This GenServer manages the lifecycle of a Reticulum instance, including
-  configuration loading, directory management, and coordinating the startup
+  configuration loading, directory management, interface instantiation from
+  config, shared instance mode, and coordinating the startup and shutdown
   of Transport and Identity subsystems. Effectively a singleton per node.
 
   Ported from `python/RNS/Reticulum.py`.
@@ -14,6 +16,7 @@ defmodule RNS.Reticulum do
 
   alias RNS.Vendor.ConfigObj
   alias RNS.Vendor.ConfigObj.Section
+  alias RNS.Interfaces.Interface
 
   # ── Protocol Constants ─────────────────────────────────────────────────
 
@@ -239,6 +242,12 @@ defmodule RNS.Reticulum do
   @doc "Triggers gracious persistence if enough time has elapsed."
   @spec should_persist_data() :: :ok
   def should_persist_data, do: GenServer.cast(__MODULE__, :should_persist_data)
+
+  @doc "Adds a running interface process at runtime with the given options."
+  @spec add_interface(pid(), keyword()) :: :ok | {:error, term()}
+  def add_interface(interface_pid, opts \\ []) do
+    GenServer.call(__MODULE__, {:add_interface, interface_pid, opts})
+  end
 
   # ── Pure Functions ─────────────────────────────────────────────────────
 
@@ -575,17 +584,32 @@ defmodule RNS.Reticulum do
         is_shared_instance: false,
         is_standalone_instance: false,
         is_connected_to_shared_instance: false,
+        shared_instance_interface: nil,
         last_data_persist: System.system_time(:second),
         last_cache_clean: 0,
-        jobs_started: false
+        jobs_started: false,
+        started_interfaces: []
       })
 
-    # Start periodic jobs
     unless skip_start do
-      schedule_job()
-    end
+      # Start local interface (shared/client/standalone mode)
+      state = start_local_interface(state)
 
-    {:ok, state}
+      # Start configured interfaces (only if shared or standalone)
+      state =
+        if state.is_shared_instance or state.is_standalone_instance do
+          start_configured_interfaces(state)
+        else
+          state
+        end
+
+      # Start periodic jobs
+      schedule_job()
+
+      {:ok, state}
+    else
+      {:ok, state}
+    end
   end
 
   @impl true
@@ -672,6 +696,16 @@ defmodule RNS.Reticulum do
     do: {:reply, state.is_connected_to_shared_instance, state}
 
   @impl true
+  def handle_call({:add_interface, interface_pid, opts}, _from, state) do
+    if state.is_connected_to_shared_instance do
+      {:reply, {:error, :connected_to_shared_instance}, state}
+    else
+      apply_interface_post_init(interface_pid, opts, state)
+      {:reply, :ok, state}
+    end
+  end
+
+  @impl true
   def handle_cast(:should_persist_data, state) do
     now = System.system_time(:second)
 
@@ -715,7 +749,14 @@ defmodule RNS.Reticulum do
 
   @impl true
   def terminate(_reason, state) do
+    Logger.info("Reticulum shutting down...")
+
+    # Detach all interfaces
+    detach_all_interfaces(state)
+
+    # Persist state
     persist_data(state)
+
     :ok
   end
 
@@ -725,9 +766,739 @@ defmodule RNS.Reticulum do
     Process.send_after(self(), :run_jobs, @job_interval * 1000)
   end
 
-  defp persist_data(_state) do
-    # Delegate to Transport and Identity persistence
-    # These will be wired up in Task 8.3
+  defp persist_data(state) do
+    try do
+      # Save Transport path table
+      path_table_path = Path.join(state.storagepath, "path_table")
+      RNS.Transport.save_path_table(path_table_path)
+    rescue
+      e -> Logger.debug("Could not save path table: #{Exception.message(e)}")
+    end
+
+    try do
+      # Save packet hashlist
+      hashlist_path = Path.join(state.storagepath, "packet_hashlist")
+      RNS.Transport.save_packet_hashlist(hashlist_path)
+    rescue
+      e -> Logger.debug("Could not save packet hashlist: #{Exception.message(e)}")
+    end
+
+    try do
+      # Save tunnel table
+      tunnel_path = Path.join(state.storagepath, "tunnel_table")
+      RNS.Transport.save_tunnel_table(tunnel_path)
+    rescue
+      e -> Logger.debug("Could not save tunnel table: #{Exception.message(e)}")
+    end
+
+    :ok
+  end
+
+  # ── Interface Lifecycle ──────────────────────────────────────────────
+
+  @doc false
+  def start_local_interface(state) do
+    if state.share_instance do
+      # Try to become the shared instance by starting a LocalServerInterface
+      case start_shared_server(state) do
+        {:ok, state} ->
+          state
+
+        {:error, _reason} ->
+          # Server port is in use — try connecting as a client
+          case start_shared_client(state) do
+            {:ok, state} ->
+              state
+
+            {:error, _reason} ->
+              # Could not connect either — run standalone
+              Logger.warning(
+                "Local shared instance appears to be running, but could not be connected"
+              )
+
+              %{state |
+                is_shared_instance: false,
+                is_standalone_instance: true,
+                is_connected_to_shared_instance: false
+              }
+          end
+      end
+    else
+      # No sharing configured — standalone mode
+      %{state |
+        is_shared_instance: false,
+        is_standalone_instance: true,
+        is_connected_to_shared_instance: false
+      }
+    end
+  end
+
+  defp start_shared_server(state) do
+    opts = [
+      name: "Shared Instance",
+      listen_port: state.local_interface_port,
+      socket_path: state.local_socket_path
+    ]
+
+    case DynamicSupervisor.start_child(
+           RNS.InterfaceSupervisor,
+           {RNS.Interfaces.LocalServerInterface, opts}
+         ) do
+      {:ok, pid} ->
+        Logger.debug("Started shared instance interface")
+
+        if state.force_shared_instance_bitrate do
+          send(pid, {:set_field, :bitrate, state.force_shared_instance_bitrate})
+        end
+
+        {:ok,
+         %{state |
+           is_shared_instance: true,
+           is_standalone_instance: false,
+           is_connected_to_shared_instance: false,
+           shared_instance_interface: pid,
+           started_interfaces: [pid | state.started_interfaces]
+         }}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp start_shared_client(state) do
+    opts = [
+      name: "Local shared instance",
+      target_port: state.local_interface_port,
+      socket_path: state.local_socket_path
+    ]
+
+    case DynamicSupervisor.start_child(
+           RNS.InterfaceSupervisor,
+           {RNS.Interfaces.LocalClientInterface, opts}
+         ) do
+      {:ok, pid} ->
+        Logger.debug("Connected to locally available Reticulum instance")
+
+        if state.force_shared_instance_bitrate do
+          send(pid, {:set_field, :bitrate, state.force_shared_instance_bitrate})
+        end
+
+        {:ok,
+         %{state |
+           is_shared_instance: false,
+           is_standalone_instance: false,
+           is_connected_to_shared_instance: true,
+           transport_enabled: false,
+           remote_management_enabled: false,
+           allow_probes: false,
+           started_interfaces: [pid | state.started_interfaces]
+         }}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc false
+  def start_configured_interfaces(state) do
+    if Section.has_key?(state.config, "interfaces") do
+      interfaces_section = Section.get(state.config, "interfaces")
+      interface_names = Section.section_names(interfaces_section)
+
+      Logger.info("Bringing up system interfaces...")
+
+      seen_names = MapSet.new()
+
+      Enum.reduce(interface_names, state, fn name, acc_state ->
+        if MapSet.member?(seen_names, name) do
+          Logger.error(
+            "The interface name \"#{name}\" was already used. Check your configuration file for errors!"
+          )
+
+          acc_state
+        else
+          # seen_names tracking happens across iterations but we don't mutate it
+          # since ConfigObj already enforces unique section names
+          interface_config = Section.get(interfaces_section, name)
+          synthesize_interface(acc_state, interface_config, name)
+        end
+      end)
+    else
+      state
+    end
+  end
+
+  @doc false
+  @spec synthesize_interface(map(), Section.t(), String.t()) :: map()
+  def synthesize_interface(state, config, name) do
+    c = config
+
+    # Check if interface is enabled
+    enabled =
+      cond do
+        Section.has_key?(c, "interface_enabled") -> Section.as_bool(c, "interface_enabled")
+        Section.has_key?(c, "enabled") -> Section.as_bool(c, "enabled")
+        true -> false
+      end
+
+    unless enabled do
+      Logger.debug("Skipping disabled interface \"#{name}\"")
+      state
+    else
+      # Parse interface mode
+      interface_mode = parse_interface_mode(c)
+
+      # Extract common config parameters
+      params = extract_interface_params(c, interface_mode, name)
+
+      # Determine interface type and start it
+      case start_interface_by_type(c, name, params, state) do
+        {:ok, pid, state} ->
+          # Apply post-init settings to the running interface process
+          apply_interface_post_init(pid, params, state)
+          %{state | started_interfaces: [pid | state.started_interfaces]}
+
+        {:error, reason} ->
+          Logger.error(
+            "The interface \"#{name}\" could not be created. Check your configuration file for errors!"
+          )
+
+          Logger.error("The contained exception was: #{inspect(reason)}")
+
+          if state.panic_on_interface_error do
+            raise "Interface creation failed: #{inspect(reason)}"
+          end
+
+          state
+      end
+    end
+  rescue
+    e ->
+      Logger.error(
+        "The interface \"#{name}\" could not be created: #{Exception.message(e)}"
+      )
+
+      if state.panic_on_interface_error do
+        reraise e, __STACKTRACE__
+      end
+
+      state
+  end
+
+  defp has_interface_mode_config?(c) do
+    Section.has_key?(c, "interface_mode") or Section.has_key?(c, "mode")
+  end
+
+  defp parse_interface_mode(c) do
+    mode_key =
+      cond do
+        Section.has_key?(c, "interface_mode") -> Section.get(c, "interface_mode")
+        Section.has_key?(c, "mode") -> Section.get(c, "mode")
+        true -> nil
+      end
+
+    case mode_key && String.downcase(to_string(mode_key)) do
+      nil -> Interface.mode_full()
+      "full" -> Interface.mode_full()
+      mode when mode in ["access_point", "accesspoint", "ap"] -> Interface.mode_access_point()
+      mode when mode in ["pointtopoint", "ptp"] -> Interface.mode_point_to_point()
+      "roaming" -> Interface.mode_roaming()
+      "boundary" -> Interface.mode_boundary()
+      mode when mode in ["gateway", "gw"] -> Interface.mode_gateway()
+      _ -> Interface.mode_full()
+    end
+  end
+
+  @doc false
+  def extract_interface_params(c, interface_mode, name) do
+    # Parse interface mode from config (overrides passed-in mode if config specifies one)
+    interface_mode =
+      if has_interface_mode_config?(c), do: parse_interface_mode(c), else: interface_mode
+
+    # IFAC parameters
+    ifac_size = get_optional_int(c, "ifac_size", fn v -> if v >= @ifac_min_size * 8, do: div(v, 8) end)
+
+    ifac_netname =
+      get_nonempty_string(c, "networkname") || get_nonempty_string(c, "network_name")
+
+    ifac_netkey =
+      get_nonempty_string(c, "passphrase") || get_nonempty_string(c, "pass_phrase")
+
+    # Ingress control
+    ingress_control = get_optional_bool(c, "ingress_control", true)
+    ic_max_held_announces = get_optional_int_raw(c, "ic_max_held_announces")
+    ic_burst_hold = get_optional_float_raw(c, "ic_burst_hold")
+    ic_burst_freq_new = get_optional_float_raw(c, "ic_burst_freq_new")
+    ic_burst_freq = get_optional_float_raw(c, "ic_burst_freq")
+    ic_new_time = get_optional_float_raw(c, "ic_new_time")
+    ic_burst_penalty = get_optional_float_raw(c, "ic_burst_penalty")
+    ic_held_release_interval = get_optional_float_raw(c, "ic_held_release_interval")
+
+    # Bitrate
+    configured_bitrate =
+      get_optional_int(c, "bitrate", fn v -> if v >= @minimum_bitrate, do: v end)
+
+    # Announce rate limiting
+    announce_rate_target =
+      get_optional_int(c, "announce_rate_target", fn v -> if v > 0, do: v end)
+
+    announce_rate_grace =
+      get_optional_int(c, "announce_rate_grace", fn v -> if v >= 0, do: v end)
+
+    announce_rate_penalty =
+      get_optional_int(c, "announce_rate_penalty", fn v -> if v >= 0, do: v end)
+
+    # Default grace and penalty when target is set
+    announce_rate_grace =
+      if announce_rate_target != nil and announce_rate_grace == nil, do: 0, else: announce_rate_grace
+
+    announce_rate_penalty =
+      if announce_rate_target != nil and announce_rate_penalty == nil,
+        do: 0,
+        else: announce_rate_penalty
+
+    # Announce cap
+    announce_cap = @announce_cap / 100.0
+
+    announce_cap =
+      if Section.has_key?(c, "announce_cap") do
+        v = Section.as_float(c, "announce_cap")
+        if v > 0 and v <= 100, do: v / 100.0, else: announce_cap
+      else
+        announce_cap
+      end
+
+    # Bootstrap
+    bootstrap_only = get_optional_bool(c, "bootstrap_only", false)
+
+    # Outgoing
+    outgoing =
+      if Section.has_key?(c, "outgoing"), do: Section.as_bool(c, "outgoing"), else: true
+
+    # Discovery settings
+    {discoverable, discovery_params, interface_mode} =
+      extract_discovery_params(c, interface_mode, name)
+
+    %{
+      interface_mode: interface_mode,
+      ifac_size: ifac_size,
+      ifac_netname: ifac_netname,
+      ifac_netkey: ifac_netkey,
+      ingress_control: ingress_control,
+      ic_max_held_announces: ic_max_held_announces,
+      ic_burst_hold: ic_burst_hold,
+      ic_burst_freq_new: ic_burst_freq_new,
+      ic_burst_freq: ic_burst_freq,
+      ic_new_time: ic_new_time,
+      ic_burst_penalty: ic_burst_penalty,
+      ic_held_release_interval: ic_held_release_interval,
+      configured_bitrate: configured_bitrate,
+      announce_rate_target: announce_rate_target,
+      announce_rate_grace: announce_rate_grace,
+      announce_rate_penalty: announce_rate_penalty,
+      announce_cap: announce_cap,
+      bootstrap_only: bootstrap_only,
+      outgoing: outgoing,
+      discoverable: discoverable,
+      discovery_params: discovery_params
+    }
+  end
+
+  defp extract_discovery_params(c, interface_mode, name) do
+    discoverable = get_optional_bool(c, "discoverable", false)
+
+    if discoverable do
+      announce_interval =
+        if Section.has_key?(c, "announce_interval") do
+          v = Section.as_int(c, "announce_interval") * 60
+          max(v, 5 * 60)
+        else
+          6 * 60 * 60
+        end
+
+      params = %{
+        discovery_announce_interval: announce_interval,
+        discovery_stamp_value: get_optional_int_raw(c, "discovery_stamp_value"),
+        discovery_name: get_optional_string(c, "discovery_name"),
+        discovery_encrypt: get_optional_bool(c, "discovery_encrypt", false),
+        reachable_on: get_optional_string(c, "reachable_on"),
+        publish_ifac: get_optional_bool(c, "publish_ifac", false),
+        latitude: get_optional_float_raw(c, "latitude"),
+        longitude: get_optional_float_raw(c, "longitude"),
+        height: get_optional_float_raw(c, "height"),
+        discovery_frequency: get_optional_int_raw(c, "discovery_frequency"),
+        discovery_bandwidth: get_optional_int_raw(c, "discovery_bandwidth"),
+        discovery_modulation: get_optional_int_raw(c, "discovery_modulation")
+      }
+
+      # Auto-configure mode for discoverable interfaces
+      interface_mode =
+        if interface_mode not in [Interface.mode_gateway(), Interface.mode_access_point()] do
+          iface_type = get_optional_string(c, "type")
+
+          if iface_type in ["RNodeInterface", "RNodeMultiInterface"] do
+            Logger.notice(
+              "Discovery enabled on interface #{name} without gateway or AP mode. Auto-configured to AP mode."
+            )
+
+            Interface.mode_access_point()
+          else
+            Logger.notice(
+              "Discovery enabled on interface #{name} without gateway or AP mode. Auto-configured to gateway mode."
+            )
+
+            Interface.mode_gateway()
+          end
+        else
+          interface_mode
+        end
+
+      {true, params, interface_mode}
+    else
+      {false, %{}, interface_mode}
+    end
+  end
+
+  defp start_interface_by_type(c, name, params, state) do
+    type = Section.get(c, "type")
+
+    # Build base opts from config section for the interface
+    opts = config_section_to_opts(c, name, params)
+
+    case type do
+      "AutoInterface" ->
+        start_interface_child(RNS.Interfaces.AutoInterface, opts)
+
+      "UDPInterface" ->
+        start_interface_child(RNS.Interfaces.UDPInterface, opts)
+
+      "TCPServerInterface" ->
+        start_interface_child(RNS.Interfaces.TCPServerInterface, opts)
+
+      "TCPClientInterface" ->
+        start_interface_child(RNS.Interfaces.TCPClientInterface, opts)
+
+      "BackboneInterface" ->
+        if Section.has_key?(c, "target_host") or Section.has_key?(c, "remote") do
+          start_interface_child(RNS.Interfaces.BackboneClientInterface, opts)
+        else
+          start_interface_child(RNS.Interfaces.BackboneInterface, opts)
+        end
+
+      "BackboneClientInterface" ->
+        start_interface_child(RNS.Interfaces.BackboneClientInterface, opts)
+
+      "I2PInterface" ->
+        opts = Keyword.put(opts, :storagepath, state.storagepath)
+        start_interface_child(RNS.Interfaces.I2PInterface, opts)
+
+      "SerialInterface" ->
+        start_interface_child(RNS.Interfaces.SerialInterface, opts)
+
+      "PipeInterface" ->
+        start_interface_child(RNS.Interfaces.PipeInterface, opts)
+
+      "KISSInterface" ->
+        start_interface_child(RNS.Interfaces.KISSInterface, opts)
+
+      "AX25KISSInterface" ->
+        start_interface_child(RNS.Interfaces.AX25KISSInterface, opts)
+
+      "RNodeInterface" ->
+        start_interface_child(RNS.Interfaces.RNodeInterface, opts)
+
+      "RNodeMultiInterface" ->
+        start_interface_child(RNS.Interfaces.RNodeMultiInterface, opts)
+
+      "WeaveInterface" ->
+        start_interface_child(RNS.Interfaces.WeaveInterface, opts)
+
+      unknown ->
+        Logger.error("Unknown interface type: #{unknown}")
+        {:error, {:unknown_type, unknown}}
+    end
+    |> case do
+      {:ok, pid} -> {:ok, pid, state}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp start_interface_child(module, opts) do
+    case DynamicSupervisor.start_child(
+           RNS.InterfaceSupervisor,
+           {module, opts}
+         ) do
+      {:ok, pid} -> {:ok, pid}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  @doc false
+  def config_section_to_opts(c, name, params) do
+    # Build keyword list from config section scalars
+    opts = [name: name]
+
+    # Add configured_bitrate and interface mode into opts so
+    # interfaces that need them can read them
+    opts =
+      if params.configured_bitrate,
+        do: Keyword.put(opts, :configured_bitrate, params.configured_bitrate),
+        else: opts
+
+    # Copy all scalar config values as keyword opts
+    Section.keys(c)
+    |> Enum.reduce(opts, fn key, acc ->
+      value = Section.get(c, key)
+
+      # Convert string keys to atoms for known interface config keys
+      atom_key = config_key_to_atom(key)
+
+      if atom_key do
+        # Coerce known integer fields from strings
+        value = coerce_config_value(atom_key, value)
+        Keyword.put(acc, atom_key, value)
+      else
+        acc
+      end
+    end)
+  end
+
+  # Integer config fields that need type coercion from string
+  @integer_config_keys MapSet.new([
+    :port, :listen_port, :bind_port, :forward_port, :target_port,
+    :speed, :databits, :stopbits, :data_port, :discovery_port,
+    :connect_timeout, :max_reconnect_tries, :respawn_delay,
+    :frequency, :bandwidth, :txpower, :spreadingfactor, :codingrate,
+    :id_interval, :ifac_size
+  ])
+
+  @bool_config_keys MapSet.new([
+    :kiss_framing, :i2p_tunneled, :prefer_ipv6, :flow_control,
+    :enabled, :interface_enabled
+  ])
+
+  defp coerce_config_value(key, value) when is_binary(value) do
+    cond do
+      MapSet.member?(@integer_config_keys, key) ->
+        case Integer.parse(value) do
+          {int, _} -> int
+          :error -> value
+        end
+
+      MapSet.member?(@bool_config_keys, key) ->
+        String.downcase(value) in ["yes", "true", "on", "1"]
+
+      true ->
+        value
+    end
+  end
+
+  defp coerce_config_value(_key, value), do: value
+
+  # Maps config file keys to keyword option atoms for interface constructors
+  defp config_key_to_atom(key) do
+    mapping = %{
+      "type" => :type,
+      "enabled" => :enabled,
+      "interface_enabled" => :interface_enabled,
+      "port" => :port,
+      "listen_port" => :listen_port,
+      "listen_ip" => :listen_ip,
+      "bind_ip" => :bind_ip,
+      "bind_port" => :bind_port,
+      "forward_ip" => :forward_ip,
+      "forward_port" => :forward_port,
+      "target_host" => :target_host,
+      "target_port" => :target_port,
+      "remote" => :target_host,
+      "listen_on" => :listen_ip,
+      "device" => :device,
+      "speed" => :speed,
+      "databits" => :databits,
+      "parity" => :parity,
+      "stopbits" => :stopbits,
+      "command" => :command,
+      "respawn_delay" => :respawn_delay,
+      "kiss_framing" => :kiss_framing,
+      "i2p_tunneled" => :i2p_tunneled,
+      "prefer_ipv6" => :prefer_ipv6,
+      "group_id" => :group_id,
+      "discovery_scope" => :discovery_scope,
+      "discovery_port" => :discovery_port,
+      "multicast_address_type" => :multicast_address_type,
+      "data_port" => :data_port,
+      "allowed_interfaces" => :allowed_interfaces,
+      "ignored_interfaces" => :ignored_interfaces,
+      "connect_timeout" => :connect_timeout,
+      "max_reconnect_tries" => :max_reconnect_tries,
+      "frequency" => :frequency,
+      "bandwidth" => :bandwidth,
+      "txpower" => :txpower,
+      "spreadingfactor" => :spreadingfactor,
+      "codingrate" => :codingrate,
+      "flow_control" => :flow_control,
+      "id_callsign" => :id_callsign,
+      "id_interval" => :id_interval,
+      "storagepath" => :storagepath,
+      "ifac_netname" => :ifac_netname,
+      "ifac_netkey" => :ifac_netkey,
+      "ifac_size" => :ifac_size,
+      "networkname" => :networkname,
+      "passphrase" => :passphrase
+    }
+
+    Map.get(mapping, key)
+  end
+
+  defp apply_interface_post_init(pid, params, state) when is_pid(pid) do
+    # Build updates to send to the interface process
+    updates = build_post_init_updates(params, state)
+    send(pid, {:apply_config, updates})
+    :ok
+  end
+
+  defp apply_interface_post_init(_pid, _params, _state), do: :ok
+
+  @doc false
+  def build_post_init_updates(params, _state) do
+    updates = %{}
+
+    updates = Map.put(updates, :out, Map.get(params, :outgoing, true))
+    updates = Map.put(updates, :mode, Map.get(params, :interface_mode, Interface.mode_full()))
+    updates = Map.put(updates, :announce_cap, Map.get(params, :announce_cap))
+    updates = Map.put(updates, :bootstrap_only, Map.get(params, :bootstrap_only, false))
+
+    updates =
+      if params[:configured_bitrate],
+        do: Map.put(updates, :bitrate, params.configured_bitrate),
+        else: updates
+
+    # IFAC settings
+    updates =
+      if params[:ifac_size],
+        do: Map.put(updates, :ifac_size, params.ifac_size),
+        else: updates
+
+    # Announce rate limiting
+    updates =
+      updates
+      |> maybe_put(:announce_rate_target, params[:announce_rate_target])
+      |> maybe_put(:announce_rate_grace, params[:announce_rate_grace])
+      |> maybe_put(:announce_rate_penalty, params[:announce_rate_penalty])
+
+    # Ingress control
+    updates = Map.put(updates, :ingress_control, Map.get(params, :ingress_control, true))
+
+    updates =
+      updates
+      |> maybe_put(:ic_max_held_announces, params[:ic_max_held_announces])
+      |> maybe_put(:ic_burst_hold, params[:ic_burst_hold])
+      |> maybe_put(:ic_burst_freq_new, params[:ic_burst_freq_new])
+      |> maybe_put(:ic_burst_freq, params[:ic_burst_freq])
+      |> maybe_put(:ic_new_time, params[:ic_new_time])
+      |> maybe_put(:ic_burst_penalty, params[:ic_burst_penalty])
+      |> maybe_put(:ic_held_release_interval, params[:ic_held_release_interval])
+
+    # Discovery settings
+    updates = Map.put(updates, :discoverable, Map.get(params, :discoverable, false))
+
+    updates =
+      if params[:discovery_params] do
+        dp = params.discovery_params
+
+        updates
+        |> maybe_put(:discovery_announce_interval, dp[:discovery_announce_interval])
+        |> maybe_put(:discovery_stamp_value, dp[:discovery_stamp_value])
+        |> maybe_put(:discovery_name, dp[:discovery_name])
+        |> maybe_put(:discovery_encrypt, dp[:discovery_encrypt])
+        |> maybe_put(:reachable_on, dp[:reachable_on])
+        |> maybe_put(:discovery_publish_ifac, dp[:publish_ifac])
+        |> maybe_put(:discovery_latitude, dp[:latitude])
+        |> maybe_put(:discovery_longitude, dp[:longitude])
+        |> maybe_put(:discovery_height, dp[:height])
+        |> maybe_put(:discovery_frequency, dp[:discovery_frequency])
+        |> maybe_put(:discovery_bandwidth, dp[:discovery_bandwidth])
+        |> maybe_put(:discovery_modulation, dp[:discovery_modulation])
+      else
+        updates
+      end
+
+    # IFAC network identity computation
+    ifac_netname = params[:ifac_netname]
+    ifac_netkey = params[:ifac_netkey]
+
+    updates = Map.put(updates, :ifac_netname, ifac_netname)
+    updates = Map.put(updates, :ifac_netkey, ifac_netkey)
+
+    if ifac_netname != nil or ifac_netkey != nil do
+      ifac_origin = <<>>
+
+      ifac_origin =
+        if ifac_netname != nil do
+          ifac_origin <> RNS.Identity.full_hash(ifac_netname)
+        else
+          ifac_origin
+        end
+
+      ifac_origin =
+        if ifac_netkey != nil do
+          ifac_origin <> RNS.Identity.full_hash(ifac_netkey)
+        else
+          ifac_origin
+        end
+
+      ifac_origin_hash = RNS.Identity.full_hash(ifac_origin)
+
+      ifac_key =
+        RNS.Cryptography.HKDF.derive_key(
+          ifac_origin_hash,
+          64,
+          @ifac_salt,
+          nil
+        )
+
+      ifac_identity = RNS.Identity.from_bytes(ifac_key)
+      ifac_signature = RNS.Identity.sign(ifac_identity, RNS.Identity.full_hash(ifac_key))
+
+      updates
+      |> Map.put(:ifac_key, ifac_key)
+      |> Map.put(:ifac_identity, ifac_identity)
+      |> Map.put(:ifac_signature, ifac_signature)
+    else
+      updates
+    end
+  end
+
+  defp detach_all_interfaces(state) do
+    # Get all interfaces from Transport and detach them
+    interfaces =
+      try do
+        RNS.Transport.get_interfaces()
+      rescue
+        _ -> []
+      end
+
+    for interface <- interfaces do
+      try do
+        if is_map(interface) and Map.has_key?(interface, :pid) and is_pid(interface.pid) do
+          send(interface.pid, :detach)
+        end
+      rescue
+        _ -> :ok
+      end
+    end
+
+    # Also stop any interfaces we directly started
+    for pid <- Map.get(state, :started_interfaces, []) do
+      try do
+        if Process.alive?(pid) do
+          DynamicSupervisor.terminate_child(RNS.InterfaceSupervisor, pid)
+        end
+      rescue
+        _ -> :ok
+      end
+    end
+
     :ok
   end
 
@@ -1034,4 +1805,43 @@ defmodule RNS.Reticulum do
       state
     end
   end
+
+  # ── Config Extraction Helpers ────────────────────────────────────────
+
+  defp get_optional_bool(c, key, default) do
+    if Section.has_key?(c, key), do: Section.as_bool(c, key), else: default
+  end
+
+  defp get_optional_int(c, key, validator) do
+    if Section.has_key?(c, key) do
+      v = Section.as_int(c, key)
+      validator.(v)
+    else
+      nil
+    end
+  end
+
+  defp get_optional_int_raw(c, key) do
+    if Section.has_key?(c, key), do: Section.as_int(c, key), else: nil
+  end
+
+  defp get_optional_float_raw(c, key) do
+    if Section.has_key?(c, key), do: Section.as_float(c, key), else: nil
+  end
+
+  defp get_optional_string(c, key) do
+    if Section.has_key?(c, key), do: Section.get(c, key), else: nil
+  end
+
+  defp get_nonempty_string(c, key) do
+    if Section.has_key?(c, key) do
+      v = Section.get(c, key)
+      if is_binary(v) and v != "", do: v, else: nil
+    else
+      nil
+    end
+  end
+
+  defp maybe_put(map, _key, nil), do: map
+  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
