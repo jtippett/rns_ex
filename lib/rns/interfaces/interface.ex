@@ -5,8 +5,6 @@ defmodule RNS.Interfaces.Interface do
   Defines the `RNS.Interfaces.Interface` behaviour that all interface
   implementations must adopt, and provides a `use` macro that injects
   shared constants, struct fields, and functions.
-
-  Matches `python/RNS/Interfaces/Interface.py`.
   """
 
   use RNS.Constants.Interface
@@ -513,7 +511,7 @@ defmodule RNS.Interfaces.Interface do
     HDLC (High-Level Data Link Control) framing helpers.
 
     Used by TCP, serial, and other stream-oriented interfaces for
-    packet framing. Matches `HDLC` class in `python/RNS/Interfaces/TCPInterface.py`.
+    packet framing.
     """
 
     @flag 0x7E
@@ -643,7 +641,6 @@ defmodule RNS.Interfaces.Interface do
     KISS (Keep It Simple, Stupid) framing helpers.
 
     Used by TCP interfaces in KISS mode and by serial/TNC interfaces.
-    Matches `KISS` class in `python/RNS/Interfaces/TCPInterface.py`.
     """
 
     import Bitwise

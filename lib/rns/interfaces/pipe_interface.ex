@@ -5,8 +5,6 @@ defmodule RNS.Interfaces.PipeInterface do
   Communicates with external programs via `Port.open/2` using stdin/stdout
   pipes with HDLC framing. The subprocess is spawned on start and
   automatically respawned after `respawn_delay` if it exits.
-
-  Matches `python/RNS/Interfaces/PipeInterface.py`.
   """
 
   use GenServer

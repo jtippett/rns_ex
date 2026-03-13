@@ -11,8 +11,6 @@ defmodule RNS.Interfaces.I2PInterface do
 
   Uses HDLC framing by default with optional KISS framing mode.
   Supports automatic reconnection and tunnel re-establishment.
-
-  Matches `python/RNS/Interfaces/I2PInterface.py`.
   """
 
   use GenServer
@@ -443,8 +441,6 @@ defmodule RNS.Interfaces.I2PInterfacePeer do
 
   Includes a read watchdog that monitors tunnel health and triggers
   reconnection when the tunnel becomes unresponsive.
-
-  Matches `I2PInterfacePeer` in `python/RNS/Interfaces/I2PInterface.py`.
   """
 
   use GenServer
@@ -1199,11 +1195,8 @@ defmodule RNS.Interfaces.I2PController do
   destinations) and server tunnel creation (making local services
   reachable via I2P).
 
-  In the Python implementation, this uses asyncio with the i2plib vendor
-  library. In Elixir, tunnel management is handled via GenServer state
-  and TCP connections to the SAM bridge.
-
-  Matches `I2PController` in `python/RNS/Interfaces/I2PInterface.py`.
+  Tunnel management is handled via GenServer state and TCP connections
+  to the SAM bridge.
   """
 
   use GenServer

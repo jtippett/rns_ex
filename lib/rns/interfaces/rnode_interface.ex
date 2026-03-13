@@ -9,8 +9,6 @@ defmodule RNS.Interfaces.RNodeInterface do
 
   The RNode KISS protocol extends standard KISS with radio-specific
   commands for configuration, telemetry, and device management.
-
-  Matches `python/RNS/Interfaces/RNodeInterface.py`.
   """
 
   use GenServer

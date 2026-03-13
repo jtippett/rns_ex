@@ -5,8 +5,6 @@ defmodule RNS.PacketReceipt do
   PacketReceipt instances are created automatically when a packet is sent
   with `create_receipt: true`. They track whether a packet was delivered,
   timed out, or failed.
-
-  Matches `python/RNS/Packet.py` PacketReceipt class.
   """
 
   use RNS.Constants.PacketReceipt

@@ -4,8 +4,6 @@ defmodule RNS.Cryptography.HKDF do
 
   Implements RFC 5869 using HMAC-SHA256. Provides both the combined
   `derive_key/4` interface and the separate `extract/2` + `expand/3` steps.
-
-  Matches the interface from `python/RNS/Cryptography/HKDF.py`.
   """
 
   alias RNS.Cryptography.HMAC

@@ -6,8 +6,6 @@ defmodule RNS.Resource do
   Data can be bytes or a file handle. The resource is split into parts that
   fit within the link MTU, sent with adaptive windowing, and reassembled on
   the receiving end with integrity verification.
-
-  Matches `python/RNS/Resource.py`.
   """
 
   import Bitwise
@@ -398,7 +396,8 @@ defmodule RNS.Resource do
     # Determine timeout
     timeout =
       timeout ||
-        (get_in(link, [Access.key(:stats), Access.key(:rtt)]) || 1.0) * Map.get(link, :traffic_timeout_factor, 6)
+        (get_in(link, [Access.key(:stats), Access.key(:rtt)]) || 1.0) *
+          Map.get(link, :traffic_timeout_factor, 6)
 
     base = %__MODULE__{
       link: link,
@@ -589,7 +588,9 @@ defmodule RNS.Resource do
         start_pos = i * sdu
         end_pos = min((i + 1) * sdu, byte_size(encrypted_data))
         part_len = end_pos - start_pos
-        <<_::binary-size(start_pos), part_data::binary-size(part_len), _::binary>> = encrypted_data
+
+        <<_::binary-size(start_pos), part_data::binary-size(part_len), _::binary>> =
+          encrypted_data
 
         map_hash = map_hash(part_data, random_hash)
 
@@ -1247,7 +1248,10 @@ defmodule RNS.Resource do
           hashmap_data =
             Enum.reduce(hashmap_start..(hashmap_end - 1)//1, <<>>, fn i, acc ->
               offset = i * @maphash_len
-              <<_::binary-size(offset), hash::binary-size(@maphash_len), _::binary>> = resource.hashmap
+
+              <<_::binary-size(offset), hash::binary-size(@maphash_len), _::binary>> =
+                resource.hashmap
+
               acc <> hash
             end)
 
@@ -1717,7 +1721,6 @@ defmodule RNS.Resource.Advertisement do
   Represents a resource advertisement, used to negotiate resource transfers.
 
   Contains transfer metadata: size, hash, hashmap, flags, segmentation info.
-  Matches `python/RNS/Resource.py` ResourceAdvertisement class.
   """
 
   import Bitwise

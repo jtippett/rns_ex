@@ -3,7 +3,6 @@ defmodule RNS.Cryptography.Ed25519 do
   Ed25519 digital signatures for RNS.
 
   Wraps the `eddy` hex package to provide Ed25519 signing and verification.
-  Matches `python/RNS/Cryptography/Ed25519.py` API semantics.
   """
 
   @key_length 32

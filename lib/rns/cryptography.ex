@@ -12,7 +12,5 @@ defmodule RNS.Cryptography do
   - `RNS.Cryptography.X25519` — X25519 ECDH key exchange
   - `RNS.Cryptography.Ed25519` — Ed25519 digital signatures
   - `RNS.Cryptography.Token` — Fernet-like authenticated encryption
-
-  Matches `python/RNS/Cryptography/__init__.py`.
   """
 end

@@ -2,8 +2,6 @@ defmodule RNS.ProofDestination do
   @moduledoc """
   A special destination that allows Reticulum to direct proofs back
   to the proved packet's sender.
-
-  Matches `python/RNS/Packet.py` ProofDestination class.
   """
 
   @truncated_hashlength 128

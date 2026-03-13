@@ -3,8 +3,6 @@ defmodule RNS.Discovery do
   Interface discovery, announce handling, and blackhole management for the
   Reticulum Network Stack.
 
-  Ports `python/RNS/Discovery.py`.
-
   This module provides:
   - `InterfaceAnnouncer` — creates and sends discovery announces
   - `InterfaceAnnounceHandler` — receives and processes discovery announces

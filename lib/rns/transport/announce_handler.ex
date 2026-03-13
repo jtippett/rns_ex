@@ -5,8 +5,6 @@ defmodule RNS.Transport.AnnounceHandler do
   Processes inbound announces, manages announce retransmission queues,
   rate limiting, deduplication via random blobs, and path table update
   decisions.
-
-  Ported from announce-related logic in `python/RNS/Transport.py`.
   """
 
   alias RNS.Transport

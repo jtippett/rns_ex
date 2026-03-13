@@ -4,8 +4,6 @@ defmodule RNS.Transport.TunnelManagement do
 
   Handles tunnel establishment, path restoration when tunnels reappear,
   and tunnel interface voiding.
-
-  Ported from tunnel-related logic in `python/RNS/Transport.py`.
   """
 
   require Logger
@@ -42,8 +40,7 @@ defmodule RNS.Transport.TunnelManagement do
 
     if byte_size(data) == expected_length do
       try do
-        <<public_key::binary-size(keysize_bytes),
-          interface_hash::binary-size(hashlength_bytes),
+        <<public_key::binary-size(keysize_bytes), interface_hash::binary-size(hashlength_bytes),
           random_hash::binary-size(truncated_hashlength_bytes),
           signature::binary-size(siglength_bytes)>> = data
 

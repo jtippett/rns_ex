@@ -8,8 +8,6 @@ defmodule RNS.Interfaces.TCPInterface do
   Uses HDLC framing by default, with optional KISS framing mode.
   Supports automatic reconnection, TCP keepalive, and spawned client
   interfaces for server-accepted connections.
-
-  Matches `python/RNS/Interfaces/TCPInterface.py`.
   """
 
   # Shared HW_MTU constant for both client and server
@@ -28,8 +26,6 @@ defmodule RNS.Interfaces.TCPClientInterface do
   KISS framing. Supports automatic reconnection with configurable retry
   limits and wait times. Can also wrap a pre-connected socket (when
   spawned by `RNS.Interfaces.TCPServerInterface`).
-
-  Matches `TCPClientInterface` in `python/RNS/Interfaces/TCPInterface.py`.
   """
 
   use GenServer
@@ -718,8 +714,6 @@ defmodule RNS.Interfaces.TCPServerInterface do
   GenServers for each incoming connection. The server itself does not
   directly process packets — all data flows through spawned client
   interfaces.
-
-  Matches `TCPServerInterface` in `python/RNS/Interfaces/TCPInterface.py`.
   """
 
   use GenServer

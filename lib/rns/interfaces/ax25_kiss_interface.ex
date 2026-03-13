@@ -12,8 +12,6 @@ defmodule RNS.Interfaces.AX25KISSInterface do
 
   Uses `circuits_uart` if available, falls back to an Elixir Port-based
   implementation for testing without hardware.
-
-  Matches `python/RNS/Interfaces/AX25KISSInterface.py`.
   """
 
   use GenServer

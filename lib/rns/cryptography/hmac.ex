@@ -3,7 +3,6 @@ defmodule RNS.Cryptography.HMAC do
   HMAC (Hash-based Message Authentication Code) for RNS.
 
   Wraps Erlang's `:crypto.mac/4` to provide HMAC-SHA256 and HMAC-SHA512.
-  Matches the interface used by `python/RNS/Cryptography/HMAC.py`.
   """
 
   @doc """

@@ -20,8 +20,6 @@ defmodule RNS.RequestReceipt do
 
   Returned by the `request` method of `RNS.Link`. Provides methods to
   check status, response time, and response data when the request concludes.
-
-  Matches `python/RNS/Link.py` `RequestReceipt` class.
   """
 
   # ── Status constants ──────────────────────────────────────────

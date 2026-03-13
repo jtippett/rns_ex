@@ -11,8 +11,6 @@ defmodule RNS.Cryptography.Token do
   Supports AES-128-CBC (32-byte key) and AES-256-CBC (64-byte key).
   The key is split in half: first half is the signing key (HMAC),
   second half is the encryption key (AES).
-
-  Matches `python/RNS/Cryptography/Token.py`.
   """
 
   alias RNS.Cryptography.HMAC

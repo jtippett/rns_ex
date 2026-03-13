@@ -29,8 +29,6 @@ defmodule RNS.Utilities.RNStatus do
   ## Sort Fields
 
   rate, traffic, rx, tx, rxs, txs, announces, arx, atx, held
-
-  Ported from `python/RNS/Utilities/rnstatus.py`.
   """
 
   alias RNS.Interfaces.Interface

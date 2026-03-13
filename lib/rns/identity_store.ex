@@ -4,8 +4,6 @@ defmodule RNS.IdentityStore do
 
   Backs `RNS.Identity.remember/4`, `RNS.Identity.recall/2`,
   `RNS.Identity.recall_app_data/1`, and ratchet operations.
-
-  Matches the class-level storage in `python/RNS/Identity.py`.
   """
 
   use GenServer

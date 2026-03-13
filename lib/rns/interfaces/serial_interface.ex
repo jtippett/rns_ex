@@ -8,8 +8,6 @@ defmodule RNS.Interfaces.SerialInterface do
 
   Uses `circuits_uart` if available, falls back to an Elixir Port-based
   implementation for testing without hardware.
-
-  Matches `python/RNS/Interfaces/SerialInterface.py`.
   """
 
   use GenServer

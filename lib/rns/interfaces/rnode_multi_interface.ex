@@ -11,8 +11,6 @@ defmodule RNS.Interfaces.RNodeMultiInterface do
   and dispatches data to/from sub-interfaces based on KISS interface
   selection commands (`CMD_SEL_INT`). Sub-interfaces are registered
   individually with Transport as independent interfaces.
-
-  Matches `python/RNS/Interfaces/RNodeMultiInterface.py`.
   """
 
   use GenServer
@@ -961,13 +959,9 @@ defmodule RNS.Interfaces.RNodeSubInterface do
   with its own frequency, bandwidth, spreading factor, coding rate, and
   TX power configuration. Data is sent through the parent
   `RNodeMultiInterface` which handles serial communication.
-
-  Matches `RNodeSubInterface` in `python/RNS/Interfaces/RNodeMultiInterface.py`.
   """
 
   use RNS.Interfaces.Interface
-
-  import Bitwise
 
   # Radio frequency limits based on interface type
   @low_freq_min 137_000_000

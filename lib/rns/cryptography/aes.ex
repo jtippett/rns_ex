@@ -4,8 +4,6 @@ defmodule RNS.Cryptography.AES do
 
   Wraps Erlang's `:crypto` module to provide AES-256-CBC operations.
   PKCS7 padding must be applied by the caller before encryption.
-
-  Matches `python/RNS/Cryptography/AES.py` (AES_256_CBC class).
   """
 
   @key_length 32

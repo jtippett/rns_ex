@@ -1,8 +1,6 @@
 defmodule RNS.Channel.ChannelException do
   @moduledoc """
   An exception thrown by Channel, with a type code.
-
-  Matches `python/RNS/Channel.py` ChannelException class.
   """
   defexception [:type, :message]
 end
@@ -14,8 +12,6 @@ defmodule RNS.Channel.MessageBase do
   Implementing modules must define `msgtype/0`, `new/0`, `pack/1`, and `unpack/2`.
   MSGTYPE must be unique within all classes sent over a channel.
   MSGTYPE values >= 0xF000 are reserved for system use.
-
-  Matches `python/RNS/Channel.py` MessageBase class.
   """
 
   @doc "Returns the unique message type identifier"
@@ -34,8 +30,6 @@ end
 defprotocol RNS.Channel.Outlet do
   @moduledoc """
   Abstract transport layer interface used by Channel.
-
-  Matches `python/RNS/Channel.py` ChannelOutletBase class.
   """
 
   @doc "Send raw bytes over the outlet, returns a packet reference"
@@ -83,8 +77,6 @@ defmodule RNS.Channel.Envelope do
   @moduledoc """
   Internal wrapper used to transport messages over a channel and
   track state within the channel framework.
-
-  Matches `python/RNS/Channel.py` Envelope class.
   """
 
   defstruct [
@@ -185,8 +177,6 @@ defmodule RNS.Channel do
 
   `Channel` is not instantiated directly, but rather obtained from a `Link`
   with `Link.channel/1`.
-
-  Matches `python/RNS/Channel.py`.
   """
 
   alias RNS.Channel.{Envelope, Outlet, ChannelException}
@@ -885,8 +875,6 @@ defmodule RNS.Channel.LinkChannelOutlet do
 
   Allows Channel to send packets over an RNS Link with Packets.
   This module will be fully functional when RNS.Link is implemented (Task 5.2).
-
-  Matches `python/RNS/Channel.py` LinkChannelOutlet class.
   """
 
   defstruct [:link]

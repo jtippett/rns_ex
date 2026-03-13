@@ -4,8 +4,6 @@ defmodule RNS.Transport.CacheManagement do
 
   Handles packet caching to disk, cache retrieval, cache cleaning,
   packet hashlist persistence, and tunnel table persistence.
-
-  Ported from caching-related logic in `python/RNS/Transport.py`.
   """
 
   require Logger

@@ -2,8 +2,6 @@ defmodule RNS.Buffer.StreamDataMessage do
   @moduledoc """
   Message type for `Channel`. `StreamDataMessage` uses a system-reserved
   message type to transport binary stream data over a Channel.
-
-  Matches `python/RNS/Buffer.py` StreamDataMessage class.
   """
 
   @behaviour RNS.Channel.MessageBase
@@ -113,8 +111,6 @@ defmodule RNS.Buffer.RawChannelReader do
 
   Uses an Agent to hold the internal buffer, allowing data to be
   accumulated from channel message callbacks and read by the consumer.
-
-  Matches `python/RNS/Buffer.py` RawChannelReader class.
   """
 
   alias RNS.Buffer.StreamDataMessage
@@ -252,8 +248,6 @@ defmodule RNS.Buffer.RawChannelWriter do
   Writes binary stream data over a `Channel`.
 
   Handles chunking, optional compression, and EOF signaling.
-
-  Matches `python/RNS/Buffer.py` RawChannelWriter class.
   """
 
   alias RNS.Buffer.StreamDataMessage
@@ -395,8 +389,6 @@ defmodule RNS.Buffer do
   @moduledoc """
   Provides factory functions for creating buffered streams that send
   and receive binary data over a `Channel`.
-
-  Matches `python/RNS/Buffer.py` Buffer class.
   """
 
   alias RNS.Buffer.{StreamDataMessage, RawChannelReader, RawChannelWriter}

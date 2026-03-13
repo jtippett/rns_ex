@@ -6,14 +6,10 @@ defmodule RNS.Interfaces.BackboneInterface do
   `RNS.Interfaces.BackboneClientInterface` GenServers for each incoming
   connection. Uses HDLC framing over raw TCP sockets with a 1 MB HW_MTU.
 
-  In Python this uses Linux epoll for I/O multiplexing. The Elixir port
-  leverages BEAM's built-in I/O scheduling via `:gen_tcp` active mode,
-  making it cross-platform.
+  Leverages BEAM's built-in I/O scheduling via `:gen_tcp` active mode.
 
   The server itself does not directly process packets — all data flows
   through spawned client interfaces.
-
-  Matches `BackboneInterface` in `python/RNS/Interfaces/BackboneInterface.py`.
   """
 
   use GenServer
@@ -440,8 +436,6 @@ defmodule RNS.Interfaces.BackboneClientInterface do
   100 Mbps bitrate guess).
 
   Supports automatic reconnection with configurable retry limits.
-
-  Matches `BackboneClientInterface` in `python/RNS/Interfaces/BackboneInterface.py`.
   """
 
   use GenServer

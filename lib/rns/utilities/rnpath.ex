@@ -31,8 +31,6 @@ defmodule RNS.Utilities.RNPath do
     * `-v`, `--verbose` - Increase verbosity (can be repeated)
     * `--version` - Print version and exit
     * `-h`, `--help` - Print help and exit
-
-  Ported from `python/RNS/Utilities/rnpath.py`.
   """
 
   # ── Entry Point ──────────────────────────────────────────────────────

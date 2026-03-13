@@ -5,8 +5,6 @@ defmodule RNS.Interfaces.UDPInterface do
   Sends and receives packets over UDP sockets. Supports separate
   bind (listen) and forward (send) addresses, broadcast mode, and
   device-based address resolution.
-
-  Matches `python/RNS/Interfaces/UDPInterface.py`.
   """
 
   use GenServer

@@ -3,7 +3,6 @@ defmodule RNS.Cryptography.X25519 do
   X25519 Elliptic Curve Diffie-Hellman key exchange for RNS.
 
   Wraps Erlang's `:crypto` module to provide X25519 ECDH operations.
-  Matches `python/RNS/Cryptography/X25519.py` API semantics.
   """
 
   @key_length 32

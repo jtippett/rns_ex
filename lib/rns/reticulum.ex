@@ -7,8 +7,6 @@ defmodule RNS.Reticulum do
   configuration loading, directory management, interface instantiation from
   config, shared instance mode, and coordinating the startup and shutdown
   of Transport and Identity subsystems. Effectively a singleton per node.
-
-  Ported from `python/RNS/Reticulum.py`.
   """
 
   use GenServer

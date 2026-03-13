@@ -11,8 +11,6 @@ defmodule RNS.Interfaces.WeaveInterface do
   spawns `WeaveInterfacePeer` sub-interfaces for each discovered
   remote endpoint. Multi-interface deduplication prevents processing
   the same packet from different peers.
-
-  Matches `python/RNS/Interfaces/WeaveInterface.py`.
   """
 
   use GenServer
@@ -20,7 +18,7 @@ defmodule RNS.Interfaces.WeaveInterface do
 
   require Logger
 
-  alias RNS.Interfaces.WeaveInterface.{WDCL, WeaveDevice, WeaveInterfacePeer}
+  alias RNS.Interfaces.WeaveInterface.{WDCL, WeaveInterfacePeer}
 
   # ── Interface constants ────────────────────────────────────────────
 
@@ -337,8 +335,6 @@ defmodule RNS.Interfaces.WeaveInterface.WDCL do
   Handles serial communication with Weave devices including HDLC framing,
   packet types (DISCOVER, CONNECT, CMD, LOG, DISP, ENDPOINT_PKT, ENCAP_PROTO),
   and the WDCL handshake protocol.
-
-  Matches the `WDCL` class in `python/RNS/Interfaces/WeaveInterface.py`.
   """
 
   alias RNS.Interfaces.Interface.HDLC
@@ -479,9 +475,9 @@ defmodule RNS.Interfaces.WeaveInterface.WDCL do
     expected_len = switch_id_len + 1 + pubkey_size + signature_len
 
     if byte_size(data) == expected_len do
-      <<signed_id::binary-size(switch_id_len), _::8,
-        pub_key::binary-size(pubkey_size),
+      <<signed_id::binary-size(switch_id_len), _::8, pub_key::binary-size(pubkey_size),
         signature::binary-size(signature_len)>> = data
+
       sid_skip = pubkey_size - 4
       <<_::binary-size(sid_skip), remote_switch_id::binary-size(4)>> = pub_key
 
@@ -513,8 +509,6 @@ end
 defmodule RNS.Interfaces.WeaveInterface.Cmd do
   @moduledoc """
   WDCL command constants.
-
-  Matches the `Cmd` class in `python/RNS/Interfaces/WeaveInterface.py`.
   """
 
   @wdcl_cmd_endpoint_pkt 0x0001
@@ -540,11 +534,7 @@ end
 defmodule RNS.Interfaces.WeaveInterface.Evt do
   @moduledoc """
   WDCL event and logging constants.
-
-  Matches the `Evt` class in `python/RNS/Interfaces/WeaveInterface.py`.
   """
-
-  import Bitwise
 
   # Event types
   @et_msg 0x0000
@@ -816,8 +806,6 @@ end
 defmodule RNS.Interfaces.WeaveInterface.LogFrame do
   @moduledoc """
   Log frame structure from Weave device.
-
-  Matches the `LogFrame` class in `python/RNS/Interfaces/WeaveInterface.py`.
   """
 
   defstruct [:timestamp, :level, :event, data: <<>>]
@@ -837,8 +825,6 @@ end
 defmodule RNS.Interfaces.WeaveInterface.WeaveEndpoint do
   @moduledoc """
   Weave endpoint representation.
-
-  Matches the `WeaveEndpoint` class in `python/RNS/Interfaces/WeaveInterface.py`.
   """
 
   @queue_len 1024
@@ -884,11 +870,7 @@ defmodule RNS.Interfaces.WeaveInterface.WeaveDevice do
 
   Handles discovery, handshake, endpoint management, statistics,
   and remote display for Weave-compatible devices.
-
-  Matches the `WeaveDevice` class in `python/RNS/Interfaces/WeaveInterface.py`.
   """
-
-  import Bitwise
 
   alias RNS.Interfaces.WeaveInterface.{WDCL, Cmd, Evt, LogFrame, WeaveEndpoint}
 
@@ -1017,7 +999,9 @@ defmodule RNS.Interfaces.WeaveInterface.WeaveDevice do
           binary_part(data, 0, @weave_switch_id_len) == device.connection.switch_id ->
         <<_switch_id::binary-size(@weave_switch_id_len), _cmd::8, rest::binary>> = data
         payload_len = byte_size(rest) - @weave_endpoint_id_len
-        <<payload::binary-size(payload_len), src_endpoint::binary-size(@weave_endpoint_id_len)>> = rest
+
+        <<payload::binary-size(payload_len), src_endpoint::binary-size(@weave_endpoint_id_len)>> =
+          rest
 
         received_packet(device, src_endpoint, payload)
 
@@ -1149,7 +1133,9 @@ defmodule RNS.Interfaces.WeaveInterface.WeaveDevice do
 
       frame.event == Evt.et_proto_weave_ep_via() and
           byte_size(frame.data) == @weave_endpoint_id_len + @weave_switch_id_len ->
-        <<ep_id::binary-size(@weave_endpoint_id_len), via_id::binary-size(@weave_switch_id_len)>> = frame.data
+        <<ep_id::binary-size(@weave_endpoint_id_len), via_id::binary-size(@weave_switch_id_len)>> =
+          frame.data
+
         endpoint_via(device, ep_id, via_id)
 
       frame.event == Evt.et_stat_task_cpu() and byte_size(frame.data) > 1 ->
@@ -1276,8 +1262,6 @@ defmodule RNS.Interfaces.WeaveInterface.WeaveInterfacePeer do
   Each peer represents a discovered remote Weave endpoint.
   Handles duplicate packet detection using hash deques and
   forwards packets through the parent WeaveInterface's device.
-
-  Matches the `WeaveInterfacePeer` class in `python/RNS/Interfaces/WeaveInterface.py`.
   """
 
   use RNS.Interfaces.Interface

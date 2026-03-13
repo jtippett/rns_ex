@@ -310,7 +310,12 @@ defmodule RNS.Integration.LinkEstablishmentTest do
         link
         | status: Link.active(),
           activated_at: now - 100,
-          stats: %{link.stats | last_inbound: now - 10, last_outbound: now - 5, last_data: now - 15}
+          stats: %{
+            link.stats
+            | last_inbound: now - 10,
+              last_outbound: now - 5,
+              last_data: now - 15
+          }
       }
 
       assert Link.get_age(active) >= 100
@@ -342,7 +347,12 @@ defmodule RNS.Integration.LinkEstablishmentTest do
         link
         | status: Link.active(),
           activated_at: now - 1000,
-          stats: %{link.stats | last_inbound: now - 800, last_outbound: now - 800, last_data: now - 800}
+          stats: %{
+            link.stats
+            | last_inbound: now - 800,
+              last_outbound: now - 800,
+              last_data: now - 800
+          }
       }
 
       assert Link.inactive_for(stale) > stale_time

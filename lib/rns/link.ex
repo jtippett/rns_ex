@@ -120,8 +120,6 @@ defmodule RNS.Link do
   Includes establishment, encryption (Task 5.2), and lifecycle management:
   keepalive, teardown, stale detection, packet receive dispatch,
   resource management, and watchdog checks (Task 5.3).
-
-  Matches `python/RNS/Link.py`.
   """
 
   import Bitwise
@@ -317,7 +315,10 @@ defmodule RNS.Link do
   @doc "Loads peer public keys into the link."
   @spec load_peer(t(), binary(), binary()) :: t()
   def load_peer(%__MODULE__{peer: peer} = link, peer_pub_bytes, peer_sig_pub_bytes) do
-    %{link | peer: %{peer | peer_pub_bytes: peer_pub_bytes, peer_sig_pub_bytes: peer_sig_pub_bytes}}
+    %{
+      link
+      | peer: %{peer | peer_pub_bytes: peer_pub_bytes, peer_sig_pub_bytes: peer_sig_pub_bytes}
+    }
   end
 
   # ── Handshake ───────────────────────────────────────────────────
@@ -330,7 +331,10 @@ defmodule RNS.Link do
   The link_id is used as the HKDF salt.
   """
   @spec handshake(t()) :: {:ok, t()} | {:error, :invalid_state}
-  def handshake(%__MODULE__{status: @status_pending, crypto: %CryptoState{prv: prv} = crypto} = link) when prv != nil do
+  def handshake(
+        %__MODULE__{status: @status_pending, crypto: %CryptoState{prv: prv} = crypto} = link
+      )
+      when prv != nil do
     shared_key = X25519.exchange(prv, link.peer.peer_pub_bytes)
 
     derived_key_length =
@@ -348,7 +352,12 @@ defmodule RNS.Link do
         context(link)
       )
 
-    {:ok, %{link | status: @status_handshake, crypto: %{crypto | shared_key: shared_key, derived_key: derived_key}}}
+    {:ok,
+     %{
+       link
+       | status: @status_handshake,
+         crypto: %{crypto | shared_key: shared_key, derived_key: derived_key}
+     }}
   end
 
   def handshake(%__MODULE__{}), do: {:error, :invalid_state}
@@ -385,7 +394,9 @@ defmodule RNS.Link do
   end
 
   defp get_or_create_token(%__MODULE__{crypto: %CryptoState{token: %Token{} = token}}), do: token
-  defp get_or_create_token(%__MODULE__{crypto: %CryptoState{derived_key: key}}), do: Token.new(key)
+
+  defp get_or_create_token(%__MODULE__{crypto: %CryptoState{derived_key: key}}),
+    do: Token.new(key)
 
   # ── Sign / Validate ─────────────────────────────────────────────
 
@@ -397,7 +408,11 @@ defmodule RNS.Link do
 
   @doc "Validates a signature against the peer's signing public key."
   @spec validate(t(), binary(), binary()) :: boolean()
-  def validate(%__MODULE__{peer: %PeerState{peer_sig_pub_bytes: peer_sig_pub_bytes}}, signature, message) do
+  def validate(
+        %__MODULE__{peer: %PeerState{peer_sig_pub_bytes: peer_sig_pub_bytes}},
+        signature,
+        message
+      ) do
     Ed25519.verify(signature, message, peer_sig_pub_bytes)
   rescue
     _ -> false
@@ -457,7 +472,9 @@ defmodule RNS.Link do
 
   defp do_validate_request(owner, data, packet, signalling_type) do
     ec_half = div(@ecpubsize, 2)
-    <<peer_pub_bytes::binary-size(ec_half), peer_sig_pub_bytes::binary-size(ec_half), _::binary>> = data
+
+    <<peer_pub_bytes::binary-size(ec_half), peer_sig_pub_bytes::binary-size(ec_half), _::binary>> =
+      data
 
     prv = X25519.generate_keypair()
 
@@ -550,7 +567,9 @@ defmodule RNS.Link do
 
         # Get peer signing public key from destination identity
         dest_pub_key = Identity.public_key(link.destination.identity)
-        <<_enc_pub::binary-size(ec_half), peer_sig_pub_bytes::binary-size(ec_half)>> = dest_pub_key
+
+        <<_enc_pub::binary-size(ec_half), peer_sig_pub_bytes::binary-size(ec_half)>> =
+          dest_pub_key
 
         updated = load_peer(link, peer_pub_bytes, peer_sig_pub_bytes)
 
@@ -573,20 +592,28 @@ defmodule RNS.Link do
                 mtu = confirmed_mtu || @mtu
 
                 activated =
-                  %{handshaken |
-                    stats: %{handshaken.stats | rtt: rtt, last_proof: now},
-                    attached_interface: Map.get(packet, :receiving_interface),
-                    peer: %{handshaken.peer | remote_identity: link.destination.identity},
-                    mtu: mtu,
-                    status: @status_active,
-                    activated_at: now,
-                    establishment_cost: handshaken.establishment_cost + byte_size(Map.get(packet, :raw, <<>>))
+                  %{
+                    handshaken
+                    | stats: %{handshaken.stats | rtt: rtt, last_proof: now},
+                      attached_interface: Map.get(packet, :receiving_interface),
+                      peer: %{handshaken.peer | remote_identity: link.destination.identity},
+                      mtu: mtu,
+                      status: @status_active,
+                      activated_at: now,
+                      establishment_cost:
+                        handshaken.establishment_cost + byte_size(Map.get(packet, :raw, <<>>))
                   }
                   |> update_mdu()
 
                 activated =
                   if rtt > 0 and activated.establishment_cost > 0 do
-                    %{activated | stats: %{activated.stats | establishment_rate: activated.establishment_cost / rtt}}
+                    %{
+                      activated
+                      | stats: %{
+                          activated.stats
+                          | establishment_rate: activated.establishment_cost / rtt
+                        }
+                    }
                   else
                     activated
                   end
@@ -636,11 +663,22 @@ defmodule RNS.Link do
         now = System.system_time(:second)
 
         activated =
-          %{link | stats: %{link.stats | rtt: final_rtt}, status: @status_active, activated_at: now}
+          %{
+            link
+            | stats: %{link.stats | rtt: final_rtt},
+              status: @status_active,
+              activated_at: now
+          }
 
         activated =
           if final_rtt > 0 and activated.establishment_cost > 0 do
-            %{activated | stats: %{activated.stats | establishment_rate: activated.establishment_cost / final_rtt}}
+            %{
+              activated
+              | stats: %{
+                  activated.stats
+                  | establishment_rate: activated.establishment_cost / final_rtt
+                }
+            }
           else
             activated
           end
@@ -735,7 +773,8 @@ defmodule RNS.Link do
 
   @doc "Returns the establishment rate in bits per second."
   @spec establishment_rate(t()) :: float() | nil
-  def establishment_rate(%__MODULE__{stats: %Stats{establishment_rate: rate}}) when is_number(rate) do
+  def establishment_rate(%__MODULE__{stats: %Stats{establishment_rate: rate}})
+      when is_number(rate) do
     rate * 8
   end
 
@@ -821,7 +860,10 @@ defmodule RNS.Link do
 
   @doc "Returns the time in seconds since last inbound packet (including keepalive)."
   @spec no_inbound_for(t()) :: number()
-  def no_inbound_for(%__MODULE__{stats: %Stats{last_inbound: last_inbound}, activated_at: activated_at}) do
+  def no_inbound_for(%__MODULE__{
+        stats: %Stats{last_inbound: last_inbound},
+        activated_at: activated_at
+      }) do
     activated = activated_at || 0
     effective_last = max(last_inbound, activated)
     System.system_time(:second) - effective_last
@@ -986,7 +1028,17 @@ defmodule RNS.Link do
       end
 
     # Clear encryption keys
-    updated = %{updated | crypto: %{updated.crypto | prv: nil, pub_bytes: nil, shared_key: nil, derived_key: nil, token: nil}}
+    updated = %{
+      updated
+      | crypto: %{
+          updated.crypto
+          | prv: nil,
+            pub_bytes: nil,
+            shared_key: nil,
+            derived_key: nil,
+            token: nil
+        }
+    }
 
     # Invoke link_closed callback
     if updated.callbacks && updated.callbacks.link_closed do
@@ -1110,7 +1162,9 @@ defmodule RNS.Link do
         siglength_bytes = div(Identity.siglength(), 8)
 
         if not link.initiator and byte_size(plaintext) == keysize_bytes + siglength_bytes do
-          <<public_key::binary-size(keysize_bytes), signature::binary-size(siglength_bytes)>> = plaintext
+          <<public_key::binary-size(keysize_bytes), signature::binary-size(siglength_bytes)>> =
+            plaintext
+
           signed_data = link.link_id <> public_key
 
           identity = Identity.new(create_keys: false)

@@ -128,7 +128,11 @@ defmodule RNS.LinkLifecycleTest do
 
   describe "no_outbound_for/1" do
     test "returns time since last outbound" do
-      link = %Link{Link.new() | stats: %Link.Stats{last_outbound: System.system_time(:second) - 5}}
+      link = %Link{
+        Link.new()
+        | stats: %Link.Stats{last_outbound: System.system_time(:second) - 5}
+      }
+
       silence = Link.no_outbound_for(link)
       assert silence >= 5
       assert silence < 10
@@ -147,7 +151,13 @@ defmodule RNS.LinkLifecycleTest do
   describe "inactive_for/1" do
     test "returns minimum of inbound and outbound silence" do
       now = System.system_time(:second)
-      link = %Link{Link.new() | stats: %Link.Stats{last_inbound: now - 10, last_outbound: now - 3}, activated_at: nil}
+
+      link = %Link{
+        Link.new()
+        | stats: %Link.Stats{last_inbound: now - 10, last_outbound: now - 3},
+          activated_at: nil
+      }
+
       assert Link.inactive_for(link) >= 3
       assert Link.inactive_for(link) < 5
     end
@@ -387,7 +397,12 @@ defmodule RNS.LinkLifecycleTest do
     end
 
     test "preserves existing stats when packet has nil values" do
-      link = %Link{Link.new() | track_phy_stats: true, stats: %Link.Stats{rssi: -50, snr: 10.0, q: 0.9}}
+      link = %Link{
+        Link.new()
+        | track_phy_stats: true,
+          stats: %Link.Stats{rssi: -50, snr: 10.0, q: 0.9}
+      }
+
       packet = %{rssi: nil, snr: nil, q: nil}
       updated = Link.update_phy_stats(link, packet)
 

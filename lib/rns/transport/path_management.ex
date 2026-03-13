@@ -3,7 +3,6 @@ defmodule RNS.Transport.PathManagement do
   Path table management for the RNS Transport system.
 
   Handles path table persistence (save/load) and path discovery operations.
-  Ported from path-related logic in `python/RNS/Transport.py`.
   """
 
   alias RNS.Transport

@@ -20,8 +20,6 @@ defmodule RNS.Utilities.RNSD do
     * `-s`, `--service` - Run as a service (log to file instead of stdout)
     * `--exampleconfig` - Print verbose example configuration to stdout and exit
     * `--version` - Print version and exit
-
-  Ported from `python/RNS/Utilities/rnsd.py`.
   """
 
   @doc """

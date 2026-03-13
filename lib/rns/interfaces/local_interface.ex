@@ -9,8 +9,6 @@ defmodule RNS.Interfaces.LocalInterface do
   Uses HDLC framing over TCP on localhost (or Unix domain sockets where
   supported). Designed for daemon-to-client communication within a single
   host.
-
-  Matches `python/RNS/Interfaces/LocalInterface.py`.
   """
 
   # Shared HW_MTU constant for both client and server
@@ -29,8 +27,6 @@ defmodule RNS.Interfaces.LocalClientInterface do
   domain socket. Uses HDLC framing. Supports automatic reconnection
   when the shared instance connection is lost. Can also wrap a
   pre-connected socket (when spawned by `RNS.Interfaces.LocalServerInterface`).
-
-  Matches `LocalClientInterface` in `python/RNS/Interfaces/LocalInterface.py`.
   """
 
   use GenServer
@@ -564,8 +560,6 @@ defmodule RNS.Interfaces.LocalServerInterface do
   `RNS.Interfaces.LocalClientInterface` GenServers for each incoming
   connection. The server itself does not directly process packets —
   all data flows through spawned client interfaces.
-
-  Matches `LocalServerInterface` in `python/RNS/Interfaces/LocalInterface.py`.
   """
 
   use GenServer

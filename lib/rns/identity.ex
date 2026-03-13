@@ -8,8 +8,6 @@ defmodule RNS.Identity do
   Each identity has an X25519 keypair for encryption and an Ed25519 keypair
   for signing. The identity hash is a truncated SHA-256 of the concatenated
   public keys.
-
-  Matches `python/RNS/Identity.py`.
   """
 
   alias RNS.Cryptography.X25519
@@ -408,8 +406,6 @@ defmodule RNS.Identity do
   from the announce data and verifying the signature.
 
   Returns `true` if the announce signature is valid, `false` otherwise.
-
-  Ported from `python/RNS/Identity.py` `validate_announce()`.
   """
   @spec validate_announce(map()) :: boolean()
   def validate_announce(packet) do

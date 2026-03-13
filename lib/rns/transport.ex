@@ -3,8 +3,6 @@ defmodule RNS.Transport do
   The Transport module handles routing, path management, and packet forwarding
   for the Reticulum Network Stack. It maintains routing tables backed by ETS
   for concurrent read access and provides path discovery and management.
-
-  Ported from `python/RNS/Transport.py`.
   """
   use GenServer
   require Logger
@@ -13,7 +11,6 @@ defmodule RNS.Transport do
 
   alias RNS.Transport.PathManagement
   alias RNS.Transport.AnnounceHandler
-  alias RNS.Transport.TunnelManagement
   alias RNS.Transport.CacheManagement
   alias RNS.Packet
   alias RNS.Identity
@@ -1376,7 +1373,9 @@ defmodule RNS.Transport do
           expected_signature = Identity.sign(interface.ifac_identity, new_raw)
 
           expected_ifac_start = byte_size(expected_signature) - ifac_size
-          <<_::binary-size(expected_ifac_start), expected_ifac::binary-size(ifac_size)>> = expected_signature
+
+          <<_::binary-size(expected_ifac_start), expected_ifac::binary-size(ifac_size)>> =
+            expected_signature
 
           if ifac == expected_ifac, do: {:ok, new_raw}, else: :drop
         else
@@ -1912,7 +1911,8 @@ defmodule RNS.Transport do
         :ok
 
       link ->
-        expected_hops = get_in(link, [Access.key(:stats), Access.key(:expected_hops)]) || @pathfinder_m
+        expected_hops =
+          get_in(link, [Access.key(:stats), Access.key(:expected_hops)]) || @pathfinder_m
 
         if packet.hops == expected_hops or expected_hops == @pathfinder_m do
           mark_packet_hash(packet.packet_hash)

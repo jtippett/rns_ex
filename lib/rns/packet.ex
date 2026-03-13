@@ -4,8 +4,6 @@ defmodule RNS.Packet do
 
   Packets are the fundamental unit of data transfer in Reticulum. They are
   automatically encrypted when addressed to SINGLE, GROUP, or LINK destinations.
-
-  Matches `python/RNS/Packet.py`.
   """
 
   import Bitwise
@@ -392,12 +390,12 @@ defmodule RNS.Packet do
   @spec hashable_part(t()) :: binary()
   def hashable_part(%__MODULE__{raw: raw, header_type: @header_2}) do
     <<flags::8, _hops::8, _transport_id::binary-size(@dst_len), rest::binary>> = raw
-    <<(flags &&& 0x0F)::8, rest::binary>>
+    <<flags &&& 0x0F::8, rest::binary>>
   end
 
   def hashable_part(%__MODULE__{raw: raw}) do
     <<flags::8, _hops::8, rest::binary>> = raw
-    <<(flags &&& 0x0F)::8, rest::binary>>
+    <<flags &&& 0x0F::8, rest::binary>>
   end
 
   @doc """

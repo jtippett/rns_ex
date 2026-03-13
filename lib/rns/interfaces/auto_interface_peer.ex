@@ -4,8 +4,6 @@ defmodule RNS.Interfaces.AutoInterfacePeer do
 
   Each discovered peer gets an AutoInterfacePeer that handles
   unicast UDP data exchange.
-
-  Matches `AutoInterfacePeer` class in `python/RNS/Interfaces/AutoInterface.py`.
   """
 
   use RNS.Interfaces.Interface

@@ -4,8 +4,6 @@ defmodule RNS.Cryptography.PKCS7 do
 
   Implements PKCS7 padding as used by RNS for AES-CBC encryption.
   Default block size is 16 bytes (128 bits), matching AES block size.
-
-  Matches `python/RNS/Cryptography/PKCS7.py`.
   """
 
   @block_size 16

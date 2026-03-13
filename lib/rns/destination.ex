@@ -5,8 +5,6 @@ defmodule RNS.Destination do
   Destinations are used to address packets and establish links. Every
   destination has a hash derived from its name and associated identity.
   The destination type determines if encryption is used and what kind.
-
-  Matches `python/RNS/Destination.py`.
   """
 
   alias RNS.Identity
@@ -833,11 +831,16 @@ defmodule RNS.Destination do
     end
   end
 
-  defp notify_packet_callback(%__MODULE__{callbacks: %{packet: nil}}, _plaintext, _packet), do: :ok
+  defp notify_packet_callback(%__MODULE__{callbacks: %{packet: nil}}, _plaintext, _packet),
+    do: :ok
 
-  defp notify_packet_callback(%__MODULE__{callbacks: %{packet: callback}}, plaintext, %{
-         packet_type: @data
-       } = packet) do
+  defp notify_packet_callback(
+         %__MODULE__{callbacks: %{packet: callback}},
+         plaintext,
+         %{
+           packet_type: @data
+         } = packet
+       ) do
     try do
       callback.(plaintext, packet)
     rescue

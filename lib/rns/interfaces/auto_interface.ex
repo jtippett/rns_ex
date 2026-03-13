@@ -5,8 +5,6 @@ defmodule RNS.Interfaces.AutoInterface do
   Automatically discovers peers on local network segments using IPv6
   multicast. Each discovered peer gets a spawned `AutoInterfacePeer`
   interface for data exchange via unicast UDP.
-
-  Matches `python/RNS/Interfaces/AutoInterface.py`.
   """
 
   use GenServer
