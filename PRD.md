@@ -360,7 +360,7 @@ This is the largest module (3312 LOC in Python). Split into manageable sub-modul
 - [x] **9.1 — Wire up public API in lib/rns.ex**
   Update `lib/rns.ex` to require/alias all modules. Export public API matching Python's `RNS.__init__`: `RNS.Reticulum`, `RNS.Identity`, `RNS.Destination`, `RNS.Transport`, `RNS.Packet`, `RNS.Link`, `RNS.Channel`, `RNS.Buffer`, `RNS.Resource`, `RNS.Resolver`. Ensure `RNS.log/2`, `RNS.version/0`, `RNS.host_os/0`, `RNS.hexrep/1` are accessible at module level. Add `@moduledoc` with usage examples. Write a comprehensive test exercising the full public API: start application, create Identity, create Destination, verify exports.
 
-- [ ] **9.2 — Cross-module integration testing**
+- [x] **9.2 — Cross-module integration testing**
   Create `test/rns/integration/`. Write integration tests: (1) `announce_test.exs` — start Reticulum with LocalInterface, create Identity, create Destination, send announce, verify Transport processes it. (2) `link_establishment_test.exs` — two Reticulum instances via LocalInterface, establish Link, verify ECDH, send data. (3) `file_transfer_test.exs` — transfer Resource over Link, verify integrity. (4) `multi_interface_test.exs` — routing across multiple interfaces. Reference `python/tests/link.py` and `python/tests/channel.py`.
 
 ### Phase 10: Utilities and CLI Tools
