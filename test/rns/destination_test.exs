@@ -1125,4 +1125,165 @@ defmodule RNS.DestinationStoreTest do
       assert result == plaintext
     end
   end
+
+  # ── Announce with send: true (end-to-end through Transport) ────
+
+  describe "announce/2 — send: true (end-to-end)" do
+    setup do
+      RNS.Test.SupervisedHelpers.clear_transport_tables()
+      :ok
+    end
+
+    test "announce transmits through a registered interface" do
+      test_pid = self()
+
+      iface = %{
+        name: "AnnounceTestIface",
+        hash: RNS.Cryptography.Hashes.truncated_hash("AnnounceTestIface"),
+        online: true,
+        out: true,
+        bitrate: 1_000_000,
+        process_outgoing: fn raw -> send(test_pid, {:announce_sent, raw}) end
+      }
+
+      RNS.Transport.register_interface(iface)
+
+      id = Identity.new()
+      dest = Destination.new(id, Destination.direction_in(), Destination.single(), "announcetest")
+
+      {result, updated_dest} = Destination.announce(dest)
+
+      # Result is nil (no receipt for announce packets) — successful send
+      assert result == nil
+      assert updated_dest.type == Destination.single()
+      assert_receive {:announce_sent, raw}
+      assert is_binary(raw)
+      assert byte_size(raw) > 0
+    end
+
+    test "announce returns false when no interfaces are registered" do
+      id = Identity.new()
+      dest = Destination.new(id, Destination.direction_in(), Destination.single(), "announcetest")
+
+      {result, _dest} = Destination.announce(dest)
+      assert result == false
+    end
+
+    test "announce packet is routed as broadcast (bypasses path table)" do
+      test_pid = self()
+
+      iface1 = %{
+        name: "BcastIface1",
+        hash: RNS.Cryptography.Hashes.truncated_hash("BcastIface1"),
+        online: true,
+        out: true,
+        bitrate: 1_000_000,
+        process_outgoing: fn raw -> send(test_pid, {:bcast1, raw}) end
+      }
+
+      iface2 = %{
+        name: "BcastIface2",
+        hash: RNS.Cryptography.Hashes.truncated_hash("BcastIface2"),
+        online: true,
+        out: true,
+        bitrate: 1_000_000,
+        process_outgoing: fn raw -> send(test_pid, {:bcast2, raw}) end
+      }
+
+      RNS.Transport.register_interface(iface1)
+      RNS.Transport.register_interface(iface2)
+
+      id = Identity.new()
+      dest = Destination.new(id, Destination.direction_in(), Destination.single(), "bcasttest")
+
+      {_result, _dest} = Destination.announce(dest)
+
+      # Announce should be broadcast to both interfaces
+      assert_receive {:bcast1, _raw}
+      assert_receive {:bcast2, _raw}
+    end
+
+    test "announce raw bytes can be unpacked as a valid announce packet" do
+      test_pid = self()
+
+      iface = %{
+        name: "UnpackIface",
+        hash: RNS.Cryptography.Hashes.truncated_hash("UnpackIface"),
+        online: true,
+        out: true,
+        bitrate: 1_000_000,
+        process_outgoing: fn raw -> send(test_pid, {:unpacked, raw}) end
+      }
+
+      RNS.Transport.register_interface(iface)
+
+      id = Identity.new()
+      dest = Destination.new(id, Destination.direction_in(), Destination.single(), "unpacktest")
+
+      {_result, _dest} = Destination.announce(dest)
+
+      assert_receive {:unpacked, raw}
+
+      # Unpack and verify structure
+      received_packet = RNS.Packet.new(nil, raw) |> RNS.Packet.unpack()
+      assert received_packet.packet_type == RNS.Packet.announce()
+      assert received_packet.destination_hash == dest.hash
+      assert received_packet.destination_type == Destination.single()
+    end
+
+    test "announce with app_data transmits correctly" do
+      test_pid = self()
+
+      iface = %{
+        name: "AppDataIface",
+        hash: RNS.Cryptography.Hashes.truncated_hash("AppDataIface"),
+        online: true,
+        out: true,
+        bitrate: 1_000_000,
+        process_outgoing: fn raw -> send(test_pid, {:appdata_sent, raw}) end
+      }
+
+      RNS.Transport.register_interface(iface)
+
+      id = Identity.new()
+      dest = Destination.new(id, Destination.direction_in(), Destination.single(), "appdatatest")
+
+      {_result, _dest} = Destination.announce(dest, app_data: "test app data")
+
+      assert_receive {:appdata_sent, raw}
+
+      received_packet = RNS.Packet.new(nil, raw) |> RNS.Packet.unpack()
+      assert received_packet.packet_type == RNS.Packet.announce()
+
+      # The announce data should include the app_data
+      # pub_key (64) + name_hash (10) + random_hash (10) + signature (64) + app_data (13) = 161
+      assert byte_size(received_packet.data) == 148 + byte_size("test app data")
+    end
+
+    test "announce with path_response context transmits correctly" do
+      test_pid = self()
+
+      iface = %{
+        name: "PathRespIface",
+        hash: RNS.Cryptography.Hashes.truncated_hash("PathRespIface"),
+        online: true,
+        out: true,
+        bitrate: 1_000_000,
+        process_outgoing: fn raw -> send(test_pid, {:pathresp_sent, raw}) end
+      }
+
+      RNS.Transport.register_interface(iface)
+
+      id = Identity.new()
+      dest = Destination.new(id, Destination.direction_in(), Destination.single(), "pathresptest")
+
+      {_result, _dest} = Destination.announce(dest, path_response: true)
+
+      assert_receive {:pathresp_sent, raw}
+
+      received_packet = RNS.Packet.new(nil, raw) |> RNS.Packet.unpack()
+      assert received_packet.packet_type == RNS.Packet.announce()
+      assert received_packet.context == RNS.Packet.context_path_response()
+    end
+  end
 end

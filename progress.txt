@@ -100,3 +100,29 @@
     resend of previously sent packet.
 
 **Result:** `mix test` passes with 0 failures (3024 tests, 13 pre-existing skipped fixture tests).
+
+## 2026-03-13 — Task 1.5: Wire Destination.announce through the send path
+
+**Changes:**
+- `lib/rns/packet.ex`:
+  - Fixed `Packet.pack/1` to set `destination_type` on the packet struct. Previously,
+    `pack` encoded the destination type into the flags byte but never set the struct field,
+    leaving it nil. This caused `Transport.outbound_broadcast`'s `should_transmit_on_interface?`
+    to see nil for `destination_type`. For announces this was harmless (short-circuit on
+    `packet_type == @announce`), but incorrect for data packets in link/boundary checks.
+- `test/rns/destination_test.exs`:
+  - Added 6 end-to-end tests for `Destination.announce/2` with `send: true`:
+    - Announce transmits through a registered interface
+    - Announce returns false when no interfaces are registered
+    - Announce broadcasts to all registered interfaces (not path-routed)
+    - Announce raw bytes can be unpacked as a valid announce packet with correct fields
+    - Announce with app_data transmits correctly with expected payload size
+    - Announce with path_response context transmits with correct context byte
+
+**Tracing:** Verified the full chain `Destination.announce/2` → `build_announce_packet` →
+`maybe_send_announce` → `Packet.send/1` → `Transport.outbound/2` → `outbound_broadcast/1` →
+`transmit/2` → interface `process_outgoing` is complete with no stubs or breaks. Announce
+packets correctly bypass the path table via `should_use_path_table?` returning false for
+`packet_type == @announce`.
+
+**Result:** `mix test` passes with 0 failures (3030 tests, 13 pre-existing skipped fixture tests).

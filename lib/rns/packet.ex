@@ -243,9 +243,17 @@ defmodule RNS.Packet do
       raise "Packet size of #{byte_size(raw)} exceeds MTU of #{packet.mtu} bytes"
     end
 
+    dest_type =
+      if packet.context == @context_lrproof do
+        @dest_link
+      else
+        Map.get(packet.destination, :type, @dest_single)
+      end
+
     packet = %{
       packet
       | destination_hash: destination_hash,
+        destination_type: dest_type,
         header: header,
         flags: flags,
         ciphertext: ciphertext,
