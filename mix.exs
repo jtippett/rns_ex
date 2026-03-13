@@ -13,7 +13,8 @@ defmodule RNS.MixProject do
       name: "RNS",
       description: "Elixir port of the Reticulum Network Stack",
       source_url: "https://github.com/TODO/rns_ex",
-      docs: [main: "RNS", extras: ["README.md"]]
+      docs: [main: "RNS", extras: ["README.md"]],
+      escript: escript()
     ]
   end
 
@@ -21,6 +22,13 @@ defmodule RNS.MixProject do
     [
       extra_applications: [:logger, :crypto],
       mod: {RNS.Application, []}
+    ]
+  end
+
+  defp escript do
+    [
+      main_module: RNS.Utilities.RNSD,
+      name: "rnsd"
     ]
   end
 
