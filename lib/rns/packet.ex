@@ -438,19 +438,24 @@ defmodule RNS.Packet do
   defp do_send(packet) do
     packet = if packet.packed, do: packet, else: pack(packet)
 
-    # Transport.outbound/1 will be implemented in Phase 4
-    if transport_outbound(packet) do
-      packet.receipt
+    if RNS.Transport.outbound(packet, transport_opts()) do
+      # Transport.outbound creates and registers the receipt in ETS.
+      # Look it up by the packet's full hash to return to the caller.
+      if packet.create_receipt do
+        RNS.Transport.get_receipt(hash(packet))
+      end
     else
       RNS.Log.log("No interfaces could process the outbound packet", :error)
       false
     end
   end
 
-  @doc false
-  def transport_outbound(_packet) do
-    # Placeholder — will delegate to RNS.Transport.outbound/1 in Phase 4
-    false
+  defp transport_opts do
+    try do
+      [is_shared_instance: RNS.Reticulum.is_connected_to_shared_instance?()]
+    catch
+      :exit, _ -> []
+    end
   end
 
   @doc """
@@ -462,10 +467,13 @@ defmodule RNS.Packet do
   end
 
   def resend(%__MODULE__{} = packet) do
+    # Re-pack to obtain new ciphertext for encrypted destinations
     packet = pack(packet)
 
-    if transport_outbound(packet) do
-      packet.receipt
+    if RNS.Transport.outbound(packet, transport_opts()) do
+      if packet.create_receipt do
+        RNS.Transport.get_receipt(hash(packet))
+      end
     else
       RNS.Log.log("No interfaces could process the outbound packet", :error)
       false

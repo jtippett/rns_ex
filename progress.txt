@@ -75,3 +75,28 @@
   port consistency between server/client) and mode flag query APIs.
 
 **Result:** `mix test` passes with 0 failures (2994 tests, 13 pre-existing skipped fixture tests).
+
+## 2026-03-13 — Task 1.4: Wire the packet send path end to end
+
+**Changes:**
+- `lib/rns/packet.ex`:
+  - Replaced `transport_outbound/1` stub (which always returned `false`) with a real call
+    to `RNS.Transport.outbound/2`. The stub was the only thing preventing `Packet.send/1`
+    from working end to end.
+  - Added `transport_opts/0` private function that queries `RNS.Reticulum` for
+    `is_connected_to_shared_instance?` and passes it to `Transport.outbound/2`. Uses
+    try/catch to handle cases where Reticulum isn't running (e.g., unit tests).
+  - Fixed receipt return: since Elixir structs are immutable (unlike Python's mutable
+    objects), `do_send/1` now looks up the receipt from Transport's ETS table after
+    successful send, rather than reading the never-set `packet.receipt` field.
+  - Fixed `resend/1` with the same Transport.outbound wiring and receipt lookup.
+  - Removed all "Phase 4" placeholder comments.
+- `test/rns/packet_test.exs`:
+  - Changed from `async: true` to `async: false` (send tests need Transport ETS tables).
+  - Added setup block to clear Transport ETS tables between tests.
+  - Added 8 tests covering: send via registered interface, send with receipt creation,
+    send with no interfaces (returns false), send already-sent packet (raises), send
+    over closed link (drops), auto-packing unpacked packets, resend raises if not sent,
+    resend of previously sent packet.
+
+**Result:** `mix test` passes with 0 failures (3024 tests, 13 pre-existing skipped fixture tests).

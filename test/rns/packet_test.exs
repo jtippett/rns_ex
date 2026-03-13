@@ -1,10 +1,17 @@
 defmodule RNS.PacketTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
   import Bitwise
 
   alias RNS.Packet
   alias RNS.PacketReceipt
   alias RNS.ProofDestination
+  alias RNS.Transport
+
+  # Clear Transport ETS tables between tests for clean state.
+  setup do
+    RNS.Test.SupervisedHelpers.clear_transport_tables()
+    :ok
+  end
 
   # ── Constants ──────────────────────────────────────────────────────
 
@@ -879,5 +886,133 @@ defmodule RNS.PacketTest do
 
       assert ProofDestination.encrypt(proof_dest, "hello") == "hello"
     end
+  end
+
+  # ── Send / Resend via Transport ───────────────────────────────────
+
+  describe "send/1" do
+    test "calls Transport.outbound and returns nil when no receipt requested" do
+      test_pid = self()
+
+      iface = make_test_interface("SendIface1", test_pid)
+      Transport.register_interface(iface)
+
+      dest = make_destination()
+      packet = Packet.new(dest, "hello", create_receipt: false)
+
+      result = Packet.send(packet)
+      # With create_receipt: false, successful send returns nil
+      assert result == nil
+      assert_receive {:sent_on, "SendIface1", _raw}
+    end
+
+    test "calls Transport.outbound and returns receipt when requested" do
+      test_pid = self()
+
+      iface = make_test_interface("SendIface2", test_pid)
+      Transport.register_interface(iface)
+
+      dest = make_destination()
+      packet = Packet.new(dest, "hello", create_receipt: true)
+
+      result = Packet.send(packet)
+      assert %PacketReceipt{} = result
+      assert result.sent == true
+      assert_receive {:sent_on, "SendIface2", _raw}
+    end
+
+    test "returns false when no interfaces are registered" do
+      dest = make_destination()
+      packet = Packet.new(dest, "hello", create_receipt: true)
+
+      assert Packet.send(packet) == false
+    end
+
+    test "raises when packet was already sent" do
+      test_pid = self()
+
+      iface = make_test_interface("SendIface3", test_pid)
+      Transport.register_interface(iface)
+
+      dest = make_destination()
+      packet = Packet.new(dest, "hello")
+      # Manually mark as sent
+      packet = %{packet | sent: true}
+
+      assert_raise RuntimeError, "Packet was already sent", fn ->
+        Packet.send(packet)
+      end
+    end
+
+    test "drops packet over closed link destination" do
+      dest = %{
+        hash: :crypto.strong_rand_bytes(16),
+        type: 0x03,
+        status: 0x04,
+        mtu: 500
+      }
+
+      packet = Packet.new(dest, "hello")
+      assert Packet.send(packet) == false
+    end
+
+    test "packs unpacked packet before sending" do
+      test_pid = self()
+
+      iface = make_test_interface("SendIface4", test_pid)
+      Transport.register_interface(iface)
+
+      dest = make_destination()
+      packet = Packet.new(dest, "hello")
+      assert packet.packed == false
+
+      Packet.send(packet)
+      assert_receive {:sent_on, "SendIface4", raw}
+      # raw should be a valid binary (pack was called)
+      assert is_binary(raw)
+      assert byte_size(raw) > 0
+    end
+  end
+
+  describe "resend/1" do
+    test "raises when packet was not sent yet" do
+      dest = make_destination()
+      packet = Packet.new(dest, "hello")
+
+      assert_raise RuntimeError, "Packet was not sent yet", fn ->
+        Packet.resend(packet)
+      end
+    end
+
+    test "re-sends a previously sent packet" do
+      test_pid = self()
+
+      iface = make_test_interface("ResendIface", test_pid)
+      Transport.register_interface(iface)
+
+      dest = make_destination()
+      packet = Packet.new(dest, "hello", create_receipt: false)
+      # Mark as already sent and pack it (simulating previous send)
+      packet = %{Packet.pack(packet) | sent: true}
+
+      result = Packet.resend(packet)
+      assert result == nil
+      assert_receive {:sent_on, "ResendIface", _raw}
+    end
+  end
+
+  # ── Test helpers ───────────────────────────────────────────────────
+
+  defp make_test_interface(name, test_pid) do
+    hash = RNS.Cryptography.Hashes.truncated_hash(name)
+
+    %{
+      name: name,
+      hash: hash,
+      online: true,
+      out: true,
+      bitrate: 1_000_000,
+      process_outgoing: fn raw -> send(test_pid, {:sent_on, name, raw}) end
+    }
   end
 end
