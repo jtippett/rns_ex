@@ -10,8 +10,9 @@ defmodule RNS.ProtocolCompatibilityTest do
   - Deterministic key material fed through both implementations
   - Python RNS generate_fixtures.py script (test/fixtures/generate_fixtures.py)
 
-  To regenerate Python fixtures:
+  To regenerate fixtures (either method produces identical output):
       python3 test/fixtures/generate_fixtures.py
+      mix test test/fixtures/generate_fixtures_test.exs --include generate_fixtures
 
   The Elixir port must be wire-compatible with Python RNS.
   """

@@ -188,8 +188,9 @@ defmodule RNS.ShutdownPersistenceTest do
 
   describe "missing storage directory handling" do
     test "persist_data handles nonexistent storage dir gracefully" do
-      # Use a path that doesn't exist
-      fake_path = "/tmp/rns_nonexistent_#{:rand.uniform(999_999)}/storage"
+      # Use a path that doesn't exist — include timestamp to avoid collisions
+      fake_path = "/tmp/rns_nonexistent_#{System.unique_integer([:positive])}/storage"
+      File.rm_rf!(Path.dirname(fake_path))
       refute File.exists?(fake_path)
 
       # This should not crash — should log errors but return :ok
@@ -211,7 +212,8 @@ defmodule RNS.ShutdownPersistenceTest do
     end
 
     test "IdentityStore save handles nonexistent dir gracefully" do
-      fake_path = "/tmp/rns_nonexistent_#{:rand.uniform(999_999)}/storage"
+      fake_path = "/tmp/rns_nonexistent_#{System.unique_integer([:positive])}/storage"
+      File.rm_rf!(Path.dirname(fake_path))
       RNS.IdentityStore.configure(fake_path)
 
       dest_hash = :crypto.strong_rand_bytes(16)
