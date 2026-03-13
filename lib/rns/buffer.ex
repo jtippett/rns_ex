@@ -375,30 +375,18 @@ defmodule RNS.Buffer.RawChannelWriter do
     if chunk_len <= 32 do
       {false, nil, 0}
     else
-      do_try_compress(data, chunk_len, max_data_len, 1, @compression_tries)
-    end
-  end
+      Enum.find_value(1..(@compression_tries - 1), {false, nil, 0}, fn try_n ->
+        segment_len = div(chunk_len, try_n)
 
-  defp do_try_compress(_data, _chunk_len, _max_data_len, comp_try, comp_tries)
-       when comp_try >= comp_tries do
-    {false, nil, 0}
-  end
+        if segment_len > 0 do
+          <<segment::binary-size(segment_len), _::binary>> = data
+          compressed = :zlib.compress(segment)
 
-  defp do_try_compress(data, chunk_len, max_data_len, comp_try, comp_tries) do
-    chunk_segment_length = div(chunk_len, comp_try)
-
-    if chunk_segment_length <= 0 do
-      {false, nil, 0}
-    else
-      <<segment::binary-size(chunk_segment_length), _::binary>> = data
-      compressed_chunk = :zlib.compress(segment)
-      compressed_length = byte_size(compressed_chunk)
-
-      if compressed_length < max_data_len and compressed_length < chunk_segment_length do
-        {true, compressed_chunk, chunk_segment_length}
-      else
-        do_try_compress(data, chunk_len, max_data_len, comp_try + 1, comp_tries)
-      end
+          if byte_size(compressed) < max_data_len and byte_size(compressed) < segment_len do
+            {true, compressed, segment_len}
+          end
+        end
+      end)
     end
   end
 end
