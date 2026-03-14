@@ -293,6 +293,14 @@ defmodule RNS.Interfaces.I2PInterface do
   end
 
   def handle_info({:DOWN, _ref, :process, pid, _reason}, state) do
+    # Deregister the dead interface from Transport
+    interfaces = RNS.Transport.get_interfaces()
+
+    case Enum.find(interfaces, fn iface -> Map.get(iface, :pid) == pid end) do
+      nil -> :ok
+      iface -> RNS.Transport.deregister_interface(%{hash: Map.get(iface, :hash)})
+    end
+
     spawned = List.delete(state.spawned_interfaces, pid)
     {:noreply, %{state | spawned_interfaces: spawned}}
   end
@@ -388,9 +396,16 @@ defmodule RNS.Interfaces.I2PInterface do
       out: true
     ]
 
-    case RNS.Interfaces.I2PInterfacePeer.start_link(client_opts) do
+    case DynamicSupervisor.start_child(RNS.InterfaceSupervisor, {RNS.Interfaces.I2PInterfacePeer, client_opts}) do
       {:ok, pid} ->
+        # Transfer socket ownership from server to spawned client and activate
+        :gen_tcp.controlling_process(client_socket, pid)
+        send(pid, :activate_socket)
+
         Process.monitor(pid)
+
+        # Register with Transport so it knows about this interface
+        RNS.Reticulum.register_interface_with_transport(pid, %{out: true})
 
         Logger.info("Spawned new I2PInterface Peer: I2PInterfacePeer[#{client_name}]")
 

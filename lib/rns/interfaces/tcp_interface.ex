@@ -933,6 +933,14 @@ defmodule RNS.Interfaces.TCPServerInterface do
   end
 
   def handle_info({:DOWN, _ref, :process, pid, _reason}, state) do
+    # Deregister the dead interface from Transport
+    interfaces = RNS.Transport.get_interfaces()
+
+    case Enum.find(interfaces, fn iface -> Map.get(iface, :pid) == pid end) do
+      nil -> :ok
+      iface -> RNS.Transport.deregister_interface(%{hash: Map.get(iface, :hash)})
+    end
+
     spawned = List.delete(state.spawned_interfaces, pid)
     {:noreply, %{state | spawned_interfaces: spawned}}
   end
@@ -1051,14 +1059,20 @@ defmodule RNS.Interfaces.TCPServerInterface do
       out: true
     ]
 
-    case RNS.Interfaces.TCPClientInterface.start_link(client_opts) do
+    case DynamicSupervisor.start_child(RNS.InterfaceSupervisor, {RNS.Interfaces.TCPClientInterface, client_opts}) do
       {:ok, pid} ->
-        # start_link handles controlling_process transfer and activation
+        # Transfer socket ownership from server to spawned client and activate
+        :gen_tcp.controlling_process(client_socket, pid)
+        send(pid, :activate_socket)
+
         # Monitor the spawned client
         Process.monitor(pid)
 
         # Update the spawned client state with connection info
         GenServer.cast(pid, {:update_connection_info, client_ip_str, client_port, state})
+
+        # Register with Transport so it knows about this interface
+        RNS.Reticulum.register_interface_with_transport(pid, %{out: true})
 
         Logger.info(
           "Spawned new TCPClient Interface: TCPInterface[#{client_name}/#{client_ip_str}:#{client_port}]"
