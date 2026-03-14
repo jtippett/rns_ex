@@ -670,12 +670,12 @@ defmodule RNS.Reticulum do
         blackholed_identities: %{}
       })
 
+    # Always configure Transport so it can process packets
+    configure_transport(state)
+
     if skip_start do
       {:ok, state}
     else
-      # Configure the already-running IdentityStore and Transport with paths/config
-      configure_subsystems(state)
-
       # Start local interface (shared/client/standalone mode)
       state = start_local_interface(state)
 
@@ -921,7 +921,7 @@ defmodule RNS.Reticulum do
 
   # ── Private ────────────────────────────────────────────────────────────
 
-  defp configure_subsystems(state) do
+  defp configure_transport(state) do
     # Tell IdentityStore the storage path so it can load known destinations
     RNS.IdentityStore.configure(state.storagepath)
 

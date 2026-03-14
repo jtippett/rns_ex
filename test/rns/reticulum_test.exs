@@ -2086,6 +2086,37 @@ defmodule RNS.ReticulumTest do
     end
   end
 
+  # ── start_network: false still configures Transport ──────────────
+
+  describe "start_network: false" do
+    test "Transport is configured even when skip_start is true" do
+      configdir = Path.join(System.tmp_dir!(), "rns_test_skip_cfg_#{:rand.uniform(100_000)}")
+      File.mkdir_p!(configdir)
+
+      name = :"test_skip_start_transport_#{:rand.uniform(100_000)}"
+
+      {:ok, pid} =
+        Reticulum.start_link(
+          configdir: configdir,
+          skip_start: true,
+          server_name: name
+        )
+
+      # Transport should have been configured (storage_path set, owner wired)
+      # even though skip_start prevented interface startup.
+      # transport_enabled? reads from the ETS config written by Transport.configure/1.
+      result = RNS.Transport.transport_enabled?()
+      assert is_boolean(result)
+
+      # Also verify the owner was set (set_owner stores the Reticulum pid)
+      transport_state = :sys.get_state(RNS.Transport)
+      assert transport_state.owner == pid
+
+      GenServer.stop(pid)
+      File.rm_rf!(configdir)
+    end
+  end
+
   # ── Mode flag query APIs ─────────────────────────────────────────
 
   describe "mode flag query APIs" do
