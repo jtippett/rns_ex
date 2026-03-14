@@ -3210,7 +3210,12 @@ defmodule RNS.Transport do
 
   defp maybe_check_announces(state, now) do
     if now > state.announces_last_checked + div(@announces_check_interval, 1000) do
-      {_outgoing, _completed} = AnnounceHandler.process_announce_queue()
+      {outgoing, _completed} = AnnounceHandler.process_announce_queue()
+
+      # Broadcast retransmit packets on all outgoing interfaces
+      Enum.each(outgoing, fn packet ->
+        outbound_broadcast(packet)
+      end)
 
       # Check for held announces to reinsert
       :ets.tab2list(@held_announces_table)

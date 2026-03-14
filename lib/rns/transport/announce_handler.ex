@@ -384,7 +384,7 @@ defmodule RNS.Transport.AnnounceHandler do
 
   # ── Private Helpers ───────────────────────────────────────────────
 
-  defp build_retransmit_packet(destination_hash, entry) do
+  defp build_retransmit_packet(_destination_hash, entry) do
     announce_context =
       if entry.block_rebroadcasts do
         # PATH_RESPONSE
@@ -394,19 +394,8 @@ defmodule RNS.Transport.AnnounceHandler do
         0x00
       end
 
-    %{
-      destination_hash: destination_hash,
-      data: entry.packet.data,
-      # ANNOUNCE
-      packet_type: 0x01,
-      context: announce_context,
-      context_flag: Map.get(entry.packet, :context_flag, 0x00),
-      # HEADER_2
-      header_type: 0x01,
-      # TRANSPORT
-      transport_type: 0x01,
-      hops: entry.hops,
-      attached_interface: entry.attached_interface
-    }
+    # Return the original packet with updated context for retransmission.
+    # The packet retains its .raw field for broadcasting via transmit/2.
+    %{entry.packet | context: announce_context, hops: entry.hops}
   end
 end
