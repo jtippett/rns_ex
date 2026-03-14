@@ -106,7 +106,7 @@ defmodule RNS.Interfaces.WeaveInterface do
       fixed_mtu: @fixed_mtu,
       _online: false,
       in: true,
-      out: false,
+      out: Keyword.get(opts, :out, true),
       created: System.system_time(:second)
     }
 

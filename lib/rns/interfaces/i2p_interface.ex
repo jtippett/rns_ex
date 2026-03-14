@@ -374,7 +374,8 @@ defmodule RNS.Interfaces.I2PInterface do
       kiss_framing: false,
       ifac_size: state.ifac_size,
       ifac_netname: state.ifac_netname,
-      ifac_netkey: state.ifac_netkey
+      ifac_netkey: state.ifac_netkey,
+      out: true
     ]
 
     case RNS.Interfaces.I2PInterfacePeer.start_link(client_opts) do
@@ -404,7 +405,8 @@ defmodule RNS.Interfaces.I2PInterface do
       i2p_controller: state.i2p_controller,
       ifac_size: state.ifac_size,
       ifac_netname: state.ifac_netname,
-      ifac_netkey: state.ifac_netkey
+      ifac_netkey: state.ifac_netkey,
+      out: true
     ]
 
     case RNS.Interfaces.I2PInterfacePeer.start_link(peer_opts) do
@@ -697,7 +699,7 @@ defmodule RNS.Interfaces.I2PInterfacePeer do
       name: name,
       owner: owner,
       in: true,
-      out: false,
+      out: Keyword.get(opts, :out, true),
       online: false,
       bitrate: @bitrate_guess,
       hw_mtu: @hw_mtu,

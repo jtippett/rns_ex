@@ -232,7 +232,7 @@ defmodule RNS.Interfaces.TCPClientInterface do
       name: name,
       owner: owner,
       in: true,
-      out: false,
+      out: Keyword.get(opts, :out, true),
       online: false,
       bitrate: @bitrate_guess,
       hw_mtu: hw_mtu,
@@ -1032,7 +1032,8 @@ defmodule RNS.Interfaces.TCPServerInterface do
       target_host: nil,
       target_port: nil,
       i2p_tunneled: state.i2p_tunneled,
-      kiss_framing: state.kiss_framing
+      kiss_framing: state.kiss_framing,
+      out: true
     ]
 
     case RNS.Interfaces.TCPClientInterface.start_link(client_opts) do

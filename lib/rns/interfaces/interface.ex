@@ -51,7 +51,7 @@ defmodule RNS.Interfaces.Interface do
     [
       # Direction flags
       in: false,
-      out: false,
+      out: true,
       fwd: false,
       rpt: false,
 

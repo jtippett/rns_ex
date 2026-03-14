@@ -455,7 +455,7 @@ defmodule RNS.Interfaces.AutoInterface do
       name: name,
       owner: owner,
       in: true,
-      out: false,
+      out: Keyword.get(opts, :out, true),
       online: false,
       hw_mtu: @hw_mtu,
       fixed_mtu: @fixed_mtu,

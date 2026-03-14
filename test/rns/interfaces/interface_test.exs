@@ -123,10 +123,10 @@ defmodule RNS.Interfaces.InterfaceTest do
       assert fields.txb == 0
     end
 
-    test "default direction flags are false" do
+    test "default direction flags" do
       fields = Interface.default_fields() |> Map.new()
       assert fields.in == false
-      assert fields.out == false
+      assert fields.out == true
       assert fields.fwd == false
       assert fields.rpt == false
     end

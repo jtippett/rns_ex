@@ -223,7 +223,7 @@ defmodule RNS.Interfaces.UDPInterface do
       name: name,
       owner: owner,
       in: true,
-      out: false,
+      out: Keyword.get(opts, :out, true),
       online: false,
       bitrate: @bitrate_guess,
       hw_mtu: @hw_mtu,

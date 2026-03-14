@@ -367,7 +367,8 @@ defmodule RNS.Interfaces.BackboneInterface do
       connected_socket: client_socket,
       target_host: nil,
       target_port: nil,
-      parent_interface: self()
+      parent_interface: self(),
+      out: true
     ]
 
     case RNS.Interfaces.BackboneClientInterface.start_link(client_opts) do
@@ -653,7 +654,7 @@ defmodule RNS.Interfaces.BackboneClientInterface do
       name: name,
       owner: owner,
       in: true,
-      out: false,
+      out: Keyword.get(opts, :out, true),
       online: false,
       bitrate: @bitrate_guess,
       hw_mtu: RNS.Interfaces.BackboneInterface.hw_mtu(),
