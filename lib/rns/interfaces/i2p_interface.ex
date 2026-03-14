@@ -216,6 +216,7 @@ defmodule RNS.Interfaces.I2PInterface do
     case start_listener(state) do
       {:ok, state} ->
         state = %{state | hash: RNS.Interfaces.Interface.hash(state)}
+        RNS.Interfaces.Interface.schedule_ets_refresh()
 
         # Start peer connections
         if peers do
@@ -298,6 +299,14 @@ defmodule RNS.Interfaces.I2PInterface do
 
   def handle_info({:update_rxb, bytes}, state) do
     {:noreply, %{state | rxb: state.rxb + bytes}}
+  end
+
+  def handle_info(:refresh_ets, state) do
+    if state.hash do
+      :ets.insert(:rns_interfaces, {state.hash, state})
+    end
+
+    {:noreply, state}
   end
 
   def handle_info(_msg, state) do
@@ -751,6 +760,7 @@ defmodule RNS.Interfaces.I2PInterfacePeer do
       end
 
     state = %{state | hash: RNS.Interfaces.Interface.hash(state)}
+    RNS.Interfaces.Interface.schedule_ets_refresh()
 
     # Start watchdog for connected sockets
     if state.online do
@@ -876,6 +886,14 @@ defmodule RNS.Interfaces.I2PInterfacePeer do
 
     if state.online do
       schedule_watchdog()
+    end
+
+    {:noreply, state}
+  end
+
+  def handle_info(:refresh_ets, state) do
+    if state.hash do
+      :ets.insert(:rns_interfaces, {state.hash, state})
     end
 
     {:noreply, state}

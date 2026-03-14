@@ -256,6 +256,7 @@ defmodule RNS.Interfaces.LocalClientInterface do
       end
 
     state = %{state | hash: RNS.Interfaces.Interface.hash(state)}
+    RNS.Interfaces.Interface.schedule_ets_refresh()
     {:ok, state}
   end
 
@@ -351,6 +352,14 @@ defmodule RNS.Interfaces.LocalClientInterface do
   def handle_info({:process_outgoing, raw}, state) when is_binary(raw) do
     process_outgoing(state, raw)
     {:noreply, %{state | txb: state.txb + byte_size(raw)}}
+  end
+
+  def handle_info(:refresh_ets, state) do
+    if state.hash do
+      :ets.insert(:rns_interfaces, {state.hash, state})
+    end
+
+    {:noreply, state}
   end
 
   def handle_info(_msg, state) do
@@ -723,6 +732,7 @@ defmodule RNS.Interfaces.LocalServerInterface do
     case result do
       {:ok, state} ->
         state = %{state | hash: RNS.Interfaces.Interface.hash(state)}
+        RNS.Interfaces.Interface.schedule_ets_refresh()
         {:ok, state}
 
       {:error, reason} ->
@@ -788,6 +798,14 @@ defmodule RNS.Interfaces.LocalServerInterface do
 
   def handle_info({:set_field, field, value}, state) when is_atom(field) do
     {:noreply, Map.put(state, field, value)}
+  end
+
+  def handle_info(:refresh_ets, state) do
+    if state.hash do
+      :ets.insert(:rns_interfaces, {state.hash, state})
+    end
+
+    {:noreply, state}
   end
 
   def handle_info(_msg, state) do

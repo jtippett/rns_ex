@@ -271,6 +271,14 @@ defmodule RNS.Interfaces.BackboneInterface do
     {:noreply, %{state | rxb: state.rxb + bytes}}
   end
 
+  def handle_info(:refresh_ets, state) do
+    if state.hash do
+      :ets.insert(:rns_interfaces, {state.hash, state})
+    end
+
+    {:noreply, state}
+  end
+
   def handle_info(_msg, state) do
     {:noreply, state}
   end
@@ -324,6 +332,7 @@ defmodule RNS.Interfaces.BackboneInterface do
         }
 
         state = %{state | hash: RNS.Interfaces.Interface.hash(state)}
+        RNS.Interfaces.Interface.schedule_ets_refresh()
         {:ok, state}
 
       {:error, reason} ->
@@ -703,6 +712,7 @@ defmodule RNS.Interfaces.BackboneClientInterface do
       end
 
     state = %{state | hash: RNS.Interfaces.Interface.hash(state)}
+    RNS.Interfaces.Interface.schedule_ets_refresh()
     {:ok, state}
   end
 
@@ -802,6 +812,14 @@ defmodule RNS.Interfaces.BackboneClientInterface do
         {:packet, :raw},
         {:active, true}
       ])
+    end
+
+    {:noreply, state}
+  end
+
+  def handle_info(:refresh_ets, state) do
+    if state.hash do
+      :ets.insert(:rns_interfaces, {state.hash, state})
     end
 
     {:noreply, state}

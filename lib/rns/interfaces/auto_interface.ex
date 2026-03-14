@@ -483,6 +483,7 @@ defmodule RNS.Interfaces.AutoInterface do
 
     # spawned_interfaces defaults to nil from default_fields, override to map
     state = %{state | hash: RNS.Interfaces.Interface.hash(state), spawned_interfaces: %{}}
+    RNS.Interfaces.Interface.schedule_ets_refresh()
 
     if skip_network do
       {:ok, state}
@@ -558,6 +559,14 @@ defmodule RNS.Interfaces.AutoInterface do
     # Discovery packet received
     addr = format_ipv6_tuple(ip)
     state = handle_discovery_packet(state, data, addr)
+    {:noreply, state}
+  end
+
+  def handle_info(:refresh_ets, state) do
+    if state.hash do
+      :ets.insert(:rns_interfaces, {state.hash, state})
+    end
+
     {:noreply, state}
   end
 

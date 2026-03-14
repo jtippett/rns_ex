@@ -92,6 +92,7 @@ defmodule RNS.Interfaces.WeaveInterface do
 
     bitrate = configured_bitrate || @bitrate_guess
     hash = RNS.Interfaces.Interface.hash(%{name: interface_name})
+    RNS.Interfaces.Interface.schedule_ets_refresh()
 
     state = %__MODULE__{
       name: interface_name,
@@ -330,6 +331,14 @@ defmodule RNS.Interfaces.WeaveInterface do
 
     # Schedule next peer job
     Process.send_after(self(), :peer_jobs, state.peer_job_interval)
+    {:noreply, state}
+  end
+
+  def handle_info(:refresh_ets, state) do
+    if state.hash do
+      :ets.insert(:rns_interfaces, {state.hash, state})
+    end
+
     {:noreply, state}
   end
 

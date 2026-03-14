@@ -160,6 +160,7 @@ defmodule RNS.Interfaces.PipeInterface do
       }
 
       state = %{state | hash: RNS.Interfaces.Interface.hash(state)}
+      RNS.Interfaces.Interface.schedule_ets_refresh()
 
       case open_pipe(state) do
         {:ok, new_state} ->
@@ -230,6 +231,14 @@ defmodule RNS.Interfaces.PipeInterface do
   def handle_info({:process_outgoing, raw}, state) when is_binary(raw) do
     process_outgoing(state, raw)
     {:noreply, %{state | txb: state.txb + byte_size(raw)}}
+  end
+
+  def handle_info(:refresh_ets, state) do
+    if state.hash do
+      :ets.insert(:rns_interfaces, {state.hash, state})
+    end
+
+    {:noreply, state}
   end
 
   def handle_info(_msg, state) do

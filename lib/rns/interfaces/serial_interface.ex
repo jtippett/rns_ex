@@ -216,6 +216,7 @@ defmodule RNS.Interfaces.SerialInterface do
     }
 
     state = %{state | hash: RNS.Interfaces.Interface.hash(state)}
+    RNS.Interfaces.Interface.schedule_ets_refresh()
 
     if skip_open do
       {:ok, %{state | online: true}}
@@ -298,6 +299,14 @@ defmodule RNS.Interfaces.SerialInterface do
   def handle_info({:EXIT, _port, reason}, state) do
     Logger.error("Serial port #{state.port} exited: #{inspect(reason)}")
     handle_port_error(state)
+  end
+
+  def handle_info(:refresh_ets, state) do
+    if state.hash do
+      :ets.insert(:rns_interfaces, {state.hash, state})
+    end
+
+    {:noreply, state}
   end
 
   def handle_info(_msg, state) do

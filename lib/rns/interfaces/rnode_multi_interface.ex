@@ -661,6 +661,7 @@ defmodule RNS.Interfaces.RNodeMultiInterface do
       end
 
     hash = RNS.Interfaces.Interface.hash(%{name: interface_name})
+    RNS.Interfaces.Interface.schedule_ets_refresh()
 
     state = %__MODULE__{
       name: interface_name,
@@ -773,6 +774,14 @@ defmodule RNS.Interfaces.RNodeMultiInterface do
           {:noreply, state}
       end
     end
+  end
+
+  def handle_info(:refresh_ets, state) do
+    if state.hash do
+      :ets.insert(:rns_interfaces, {state.hash, state})
+    end
+
+    {:noreply, state}
   end
 
   def handle_info(_msg, state), do: {:noreply, state}

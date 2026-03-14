@@ -290,6 +290,7 @@ defmodule RNS.Interfaces.UDPInterface do
 
     # Cache the interface hash
     state = %{state | hash: RNS.Interfaces.Interface.hash(state)}
+    RNS.Interfaces.Interface.schedule_ets_refresh()
 
     {:ok, state}
   end
@@ -318,6 +319,14 @@ defmodule RNS.Interfaces.UDPInterface do
   def handle_info({:udp, _socket, _ip, _port, data}, state) do
     {:ok, updated} = process_incoming(state, data)
     {:noreply, updated}
+  end
+
+  def handle_info(:refresh_ets, state) do
+    if state.hash do
+      :ets.insert(:rns_interfaces, {state.hash, state})
+    end
+
+    {:noreply, state}
   end
 
   def handle_info(_msg, state) do
