@@ -533,8 +533,10 @@ defmodule RNS.Interfaces.Interface do
   def deliver_to_transport(data, interface_state) do
     RNS.Transport.inbound(data, interface_state)
 
-    if interface_state.owner do
-      notify_owner(interface_state.owner, data, interface_state)
+    owner = Map.get(interface_state, :owner)
+
+    if owner do
+      notify_owner(owner, data, interface_state)
     end
 
     :ok
