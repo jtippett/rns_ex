@@ -2485,7 +2485,6 @@ defmodule RNS.Transport do
   @impl true
   def handle_call(:start_time, _from, state), do: {:reply, state.start_time, state}
 
-
   @impl true
   def handle_cast({:request_path, destination_hash, on_interface, opts}, state) do
     tag = Keyword.get(opts, :tag) || RNS.Identity.random_hash()
@@ -2516,7 +2515,7 @@ defmodule RNS.Transport do
         announce_queue = Map.get(on_interface, :announce_queue, [])
 
         cond do
-          length(announce_queue) > 0 ->
+          announce_queue != [] ->
             Logger.debug("Blocking recursive path request on #{on_interface} due to queued announces")
             false
 
@@ -2782,7 +2781,7 @@ defmodule RNS.Transport do
     Logger.debug("Path request for #{RNS.prettyhexrep(destination_hash)}#{interface_str}")
 
     # Check if destination exists on a local client
-    if length(local_client_ifaces) > 0 do
+    if local_client_ifaces != [] do
       case get_path_entry(destination_hash) do
         %{interface: iface} when iface != nil ->
           if local_client_interface?(iface) do
@@ -2866,7 +2865,7 @@ defmodule RNS.Transport do
         end
 
       # Branch 5: Not from local client, but local clients exist — forward to them
-      not is_from_local_client and length(local_client_ifaces) > 0 ->
+      not is_from_local_client and local_client_ifaces != [] ->
         Logger.debug(
           "Forwarding path request for #{RNS.prettyhexrep(destination_hash)}#{interface_str} to local clients"
         )
@@ -3040,7 +3039,7 @@ defmodule RNS.Transport do
       try do
         response = [RNS.Reticulum.get_interface_stats()]
 
-        if is_list(data) and length(data) > 0 and hd(data) == true do
+        if is_list(data) and data != [] and hd(data) == true do
           response ++ [RNS.Reticulum.get_link_count()]
         else
           response
@@ -3060,10 +3059,10 @@ defmodule RNS.Transport do
       Logger.debug("Remote path request received")
 
       try do
-        if is_list(data) and length(data) > 0 do
+        if is_list(data) and data != [] do
           command = hd(data)
-          destination_hash = if length(data) > 1, do: Enum.at(data, 1)
-          max_hops = if length(data) > 2, do: Enum.at(data, 2)
+          destination_hash = Enum.at(data, 1)
+          max_hops = Enum.at(data, 2)
 
           table =
             case command do
