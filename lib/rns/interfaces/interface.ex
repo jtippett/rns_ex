@@ -50,7 +50,7 @@ defmodule RNS.Interfaces.Interface do
   def default_fields do
     [
       # Direction flags
-      in: false,
+      in: true,
       out: true,
       fwd: false,
       rpt: false,

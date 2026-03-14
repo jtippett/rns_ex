@@ -46,7 +46,7 @@ defmodule RNS.Interfaces.PipeInterfaceTest do
       iface = %PipeInterface{}
       assert iface.rxb == 0
       assert iface.txb == 0
-      assert iface.in == false
+      assert iface.in == true
       assert iface.out == true
       assert iface.ifac_size == 0
     end
