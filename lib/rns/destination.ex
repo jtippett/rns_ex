@@ -974,4 +974,18 @@ defmodule RNS.Destination do
       "<#{dest.name}:#{dest.hexhash}>"
     end
   end
+
+  defimpl Jason.Encoder do
+    def encode(dest, opts) do
+      map = %{
+        hash: dest.hexhash,
+        name: dest.name,
+        type: dest.type,
+        direction: dest.direction,
+        identity: if(dest.identity, do: dest.identity.hexhash, else: nil)
+      }
+
+      Jason.Encode.map(map, opts)
+    end
+  end
 end

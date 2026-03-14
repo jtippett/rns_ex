@@ -39,4 +39,34 @@ defmodule RNS.JasonEncoderTest do
       assert is_binary(Jason.encode!(id))
     end
   end
+
+  describe "Destination encoding" do
+    test "encodes destination to JSON" do
+      id = RNS.Identity.new()
+      dest = RNS.Destination.build(id, 0x11, 0x00, "testapp", ["echo"])
+      {:ok, json} = Jason.encode(dest)
+      decoded = Jason.decode!(json)
+
+      assert decoded["hash"] == dest.hexhash
+      assert decoded["name"] == dest.name
+      assert decoded["type"] == dest.type
+      assert decoded["direction"] == dest.direction
+    end
+
+    test "encodes plain destination to JSON" do
+      dest = RNS.Destination.build(nil, 0x11, 0x02, "testapp", ["plain"])
+      {:ok, json} = Jason.encode(dest)
+      decoded = Jason.decode!(json)
+
+      assert decoded["hash"] == dest.hexhash
+      assert decoded["name"] == dest.name
+      assert is_nil(decoded["identity"])
+    end
+
+    test "destination round-trips through Jason.encode!/1" do
+      id = RNS.Identity.new()
+      dest = RNS.Destination.build(id, 0x11, 0x00, "testapp", ["echo"])
+      assert is_binary(Jason.encode!(dest))
+    end
+  end
 end
