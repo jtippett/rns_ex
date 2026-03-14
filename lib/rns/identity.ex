@@ -466,6 +466,65 @@ defmodule RNS.Identity do
     truncated_hash(:crypto.strong_rand_bytes(div(@truncated_hashlength, 8)))
   end
 
+  # --- Hex conveniences ---
+
+  @doc """
+  Returns the identity hash as a lowercase hex string.
+
+  Returns nil if the identity has no hash (keys not loaded).
+
+  ## Examples
+
+      iex> id = RNS.Identity.new()
+      iex> hex = RNS.Identity.to_hex(id)
+      iex> byte_size(hex)
+      32
+  """
+  @spec to_hex(t()) :: String.t() | nil
+  def to_hex(%__MODULE__{hash: nil}), do: nil
+  def to_hex(%__MODULE__{hexhash: hexhash}), do: hexhash
+
+  @doc """
+  Creates an Identity from a hex-encoded private key string.
+
+  Accepts both upper and lowercase hex. Returns nil if the hex is
+  invalid or the key cannot be loaded.
+
+  ## Examples
+
+      iex> id = RNS.Identity.new()
+      iex> hex = Base.encode16(RNS.Identity.private_key(id), case: :lower)
+      iex> restored = RNS.Identity.from_hex(hex)
+      iex> restored.hash == id.hash
+      true
+  """
+  @spec from_hex(String.t()) :: t() | nil
+  def from_hex(hex_string) when is_binary(hex_string) do
+    case Base.decode16(hex_string, case: :mixed) do
+      {:ok, bytes} -> from_bytes(bytes)
+      :error -> nil
+    end
+  end
+
+  @doc """
+  Returns the full public key (64 bytes) as a lowercase hex string.
+
+  Returns nil if the identity has no public key.
+
+  ## Examples
+
+      iex> id = RNS.Identity.new()
+      iex> hex = RNS.Identity.public_hex(id)
+      iex> byte_size(hex)
+      128
+  """
+  @spec public_hex(t()) :: String.t() | nil
+  def public_hex(%__MODULE__{pub_bytes: nil}), do: nil
+
+  def public_hex(%__MODULE__{} = id) do
+    Base.encode16(public_key(id), case: :lower)
+  end
+
   # --- Salt / Context ---
 
   @doc "Returns the identity hash, used as HKDF salt."

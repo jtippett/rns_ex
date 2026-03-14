@@ -437,6 +437,56 @@ defmodule RNS.IdentityTest do
       assert result == nil
     end
   end
+
+  describe "hex conveniences" do
+    test "to_hex/1 returns lowercase hex string of identity hash" do
+      id = Identity.new()
+      hex = Identity.to_hex(id)
+      assert hex == Base.encode16(id.hash, case: :lower)
+      assert byte_size(hex) == 32
+    end
+
+    test "to_hex/1 returns nil for identity with no hash" do
+      id = Identity.new(create_keys: false)
+      assert Identity.to_hex(id) == nil
+    end
+
+    test "from_hex/1 creates identity from hex-encoded private key" do
+      id = Identity.new()
+      hex = Base.encode16(Identity.private_key(id), case: :lower)
+      restored = Identity.from_hex(hex)
+      assert restored.hash == id.hash
+      assert restored.hexhash == id.hexhash
+    end
+
+    test "from_hex/1 handles uppercase hex" do
+      id = Identity.new()
+      hex = Base.encode16(Identity.private_key(id), case: :upper)
+      restored = Identity.from_hex(hex)
+      assert restored.hash == id.hash
+    end
+
+    test "from_hex/1 returns nil for invalid hex" do
+      assert Identity.from_hex("not_valid_hex") == nil
+      assert Identity.from_hex("zzzz") == nil
+    end
+
+    test "from_hex/1 returns nil for wrong-length hex" do
+      assert Identity.from_hex("aabb") == nil
+    end
+
+    test "public_hex/1 returns hex-encoded public key" do
+      id = Identity.new()
+      hex = Identity.public_hex(id)
+      assert hex == Base.encode16(Identity.public_key(id), case: :lower)
+      assert byte_size(hex) == 128
+    end
+
+    test "public_hex/1 returns nil when no public key" do
+      id = Identity.new(create_keys: false)
+      assert Identity.public_hex(id) == nil
+    end
+  end
 end
 
 defmodule RNS.IdentityStoreTest do
