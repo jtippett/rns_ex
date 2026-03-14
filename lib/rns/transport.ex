@@ -3210,7 +3210,7 @@ defmodule RNS.Transport do
 
   defp maybe_check_announces(state, now) do
     if now > state.announces_last_checked + div(@announces_check_interval, 1000) do
-      {outgoing, _completed} = AnnounceHandler.process_announce_queue()
+      {outgoing, _completed} = AnnounceHandler.process_announce_queue(state.identity)
 
       # Transmit retransmit packets on all outgoing interfaces
       Enum.each(outgoing, fn packet ->

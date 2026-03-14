@@ -274,8 +274,8 @@ defmodule RNS.Transport.AnnounceHandler do
   - Retransmits announces whose timeout has been reached
   - Returns `{outgoing_packets, completed_hashes}`
   """
-  @spec process_announce_queue() :: {[map()], [binary()]}
-  def process_announce_queue do
+  @spec process_announce_queue(map() | nil) :: {[map()], [binary()]}
+  def process_announce_queue(transport_identity \\ nil) do
     now = System.system_time(:second)
 
     entries = :ets.tab2list(@announce_table)
@@ -298,7 +298,7 @@ defmodule RNS.Transport.AnnounceHandler do
 
             :ets.insert(@announce_table, {destination_hash, updated_entry})
 
-            outgoing_packet = build_retransmit_packet(destination_hash, entry)
+            outgoing_packet = build_retransmit_packet(destination_hash, entry, transport_identity)
             {[outgoing_packet | out_acc], comp_acc}
 
           # Not yet time
@@ -391,8 +391,8 @@ defmodule RNS.Transport.AnnounceHandler do
   TRANSPORT type, and the local transport node's identity hash,
   then packs it for transmission.
   """
-  @spec build_retransmit_packet(binary(), AnnounceEntry.t()) :: map()
-  def build_retransmit_packet(destination_hash, entry) do
+  @spec build_retransmit_packet(binary(), AnnounceEntry.t(), map() | nil) :: map()
+  def build_retransmit_packet(destination_hash, entry, transport_identity) do
     announce_context =
       if entry.block_rebroadcasts do
         # PATH_RESPONSE
@@ -402,7 +402,6 @@ defmodule RNS.Transport.AnnounceHandler do
         0x00
       end
 
-    transport_identity = Transport.identity()
     transport_id = if transport_identity, do: transport_identity.hash, else: nil
 
     # Build a destination stub for Packet.new

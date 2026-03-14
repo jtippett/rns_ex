@@ -396,7 +396,7 @@ defmodule RNS.Transport.AnnounceHandlerTest do
         )
 
       AnnounceHandler.put_announce_entry(hash, entry)
-      {_outgoing, completed} = AnnounceHandler.process_announce_queue()
+      {_outgoing, completed} = AnnounceHandler.process_announce_queue(RNS.Identity.new())
 
       assert hash in completed
       assert Transport.get_announce_entry(hash) == nil
@@ -413,7 +413,7 @@ defmodule RNS.Transport.AnnounceHandlerTest do
         )
 
       AnnounceHandler.put_announce_entry(hash, entry)
-      {_outgoing, completed} = AnnounceHandler.process_announce_queue()
+      {_outgoing, completed} = AnnounceHandler.process_announce_queue(RNS.Identity.new())
 
       assert hash in completed
       assert Transport.get_announce_entry(hash) == nil
@@ -437,7 +437,7 @@ defmodule RNS.Transport.AnnounceHandlerTest do
         )
 
       AnnounceHandler.put_announce_entry(hash, entry)
-      {_outgoing, completed} = AnnounceHandler.process_announce_queue()
+      {_outgoing, completed} = AnnounceHandler.process_announce_queue(RNS.Identity.new())
 
       # Should not be completed (retries was 0, now 1 which is <= PATHFINDER_R)
       refute hash in completed
@@ -459,7 +459,7 @@ defmodule RNS.Transport.AnnounceHandlerTest do
         )
 
       AnnounceHandler.put_announce_entry(hash, entry)
-      {outgoing, completed} = AnnounceHandler.process_announce_queue()
+      {outgoing, completed} = AnnounceHandler.process_announce_queue(RNS.Identity.new())
 
       assert outgoing == []
       assert completed == []
