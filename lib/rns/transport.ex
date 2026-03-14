@@ -477,14 +477,14 @@ defmodule RNS.Transport do
 
   ## Topics
 
-    * `:announces` — receive `{:rns_announce, dest_hash, identity, app_data}` messages
+    * `:announces` — receive `{:rns_announce, %RNS.Transport.Announce{}}` messages
 
   ## Examples
 
       RNS.Transport.subscribe(:announces)
 
       # In a GenServer handle_info:
-      def handle_info({:rns_announce, dest_hash, identity, app_data}, state) do
+      def handle_info({:rns_announce, %RNS.Transport.Announce{} = announce}, state) do
         # handle announce
         {:noreply, state}
       end
@@ -512,10 +512,17 @@ defmodule RNS.Transport do
   Called internally by Transport when events occur.
   """
   @spec notify_subscribers(atom(), tuple()) :: :ok
-  def notify_subscribers(:announces, {dest_hash, identity, app_data}) do
+  def notify_subscribers(:announces, {dest_hash, identity, app_data, name_hash}) do
+    announce = %RNS.Transport.Announce{
+      dest_hash: dest_hash,
+      identity: identity,
+      app_data: app_data,
+      name_hash: name_hash
+    }
+
     Registry.dispatch(RNS.Transport.Registry, :announces, fn entries ->
       for {pid, _value} <- entries do
-        send(pid, {:rns_announce, dest_hash, identity, app_data})
+        send(pid, {:rns_announce, announce})
       end
     end)
 
@@ -2022,7 +2029,8 @@ defmodule RNS.Transport do
     end
 
     # Notify pub/sub subscribers
-    notify_subscribers(:announces, {packet.destination_hash, announce_identity, app_data})
+    name_hash = RNS.Transport.AnnounceHandler.extract_name_hash(packet)
+    notify_subscribers(:announces, {packet.destination_hash, announce_identity, app_data, name_hash})
   end
 
   # ── Link Request Handling ─────────────────────────────────────────────

@@ -36,16 +36,21 @@ defmodule RNS.Transport.PubSubTest do
   end
 
   describe "announce notifications" do
-    test "subscriber receives :rns_announce message" do
+    test "subscriber receives :rns_announce message with Announce struct" do
       :ok = RNS.Transport.subscribe(:announces)
 
       dest_hash = :crypto.strong_rand_bytes(16)
       identity = RNS.Identity.new()
       app_data = "test_data"
+      name_hash = :crypto.strong_rand_bytes(10)
 
-      RNS.Transport.notify_subscribers(:announces, {dest_hash, identity, app_data})
+      RNS.Transport.notify_subscribers(:announces, {dest_hash, identity, app_data, name_hash})
 
-      assert_receive {:rns_announce, ^dest_hash, ^identity, ^app_data}, 1000
+      assert_receive {:rns_announce, %RNS.Transport.Announce{} = announce}, 1000
+      assert announce.dest_hash == dest_hash
+      assert announce.identity == identity
+      assert announce.app_data == app_data
+      assert announce.name_hash == name_hash
     end
 
     test "unsubscribed process does not receive messages" do
@@ -53,9 +58,9 @@ defmodule RNS.Transport.PubSubTest do
       :ok = RNS.Transport.unsubscribe(:announces)
 
       dest_hash = :crypto.strong_rand_bytes(16)
-      RNS.Transport.notify_subscribers(:announces, {dest_hash, nil, nil})
+      RNS.Transport.notify_subscribers(:announces, {dest_hash, nil, nil, nil})
 
-      refute_receive {:rns_announce, _, _, _}, 200
+      refute_receive {:rns_announce, _}, 200
     end
 
     test "multiple subscribers all receive the message" do
@@ -68,7 +73,7 @@ defmodule RNS.Transport.PubSubTest do
             send(parent, :subscribed)
 
             receive do
-              {:rns_announce, hash, _identity, _app_data} ->
+              {:rns_announce, %RNS.Transport.Announce{dest_hash: hash}} ->
                 send(parent, {:got_announce, self(), hash})
             end
           end)
@@ -78,7 +83,7 @@ defmodule RNS.Transport.PubSubTest do
       for _ <- 1..3, do: assert_receive(:subscribed, 1000)
 
       dest_hash = :crypto.strong_rand_bytes(16)
-      RNS.Transport.notify_subscribers(:announces, {dest_hash, nil, nil})
+      RNS.Transport.notify_subscribers(:announces, {dest_hash, nil, nil, nil})
 
       for pid <- pids do
         assert_receive {:got_announce, ^pid, ^dest_hash}, 1000
