@@ -49,6 +49,25 @@ defmodule RNS.Transport.AnnounceHandler do
     ]
   end
 
+  # ── RateEntry struct ────────────────────────────────────────────
+
+  defmodule RateEntry do
+    @moduledoc """
+    Tracks announce rate limiting state for a destination.
+    """
+    @type t :: %__MODULE__{
+            last: non_neg_integer(),
+            rate_violations: non_neg_integer(),
+            blocked_until: non_neg_integer(),
+            timestamps: [non_neg_integer()]
+          }
+
+    defstruct last: 0,
+              rate_violations: 0,
+              blocked_until: 0,
+              timestamps: []
+  end
+
   # ── Announce Table Operations ─────────────────────────────────────
 
   @doc "Inserts or updates an announce entry in the announce table."
@@ -134,7 +153,7 @@ defmodule RNS.Transport.AnnounceHandler do
 
   Returns `{rate_blocked, rate_entry}`.
   """
-  @spec check_announce_rate(binary(), map()) :: {boolean(), map() | nil}
+  @spec check_announce_rate(binary(), map()) :: {boolean(), RateEntry.t() | nil}
   def check_announce_rate(destination_hash, interface) do
     if Map.get(interface, :announce_rate_target) == nil do
       {false, nil}
@@ -143,12 +162,7 @@ defmodule RNS.Transport.AnnounceHandler do
 
       case :ets.lookup(@announce_rate_table, destination_hash) do
         [] ->
-          rate_entry = %{
-            last: now,
-            rate_violations: 0,
-            blocked_until: 0,
-            timestamps: [now]
-          }
+          rate_entry = %RateEntry{last: now, timestamps: [now]}
 
           :ets.insert(@announce_rate_table, {destination_hash, rate_entry})
           {false, rate_entry}
