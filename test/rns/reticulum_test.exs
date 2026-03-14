@@ -1613,6 +1613,42 @@ defmodule RNS.ReticulumTest do
       # Cleanup
       DynamicSupervisor.terminate_child(RNS.InterfaceSupervisor, pid)
     end
+
+    test "applies sensible defaults (out: true, mode: full)" do
+      opts = [name: "TestUDP[defaults_test]", listen_port: 0, listen_ip: "127.0.0.1"]
+
+      assert {:ok, pid} = RNS.Reticulum.add_interface(RNS.Interfaces.UDPInterface, opts)
+
+      interfaces = RNS.Transport.get_interfaces()
+      iface = Enum.find(interfaces, fn i -> i[:pid] == pid end)
+
+      assert iface[:out] == true
+      assert iface[:mode] == RNS.Interfaces.Interface.mode_full()
+      assert iface[:ingress_control] == true
+      assert iface[:bootstrap_only] == false
+
+      DynamicSupervisor.terminate_child(RNS.InterfaceSupervisor, pid)
+    end
+
+    test "allows overriding defaults" do
+      opts = [
+        name: "TestUDP[override_test]",
+        listen_port: 0,
+        listen_ip: "127.0.0.1",
+        out: false,
+        mode: RNS.Interfaces.Interface.mode_access_point()
+      ]
+
+      assert {:ok, pid} = RNS.Reticulum.add_interface(RNS.Interfaces.UDPInterface, opts)
+
+      interfaces = RNS.Transport.get_interfaces()
+      iface = Enum.find(interfaces, fn i -> i[:pid] == pid end)
+
+      assert iface[:out] == false
+      assert iface[:mode] == RNS.Interfaces.Interface.mode_access_point()
+
+      DynamicSupervisor.terminate_child(RNS.InterfaceSupervisor, pid)
+    end
   end
 
   # ── Shared-instance detection ──────────────────────────────────

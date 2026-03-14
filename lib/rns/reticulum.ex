@@ -390,7 +390,14 @@ defmodule RNS.Reticulum do
   def add_interface(module, opts \\ []) do
     case DynamicSupervisor.start_child(RNS.InterfaceSupervisor, {module, opts}) do
       {:ok, pid} ->
-        register_interface_with_transport(pid)
+        post_init = %{
+          out: Keyword.get(opts, :out, true),
+          mode: Keyword.get(opts, :mode, RNS.Interfaces.Interface.mode_full()),
+          ingress_control: Keyword.get(opts, :ingress_control, true),
+          bootstrap_only: Keyword.get(opts, :bootstrap_only, false)
+        }
+
+        register_interface_with_transport(pid, post_init)
         {:ok, pid}
 
       {:error, reason} ->
