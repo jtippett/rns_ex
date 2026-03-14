@@ -232,7 +232,7 @@ defmodule RNS.Interfaces.LocalInterfaceTest do
       :ok = LocalClientInterface.send_data(client, test_data)
 
       # The server-spawned client should receive and process the HDLC-framed data
-      assert_receive {:local_interface_data, ^test_data, _iface}, 2000
+      assert_receive {:interface_data, ^test_data, _iface}, 2000
 
       LocalClientInterface.stop(client)
       LocalServerInterface.stop(server2)
@@ -269,9 +269,9 @@ defmodule RNS.Interfaces.LocalInterfaceTest do
       :ok = LocalClientInterface.send_data(client, msg2)
       :ok = LocalClientInterface.send_data(client, msg3)
 
-      assert_receive {:local_interface_data, ^msg1, _}, 2000
-      assert_receive {:local_interface_data, ^msg2, _}, 2000
-      assert_receive {:local_interface_data, ^msg3, _}, 2000
+      assert_receive {:interface_data, ^msg1, _}, 2000
+      assert_receive {:interface_data, ^msg2, _}, 2000
+      assert_receive {:interface_data, ^msg3, _}, 2000
 
       LocalClientInterface.stop(client)
       LocalServerInterface.stop(server)
@@ -315,8 +315,8 @@ defmodule RNS.Interfaces.LocalInterfaceTest do
       :ok = LocalClientInterface.send_data(client1, msg1)
       :ok = LocalClientInterface.send_data(client2, msg2)
 
-      assert_receive {:local_interface_data, ^msg1, _}, 2000
-      assert_receive {:local_interface_data, ^msg2, _}, 2000
+      assert_receive {:interface_data, ^msg1, _}, 2000
+      assert_receive {:interface_data, ^msg2, _}, 2000
 
       LocalClientInterface.stop(client1)
       LocalClientInterface.stop(client2)
@@ -355,7 +355,7 @@ defmodule RNS.Interfaces.LocalInterfaceTest do
       framed = HDLC.frame(test_data)
       :gen_tcp.send(client_sock, framed)
 
-      assert_receive {:local_interface_data, ^test_data, _iface}, 2000
+      assert_receive {:interface_data, ^test_data, _iface}, 2000
 
       LocalClientInterface.stop(iface)
       :gen_tcp.close(client_sock)
@@ -512,7 +512,7 @@ defmodule RNS.Interfaces.LocalInterfaceTest do
       framed = HDLC.frame(test_data)
       :gen_tcp.send(client_sock, framed)
 
-      assert_receive {:local_interface_data, ^test_data, _}, 2000
+      assert_receive {:interface_data, ^test_data, _}, 2000
 
       LocalClientInterface.stop(iface)
       :gen_tcp.close(client_sock)
@@ -543,14 +543,14 @@ defmodule RNS.Interfaces.LocalInterfaceTest do
       :gen_tcp.send(client_sock, framed)
 
       # Should NOT receive the small frame
-      refute_receive {:local_interface_data, ^small_data, _}, 500
+      refute_receive {:interface_data, ^small_data, _}, 500
 
       # Now send a valid-size frame
       valid_data = :crypto.strong_rand_bytes(25)
       framed2 = HDLC.frame(valid_data)
       :gen_tcp.send(client_sock, framed2)
 
-      assert_receive {:local_interface_data, ^valid_data, _}, 2000
+      assert_receive {:interface_data, ^valid_data, _}, 2000
 
       LocalClientInterface.stop(iface)
       :gen_tcp.close(client_sock)
@@ -589,7 +589,7 @@ defmodule RNS.Interfaces.LocalInterfaceTest do
       Process.sleep(50)
       :gen_tcp.send(client_sock, part2)
 
-      assert_receive {:local_interface_data, ^test_data, _}, 2000
+      assert_receive {:interface_data, ^test_data, _}, 2000
 
       LocalClientInterface.stop(iface)
       :gen_tcp.close(client_sock)
@@ -645,7 +645,7 @@ defmodule RNS.Interfaces.LocalInterfaceTest do
       :ok = LocalClientInterface.send_data(client, msg1)
 
       # Should receive from the server-spawned client
-      assert_receive {:local_interface_data, ^msg1, _}, 2000
+      assert_receive {:interface_data, ^msg1, _}, 2000
 
       LocalClientInterface.stop(client)
       LocalServerInterface.stop(server)

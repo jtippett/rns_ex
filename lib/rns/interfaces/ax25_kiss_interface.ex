@@ -312,18 +312,12 @@ defmodule RNS.Interfaces.AX25KISSInterface do
 
   @impl RNS.Interfaces.Interface
   def process_incoming(state, data) do
-    # Strip AX.25 header (first 16 bytes) if present
     if byte_size(data) > @ax25_header_size do
       <<_header::binary-size(@ax25_header_size), payload::binary>> = data
       updated = %{state | rxb: state.rxb + byte_size(data)}
-
-      if state.owner do
-        notify_owner(state.owner, payload, updated)
-      end
-
+      RNS.Interfaces.Interface.deliver_to_transport(payload, updated)
       {:ok, updated}
     else
-      # Packet too small (no payload after header), ignore
       {:ok, state}
     end
   end
@@ -705,20 +699,6 @@ defmodule RNS.Interfaces.AX25KISSInterface do
   defp schedule_reconnect do
     Process.send_after(self(), :reconnect, @reconnect_wait)
   end
-
-  defp notify_owner(owner, data, interface) when is_pid(owner) do
-    send(owner, {:ax25_kiss_interface_data, data, interface})
-  end
-
-  defp notify_owner({module, fun}, data, interface) when is_atom(module) and is_atom(fun) do
-    apply(module, fun, [data, interface])
-  end
-
-  defp notify_owner(fun, data, interface) when is_function(fun, 2) do
-    fun.(data, interface)
-  end
-
-  defp notify_owner(_, _data, _interface), do: :ok
 
   # ── String.Chars protocol ────────────────────────────────────────
 

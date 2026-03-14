@@ -1219,7 +1219,7 @@ defmodule RNS.Interfaces.RNodeSubInterface do
   @spec process_incoming(%__MODULE__{}, binary()) :: {:ok, %__MODULE__{}} | {:error, term()}
   def process_incoming(sub, data) do
     sub = %{sub | rxb: sub.rxb + byte_size(data), r_stat_rssi: nil, r_stat_snr: nil}
-    notify_owner(sub, data)
+    RNS.Interfaces.Interface.deliver_to_transport(data, sub)
     {:ok, sub}
   end
 
@@ -1282,12 +1282,6 @@ defmodule RNS.Interfaces.RNodeSubInterface do
   @doc "Should ingress limit always returns false."
   @spec should_ingress_limit(%__MODULE__{}) :: {boolean(), %__MODULE__{}}
   def should_ingress_limit(sub), do: {false, sub}
-
-  defp notify_owner(%{owner: nil}, _data), do: :ok
-  defp notify_owner(%{owner: pid}, data) when is_pid(pid), do: send(pid, {:rnode_sub_data, data})
-  defp notify_owner(%{owner: fun}, data) when is_function(fun, 1), do: fun.(data)
-  defp notify_owner(%{owner: {mod, fun}}, data), do: apply(mod, fun, [data])
-  defp notify_owner(_, _), do: :ok
 
   defimpl String.Chars, for: __MODULE__ do
     def to_string(sub) do

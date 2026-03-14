@@ -1367,7 +1367,7 @@ defmodule RNS.Interfaces.WeaveInterface.WeaveInterfacePeer do
         peer = %{peer | rxb: peer.rxb + byte_size(data)}
         parent_state = %{parent_state | rxb: parent_state.rxb + byte_size(data)}
 
-        # Notify owner
+        RNS.Transport.inbound(data, peer)
         notify_owner(parent_state, data, peer)
 
         {peer, parent_state}

@@ -777,7 +777,7 @@ defmodule RNS.Interfaces.RNodeMultiInterfaceTest do
     test "notifies owner pid" do
       sub = Sub.new(name: "test", owner: self())
       Sub.process_incoming(sub, "hello")
-      assert_receive {:rnode_sub_data, "hello"}
+      assert_receive {:interface_data, "hello", _}
     end
   end
 

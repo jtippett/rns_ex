@@ -359,7 +359,7 @@ defmodule RNS.Interfaces.AX25KISSInterfaceTest do
       send(pid, {:serial_data, kiss_frame})
 
       # Should receive just the payload, with AX.25 header stripped
-      assert_receive {:ax25_kiss_interface_data, ^payload, _iface}, 1000
+      assert_receive {:interface_data, ^payload, _iface}, 1000
 
       GenServer.stop(pid)
     end
@@ -383,7 +383,7 @@ defmodule RNS.Interfaces.AX25KISSInterfaceTest do
 
       send(pid, {:serial_data, kiss_frame})
 
-      refute_receive {:ax25_kiss_interface_data, _, _}, 200
+      refute_receive {:interface_data, _, _}, 200
 
       GenServer.stop(pid)
     end
@@ -427,8 +427,8 @@ defmodule RNS.Interfaces.AX25KISSInterfaceTest do
 
       send(pid, {:serial_data, combined})
 
-      assert_receive {:ax25_kiss_interface_data, ^msg1, _}, 1000
-      assert_receive {:ax25_kiss_interface_data, ^msg2, _}, 1000
+      assert_receive {:interface_data, ^msg1, _}, 1000
+      assert_receive {:interface_data, ^msg2, _}, 1000
 
       GenServer.stop(pid)
     end
@@ -453,7 +453,7 @@ defmodule RNS.Interfaces.AX25KISSInterfaceTest do
 
       send(pid, {:serial_data, kiss_frame})
 
-      assert_receive {:ax25_kiss_interface_data, ^payload, _iface}, 1000
+      assert_receive {:interface_data, ^payload, _iface}, 1000
 
       GenServer.stop(pid)
     end
@@ -483,7 +483,7 @@ defmodule RNS.Interfaces.AX25KISSInterfaceTest do
       Process.sleep(10)
       send(pid, {:serial_data, part2})
 
-      assert_receive {:ax25_kiss_interface_data, ^payload, _iface}, 1000
+      assert_receive {:interface_data, ^payload, _iface}, 1000
 
       GenServer.stop(pid)
     end
@@ -575,7 +575,7 @@ defmodule RNS.Interfaces.AX25KISSInterfaceTest do
       full = ax25_header <> msg
       send(pid, {:serial_data, KISS.frame(full)})
 
-      assert_receive {:ax25_kiss_interface_data, ^msg, _}, 1000
+      assert_receive {:interface_data, ^msg, _}, 1000
 
       state = AX25KISSInterface.get_state(pid)
       # rxb includes the full frame (header + payload)
@@ -647,7 +647,7 @@ defmodule RNS.Interfaces.AX25KISSInterfaceTest do
       {:ok, updated} = AX25KISSInterface.process_incoming(state, ax25_header <> payload)
 
       assert updated.rxb == byte_size(ax25_header <> payload)
-      assert_receive {:ax25_kiss_interface_data, ^payload, _}, 100
+      assert_receive {:interface_data, ^payload, _}, 100
     end
 
     test "process_incoming ignores packets smaller than header" do
