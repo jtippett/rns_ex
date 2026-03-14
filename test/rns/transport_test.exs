@@ -1656,7 +1656,24 @@ defmodule RNS.TransportTest do
       data = public_key <> name_hash <> random_blob <> signature
       packet = %{destination_hash: destination_hash, data: data, context_flag: 0}
 
-      assert RNS.Identity.validate_announce(packet)
+      assert {:ok, ^public_key, <<>>} = RNS.Identity.validate_announce(packet)
+    end
+
+    test "returns public_key and app_data on success" do
+      identity = RNS.Identity.new()
+      public_key = RNS.Identity.public_key(identity)
+      name_hash = :crypto.strong_rand_bytes(10)
+      random_blob = :crypto.strong_rand_bytes(10)
+      destination_hash = RNS.Identity.truncated_hash(name_hash <> identity.hash)
+      app_data = "hello_world"
+
+      signed_data = destination_hash <> public_key <> name_hash <> random_blob <> <<>> <> app_data
+      signature = RNS.Identity.sign(identity, signed_data)
+
+      data = public_key <> name_hash <> random_blob <> signature <> app_data
+      packet = %{destination_hash: destination_hash, data: data, context_flag: 0}
+
+      assert {:ok, ^public_key, ^app_data} = RNS.Identity.validate_announce(packet)
     end
 
     test "rejects announce with invalid signature" do
@@ -1671,7 +1688,7 @@ defmodule RNS.TransportTest do
       data = public_key <> name_hash <> random_blob <> bad_sig
       packet = %{destination_hash: destination_hash, data: data, context_flag: 0}
 
-      refute RNS.Identity.validate_announce(packet)
+      assert :error = RNS.Identity.validate_announce(packet)
     end
 
     test "rejects malformed announce data" do
@@ -1681,7 +1698,7 @@ defmodule RNS.TransportTest do
         context_flag: 0
       }
 
-      refute RNS.Identity.validate_announce(packet)
+      assert :error = RNS.Identity.validate_announce(packet)
     end
   end
 

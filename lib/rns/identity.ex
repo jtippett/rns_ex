@@ -412,7 +412,7 @@ defmodule RNS.Identity do
 
   Returns `true` if the announce signature is valid, `false` otherwise.
   """
-  @spec validate_announce(map()) :: boolean()
+  @spec validate_announce(map()) :: {:ok, binary(), binary()} | :error
   def validate_announce(packet) do
     keysize_bytes = div(@keysize, 8)
     name_hash_len = div(@name_hash_length, 8)
@@ -444,9 +444,13 @@ defmodule RNS.Identity do
         new(create_keys: false)
         |> load_public_key(public_key)
 
-      validate(identity, signature, signed_data)
+      if validate(identity, signature, signed_data) do
+        {:ok, public_key, app_data}
+      else
+        :error
+      end
     else
-      _ -> false
+      _ -> :error
     end
   rescue
     # Broad rescue is intentional: announce validation must never crash the caller.
@@ -454,15 +458,15 @@ defmodule RNS.Identity do
     # when processing malformed or adversarial announce packets.
     e in [MatchError] ->
       Logger.debug("Announce validation failed (match error): #{inspect(e)}")
-      false
+      :error
 
     e in [ArgumentError] ->
       Logger.debug("Announce validation failed (argument error): #{inspect(e)}")
-      false
+      :error
 
     e ->
       Logger.debug("Announce validation failed: #{inspect(e)}")
-      false
+      :error
   end
 
   # --- Hash helpers ---

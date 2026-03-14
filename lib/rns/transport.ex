@@ -1858,8 +1858,17 @@ defmodule RNS.Transport do
   defp handle_inbound_announce(packet, opts) do
     transport_enabled = Keyword.get(opts, :transport_enabled, false)
 
-    # Validate announce signature
-    if Identity.validate_announce(packet) do
+    # Validate announce signature and extract identity data
+    with {:ok, public_key, app_data} <- Identity.validate_announce(packet) do
+      # Persist the announced identity and app_data so they can be recalled
+      # by announce handlers and subscribers
+      RNS.IdentityStore.remember(
+        packet.packet_hash,
+        packet.destination_hash,
+        public_key,
+        app_data
+      )
+
       received_from =
         if packet.transport_id != nil do
           # Track rebroadcasts from other transport nodes
