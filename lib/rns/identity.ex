@@ -608,4 +608,17 @@ defmodule RNS.Identity do
     hash = truncated_hash(pub)
     %{id | hash: hash, hexhash: Base.encode16(hash, case: :lower)}
   end
+
+  defimpl Jason.Encoder do
+    def encode(identity, opts) do
+      map = %{
+        hash: identity.hexhash,
+        public_key: RNS.Identity.public_hex(identity),
+        app_data:
+          if(identity.app_data, do: Base.encode16(identity.app_data, case: :lower), else: nil)
+      }
+
+      Jason.Encode.map(map, opts)
+    end
+  end
 end
