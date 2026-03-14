@@ -104,6 +104,19 @@ defmodule RNS.Transport.AnnounceHandler do
   end
 
   @doc """
+  Extracts the 10-byte name hash from announce packet data.
+
+  Layout: public_key (64 bytes) + name_hash (10 bytes) + random_blob (10 bytes) + ...
+  """
+  @spec extract_name_hash(map()) :: binary()
+  def extract_name_hash(packet) do
+    key_offset = div(Identity.keysize(), 8)
+    name_hash_size = div(Identity.name_hash_length(), 8)
+    <<_::binary-size(key_offset), name_hash::binary-size(name_hash_size), _::binary>> = packet.data
+    name_hash
+  end
+
+  @doc """
   Extracts the emission timestamp from an announce packet.
   """
   @spec announce_emitted(map()) :: non_neg_integer()
