@@ -578,7 +578,10 @@ defmodule RNS.Interfaces.TCPClientInterface do
 
   defp set_tcp_keepalive(socket, i2p_tunneled) do
     # Enable TCP keepalive
-    :inet.setopts(socket, [{:keepalive, true}])
+    case :inet.setopts(socket, [{:keepalive, true}]) do
+      :ok -> :ok
+      {:error, reason} -> Logger.debug("Socket option: #{inspect(reason)}")
+    end
 
     case :os.type() do
       {:unix, :linux} ->
@@ -596,19 +599,29 @@ defmodule RNS.Interfaces.TCPClientInterface do
     # Linux-specific TCP keepalive options via raw socket opts
     # TCP_KEEPIDLE = 4, TCP_KEEPINTVL = 5, TCP_KEEPCNT = 6
     # TCP_USER_TIMEOUT = 18 (on IPPROTO_TCP = 6)
-    if i2p_tunneled do
-      :inet.setopts(socket, [{:raw, 6, 18, <<@i2p_user_timeout * 1000::native-32>>}])
-      :inet.setopts(socket, [{:raw, 6, 4, <<@i2p_probe_after::native-32>>}])
-      :inet.setopts(socket, [{:raw, 6, 5, <<@i2p_probe_interval::native-32>>}])
-      :inet.setopts(socket, [{:raw, 6, 6, <<@i2p_probes::native-32>>}])
-    else
-      :inet.setopts(socket, [{:raw, 6, 18, <<@tcp_user_timeout * 1000::native-32>>}])
-      :inet.setopts(socket, [{:raw, 6, 4, <<@tcp_probe_after::native-32>>}])
-      :inet.setopts(socket, [{:raw, 6, 5, <<@tcp_probe_interval::native-32>>}])
-      :inet.setopts(socket, [{:raw, 6, 6, <<@tcp_probes::native-32>>}])
-    end
-  rescue
-    _ -> :ok
+    opts =
+      if i2p_tunneled do
+        [
+          {:raw, 6, 18, <<@i2p_user_timeout * 1000::native-32>>},
+          {:raw, 6, 4, <<@i2p_probe_after::native-32>>},
+          {:raw, 6, 5, <<@i2p_probe_interval::native-32>>},
+          {:raw, 6, 6, <<@i2p_probes::native-32>>}
+        ]
+      else
+        [
+          {:raw, 6, 18, <<@tcp_user_timeout * 1000::native-32>>},
+          {:raw, 6, 4, <<@tcp_probe_after::native-32>>},
+          {:raw, 6, 5, <<@tcp_probe_interval::native-32>>},
+          {:raw, 6, 6, <<@tcp_probes::native-32>>}
+        ]
+      end
+
+    Enum.each(opts, fn opt ->
+      case :inet.setopts(socket, [opt]) do
+        :ok -> :ok
+        {:error, reason} -> Logger.debug("Socket option: #{inspect(reason)}")
+      end
+    end)
   end
 
   defp set_darwin_keepalive(socket, i2p_tunneled) do
@@ -616,9 +629,10 @@ defmodule RNS.Interfaces.TCPClientInterface do
     probe_after =
       if i2p_tunneled, do: @i2p_probe_after, else: @tcp_probe_after
 
-    :inet.setopts(socket, [{:raw, 6, 0x10, <<probe_after::native-32>>}])
-  rescue
-    _ -> :ok
+    case :inet.setopts(socket, [{:raw, 6, 0x10, <<probe_after::native-32>>}]) do
+      :ok -> :ok
+      {:error, reason} -> Logger.debug("Socket option: #{inspect(reason)}")
+    end
   end
 
   defp teardown(state) do
@@ -638,20 +652,14 @@ defmodule RNS.Interfaces.TCPClientInterface do
   defp close_socket(nil), do: :ok
 
   defp close_socket(socket) do
-    try do
-      :gen_tcp.shutdown(socket, :read_write)
-    rescue
-      _ -> :ok
-    catch
-      _, _ -> :ok
+    case :gen_tcp.shutdown(socket, :read_write) do
+      :ok -> :ok
+      {:error, reason} -> Logger.debug("Socket shutdown: #{inspect(reason)}")
     end
 
-    try do
-      :gen_tcp.close(socket)
-    rescue
-      _ -> :ok
-    catch
-      _, _ -> :ok
+    case :gen_tcp.close(socket) do
+      :ok -> :ok
+      {:error, reason} -> Logger.debug("Socket close: #{inspect(reason)}")
     end
   end
 

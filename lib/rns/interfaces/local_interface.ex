@@ -506,20 +506,14 @@ defmodule RNS.Interfaces.LocalClientInterface do
   defp close_socket(nil), do: :ok
 
   defp close_socket(socket) do
-    try do
-      :gen_tcp.shutdown(socket, :read_write)
-    rescue
-      _ -> :ok
-    catch
-      _, _ -> :ok
+    case :gen_tcp.shutdown(socket, :read_write) do
+      :ok -> :ok
+      {:error, reason} -> Logger.debug("Socket shutdown: #{inspect(reason)}")
     end
 
-    try do
-      :gen_tcp.close(socket)
-    rescue
-      _ -> :ok
-    catch
-      _, _ -> :ok
+    case :gen_tcp.close(socket) do
+      :ok -> :ok
+      {:error, reason} -> Logger.debug("Socket close: #{inspect(reason)}")
     end
   end
 

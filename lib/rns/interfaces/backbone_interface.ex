@@ -931,7 +931,10 @@ defmodule RNS.Interfaces.BackboneClientInterface do
   end
 
   defp set_tcp_keepalive(socket) do
-    :inet.setopts(socket, [{:keepalive, true}])
+    case :inet.setopts(socket, [{:keepalive, true}]) do
+      :ok -> :ok
+      {:error, reason} -> Logger.debug("Socket option: #{inspect(reason)}")
+    end
 
     case :os.type() do
       {:unix, :linux} ->
@@ -946,18 +949,26 @@ defmodule RNS.Interfaces.BackboneClientInterface do
   end
 
   defp set_linux_keepalive(socket) do
-    :inet.setopts(socket, [{:raw, 6, 18, <<@tcp_user_timeout * 1000::native-32>>}])
-    :inet.setopts(socket, [{:raw, 6, 4, <<@tcp_probe_after::native-32>>}])
-    :inet.setopts(socket, [{:raw, 6, 5, <<@tcp_probe_interval::native-32>>}])
-    :inet.setopts(socket, [{:raw, 6, 6, <<@tcp_probes::native-32>>}])
-  rescue
-    _ -> :ok
+    opts = [
+      {:raw, 6, 18, <<@tcp_user_timeout * 1000::native-32>>},
+      {:raw, 6, 4, <<@tcp_probe_after::native-32>>},
+      {:raw, 6, 5, <<@tcp_probe_interval::native-32>>},
+      {:raw, 6, 6, <<@tcp_probes::native-32>>}
+    ]
+
+    Enum.each(opts, fn opt ->
+      case :inet.setopts(socket, [opt]) do
+        :ok -> :ok
+        {:error, reason} -> Logger.debug("Socket option: #{inspect(reason)}")
+      end
+    end)
   end
 
   defp set_darwin_keepalive(socket) do
-    :inet.setopts(socket, [{:raw, 6, 0x10, <<@tcp_probe_after::native-32>>}])
-  rescue
-    _ -> :ok
+    case :inet.setopts(socket, [{:raw, 6, 0x10, <<@tcp_probe_after::native-32>>}]) do
+      :ok -> :ok
+      {:error, reason} -> Logger.debug("Socket option: #{inspect(reason)}")
+    end
   end
 
   defp teardown(state) do
@@ -977,20 +988,14 @@ defmodule RNS.Interfaces.BackboneClientInterface do
   defp close_socket(nil), do: :ok
 
   defp close_socket(socket) do
-    try do
-      :gen_tcp.shutdown(socket, :read_write)
-    rescue
-      _ -> :ok
-    catch
-      _, _ -> :ok
+    case :gen_tcp.shutdown(socket, :read_write) do
+      :ok -> :ok
+      {:error, reason} -> Logger.debug("Socket shutdown: #{inspect(reason)}")
     end
 
-    try do
-      :gen_tcp.close(socket)
-    rescue
-      _ -> :ok
-    catch
-      _, _ -> :ok
+    case :gen_tcp.close(socket) do
+      :ok -> :ok
+      {:error, reason} -> Logger.debug("Socket close: #{inspect(reason)}")
     end
   end
 
