@@ -968,6 +968,8 @@ defmodule RNS.Interfaces.RNodeSubInterface do
 
   use RNS.Interfaces.Interface
 
+  require Logger
+
   # Radio frequency limits based on interface type
   @low_freq_min 137_000_000
   @low_freq_max 1_000_000_000

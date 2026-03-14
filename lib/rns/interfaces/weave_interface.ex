@@ -893,6 +893,8 @@ defmodule RNS.Interfaces.WeaveInterface.WeaveDevice do
   and remote display for Weave-compatible devices.
   """
 
+  require Logger
+
   alias RNS.Interfaces.WeaveInterface.{Cmd, Evt, LogFrame, WDCL, WeaveEndpoint}
 
   @statlen_max 120

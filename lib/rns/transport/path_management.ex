@@ -5,6 +5,8 @@ defmodule RNS.Transport.PathManagement do
   Handles path table persistence (save/load) and path discovery operations.
   """
 
+  require Logger
+
   alias RNS.Transport
   alias RNS.Transport.PathEntry
 
@@ -50,10 +52,15 @@ defmodule RNS.Transport.PathManagement do
       end)
 
     packed = Msgpax.pack!(serialized, iodata: false)
-    File.write!(file_path, packed)
-    :ok
-  rescue
-    e -> {:error, Exception.message(e)}
+
+    case File.write(file_path, packed) do
+      :ok ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("Path table save failed at #{file_path}: #{inspect(reason)}")
+        {:error, reason}
+    end
   end
 
   @doc """

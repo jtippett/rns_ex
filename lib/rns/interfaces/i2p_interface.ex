@@ -1145,29 +1145,16 @@ defmodule RNS.Interfaces.I2PInterfacePeer do
 
   defp close_socket(nil), do: :ok
 
+  @dialyzer {:nowarn_function, close_socket: 1}
   defp close_socket(socket) do
-    try do
-      :gen_tcp.shutdown(socket, :read_write)
-    rescue
-      e ->
-        Logger.debug("I2P socket shutdown: #{inspect(e)}")
-        :ok
-    catch
-      _, reason ->
-        Logger.debug("I2P socket shutdown caught: #{inspect(reason)}")
-        :ok
+    case :gen_tcp.shutdown(socket, :read_write) do
+      :ok -> :ok
+      {:error, reason} -> Logger.debug("I2P socket shutdown: #{inspect(reason)}")
     end
 
-    try do
-      :gen_tcp.close(socket)
-    rescue
-      e ->
-        Logger.debug("I2P socket close: #{inspect(e)}")
-        :ok
-    catch
-      _, reason ->
-        Logger.debug("I2P socket close caught: #{inspect(reason)}")
-        :ok
+    case :gen_tcp.close(socket) do
+      :ok -> :ok
+      {:error, reason} -> Logger.debug("I2P socket close: #{inspect(reason)}")
     end
   end
 

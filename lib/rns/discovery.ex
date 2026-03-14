@@ -788,6 +788,8 @@ defmodule RNS.Discovery.InterfaceDiscovery do
   auto-connection of discovered interfaces.
   """
 
+  require Logger
+
   alias RNS.Discovery
 
   @threshold_unknown 24 * 60 * 60
@@ -879,27 +881,37 @@ defmodule RNS.Discovery.InterfaceDiscovery do
       |> Map.put("last_heard", info["received"])
       |> Map.put("heard_count", 0)
 
-    File.write!(filepath, Msgpax.pack!(entry, iodata: false))
-    :ok
-  rescue
-    e -> {:error, Exception.message(e)}
+    case File.write(filepath, Msgpax.pack!(entry, iodata: false)) do
+      :ok -> :ok
+      {:error, reason} ->
+        Logger.warning("Discovery entry creation failed at #{filepath}: #{inspect(reason)}")
+        {:error, reason}
+    end
   end
 
   defp update_existing_discovery(filepath, info) do
-    last_info = filepath |> File.read!() |> Msgpax.unpack!()
-    discovered = Map.get(last_info, "discovered", info["received"])
-    heard_count = Map.get(last_info, "heard_count", 0)
+    with {:ok, data} <- File.read(filepath),
+         {:ok, last_info} <- Msgpax.unpack(data) do
+      discovered = Map.get(last_info, "discovered", info["received"])
+      heard_count = Map.get(last_info, "heard_count", 0)
 
-    entry =
-      info
-      |> Map.put("discovered", discovered)
-      |> Map.put("last_heard", info["received"])
-      |> Map.put("heard_count", heard_count + 1)
+      entry =
+        info
+        |> Map.put("discovered", discovered)
+        |> Map.put("last_heard", info["received"])
+        |> Map.put("heard_count", heard_count + 1)
 
-    File.write!(filepath, Msgpax.pack!(entry, iodata: false))
-    :ok
-  rescue
-    e -> {:error, Exception.message(e)}
+      case File.write(filepath, Msgpax.pack!(entry, iodata: false)) do
+        :ok -> :ok
+        {:error, reason} ->
+          Logger.warning("Discovery entry update write failed at #{filepath}: #{inspect(reason)}")
+          {:error, reason}
+      end
+    else
+      {:error, reason} ->
+        Logger.warning("Discovery entry update read failed at #{filepath}: #{inspect(reason)}")
+        {:error, reason}
+    end
   end
 
   @doc """

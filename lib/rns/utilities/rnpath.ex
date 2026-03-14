@@ -33,6 +33,8 @@ defmodule RNS.Utilities.RNPath do
     * `-h`, `--help` - Print help and exit
   """
 
+  require Logger
+
   # ── Entry Point ──────────────────────────────────────────────────────
 
   @doc """
@@ -551,7 +553,9 @@ defmodule RNS.Utilities.RNPath do
     end)
     |> Enum.sort_by(fn path -> {path.interface_name, path.hops} end)
   rescue
-    _ -> []
+    e ->
+      Logger.warning("Path table access failed: #{inspect(e)}")
+      []
   end
 
   @doc """
@@ -573,7 +577,9 @@ defmodule RNS.Utilities.RNPath do
     end)
     |> Enum.sort_by(fn e -> e.last end)
   rescue
-    _ -> []
+    e ->
+      Logger.warning("Rate table access failed: #{inspect(e)}")
+      []
   end
 
   @doc """
@@ -590,7 +596,9 @@ defmodule RNS.Utilities.RNPath do
         false
     end
   rescue
-    _ -> false
+    e ->
+      Logger.warning("Path drop failed: #{inspect(e)}")
+      false
   end
 
   @doc """
@@ -612,7 +620,9 @@ defmodule RNS.Utilities.RNPath do
 
     dropped != []
   rescue
-    _ -> false
+    e ->
+      Logger.warning("Drop all via failed: #{inspect(e)}")
+      false
   end
 
   @doc """
@@ -629,7 +639,9 @@ defmodule RNS.Utilities.RNPath do
           try do
             GenServer.cast(iface.pid, :clear_announce_queue)
           rescue
-            _ -> :ok
+            e ->
+              Logger.debug("Failed to clear announce queue: #{inspect(e)}")
+              :ok
           end
         end
       end
@@ -675,7 +687,9 @@ defmodule RNS.Utilities.RNPath do
   def get_blackholed_identities do
     GenServer.call(RNS.Reticulum, :get_blackholed_identities)
   rescue
-    _ -> nil
+    e ->
+      Logger.warning("Failed to get blackholed identities: #{inspect(e)}")
+      nil
   end
 
   @doc """
@@ -699,7 +713,9 @@ defmodule RNS.Utilities.RNPath do
       :ok
     end
   rescue
-    _ -> :error
+    e ->
+      Logger.warning("Blackhole identity failed: #{inspect(e)}")
+      :error
   end
 
   @doc """
@@ -716,7 +732,9 @@ defmodule RNS.Utilities.RNPath do
       :not_found
     end
   rescue
-    _ -> :error
+    e ->
+      Logger.warning("Unblackhole identity failed: #{inspect(e)}")
+      :error
   end
 
   @doc """
@@ -784,7 +802,9 @@ defmodule RNS.Utilities.RNPath do
     state = :sys.get_state(RNS.Transport)
     Map.get(state, :identity_hash)
   rescue
-    _ -> nil
+    e ->
+      Logger.debug("Could not get local identity hash: #{inspect(e)}")
+      nil
   end
 
   defp print_json_path_table(table) do

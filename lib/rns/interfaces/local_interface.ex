@@ -505,6 +505,7 @@ defmodule RNS.Interfaces.LocalClientInterface do
 
   defp close_socket(nil), do: :ok
 
+  @dialyzer {:nowarn_function, close_socket: 1}
   defp close_socket(socket) do
     case :gen_tcp.shutdown(socket, :read_write) do
       :ok -> :ok
