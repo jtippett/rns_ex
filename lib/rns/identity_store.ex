@@ -143,13 +143,13 @@ defmodule RNS.IdentityStore do
     # Reticulum.terminate also saves, but if IdentityStore crashes
     # independently this ensures data is not lost.
     if state.storagepath do
-      try do
-        File.mkdir_p(state.storagepath)
-        do_save_known_destinations(state.storagepath)
-      rescue
-        e ->
+      case File.mkdir_p(state.storagepath) do
+        :ok ->
+          do_save_known_destinations(state.storagepath)
+
+        {:error, reason} ->
           Logger.debug(
-            "IdentityStore terminate: could not save known destinations: #{Exception.message(e)}"
+            "IdentityStore terminate: could not save known destinations: #{inspect(reason)}"
           )
       end
     end
@@ -173,33 +173,30 @@ defmodule RNS.IdentityStore do
   defp load_known_destinations(storagepath) do
     file_path = Path.join(storagepath, "known_destinations")
 
-    if File.exists?(file_path) do
-      try do
-        data = File.read!(file_path)
-        loaded = Msgpax.unpack!(data)
+    with {:ok, data} <- File.read(file_path),
+         {:ok, loaded} <- Msgpax.unpack(data) do
+      count =
+        Enum.reduce(loaded, 0, fn
+          {dest_hash, [ts, pkt_hash, pub_key, app_data]}, acc
+          when is_binary(dest_hash) and byte_size(dest_hash) == @truncated_hashlength_bytes ->
+            entry = {ts, pkt_hash, pub_key, app_data}
+            :ets.insert(@destinations_table, {dest_hash, entry})
+            acc + 1
 
-        count =
-          Enum.reduce(loaded, 0, fn
-            {dest_hash, [ts, pkt_hash, pub_key, app_data]}, acc
-            when is_binary(dest_hash) and byte_size(dest_hash) == @truncated_hashlength_bytes ->
-              entry = {ts, pkt_hash, pub_key, app_data}
-              :ets.insert(@destinations_table, {dest_hash, entry})
-              acc + 1
+          _, acc ->
+            acc
+        end)
 
-            _, acc ->
-              acc
-          end)
-
-        Logger.info("Loaded #{count} known destinations from storage")
-      rescue
-        e ->
-          Logger.error(
-            "Error loading known destinations from disk, " <>
-              "file will be recreated on exit: #{Exception.message(e)}"
-          )
-      end
+      Logger.info("Loaded #{count} known destinations from storage")
     else
-      Logger.debug("Destinations file does not exist, no known destinations loaded")
+      {:error, :enoent} ->
+        Logger.debug("Destinations file does not exist, no known destinations loaded")
+
+      {:error, reason} ->
+        Logger.error(
+          "Error loading known destinations from disk, " <>
+            "file will be recreated on exit: #{inspect(reason)}"
+        )
     end
   end
 
@@ -211,24 +208,22 @@ defmodule RNS.IdentityStore do
   defp do_save_known_destinations(storagepath) do
     file_path = Path.join(storagepath, "known_destinations")
 
-    try do
-      File.mkdir_p!(storagepath)
+    destinations =
+      :ets.tab2list(@destinations_table)
+      |> Map.new(fn {dest_hash, {ts, pkt_hash, pub_key, app_data}} ->
+        {dest_hash, [ts, pkt_hash, pub_key, app_data]}
+      end)
 
-      destinations =
-        :ets.tab2list(@destinations_table)
-        |> Map.new(fn {dest_hash, {ts, pkt_hash, pub_key, app_data}} ->
-          {dest_hash, [ts, pkt_hash, pub_key, app_data]}
-        end)
+    packed = Msgpax.pack!(destinations, iodata: false)
 
-      packed = Msgpax.pack!(destinations, iodata: false)
-      File.write!(file_path, packed)
-
+    with :ok <- File.mkdir_p(storagepath),
+         :ok <- File.write(file_path, packed) do
       Logger.debug("Saved #{map_size(destinations)} known destinations to storage")
       :ok
-    rescue
-      e ->
-        Logger.error("Error saving known destinations to disk: #{Exception.message(e)}")
-        {:error, Exception.message(e)}
+    else
+      {:error, reason} ->
+        Logger.error("Error saving known destinations to disk: #{inspect(reason)}")
+        {:error, reason}
     end
   end
 

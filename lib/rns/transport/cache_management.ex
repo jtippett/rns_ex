@@ -49,29 +49,26 @@ defmodule RNS.Transport.CacheManagement do
     packet_type = Keyword.get(opts, :packet_type, nil)
 
     if force_cache or should_cache(packet) do
-      try do
-        hash = packet.packet_hash || Packet.hash(packet)
-        packet_hash = Base.encode16(hash, case: :lower)
+      hash = packet.packet_hash || Packet.hash(packet)
+      packet_hash = Base.encode16(hash, case: :lower)
 
-        interface_reference =
-          if packet.receiving_interface != nil do
-            inspect(packet.receiving_interface)
-          else
-            nil
-          end
+      interface_reference =
+        if packet.receiving_interface != nil do
+          inspect(packet.receiving_interface)
+        else
+          nil
+        end
 
-        cachepath = cache_file_path(packet_hash, packet_type)
+      cachepath = cache_file_path(packet_hash, packet_type)
 
-        # Ensure directory exists
-        cachepath |> Path.dirname() |> File.mkdir_p!()
-
-        packed = Msgpax.pack!([packet.raw, interface_reference], iodata: false)
-        File.write!(cachepath, packed)
+      with :ok <- cachepath |> Path.dirname() |> File.mkdir_p(),
+           packed = Msgpax.pack!([packet.raw, interface_reference], iodata: false),
+           :ok <- File.write(cachepath, packed) do
         :ok
-      rescue
-        e ->
-          Logger.error("Error writing packet to cache: #{Exception.message(e)}")
-          {:error, Exception.message(e)}
+      else
+        {:error, reason} ->
+          Logger.error("Error writing packet to cache: #{inspect(reason)}")
+          {:error, reason}
       end
     else
       :ok
@@ -90,42 +87,39 @@ defmodule RNS.Transport.CacheManagement do
   def get_cached_packet(packet_hash, opts \\ []) do
     packet_type = Keyword.get(opts, :packet_type, nil)
 
-    try do
-      hex_hash = Base.encode16(packet_hash, case: :lower)
-      path = cache_file_path(hex_hash, packet_type)
+    hex_hash = Base.encode16(packet_hash, case: :lower)
+    path = cache_file_path(hex_hash, packet_type)
 
-      if File.exists?(path) do
-        data = File.read!(path)
-        [raw, interface_reference] = Msgpax.unpack!(data)
+    with {:ok, data} <- File.read(path),
+         {:ok, [raw, interface_reference]} <- Msgpax.unpack(data) do
+      packet = Packet.new(nil, raw)
 
-        packet = Packet.new(nil, raw)
+      # Restore receiving_interface by matching against active interfaces
+      packet =
+        if interface_reference != nil do
+          interfaces = Transport.get_interfaces()
 
-        # Restore receiving_interface by matching against active interfaces
-        packet =
-          if interface_reference != nil do
-            interfaces = Transport.get_interfaces()
+          matched =
+            Enum.find(interfaces, fn iface ->
+              inspect(iface) == interface_reference
+            end)
 
-            matched =
-              Enum.find(interfaces, fn iface ->
-                inspect(iface) == interface_reference
-              end)
-
-            if matched do
-              %{packet | receiving_interface: matched}
-            else
-              packet
-            end
+          if matched do
+            %{packet | receiving_interface: matched}
           else
             packet
           end
+        else
+          packet
+        end
 
-        packet
-      else
-        nil
-      end
-    rescue
-      e ->
-        Logger.error("Exception getting cached packet: #{Exception.message(e)}")
+      packet
+    else
+      {:error, reason} ->
+        if reason != :enoent do
+          Logger.error("Exception getting cached packet: #{inspect(reason)}")
+        end
+
         nil
     end
   end
@@ -226,31 +220,7 @@ defmodule RNS.Transport.CacheManagement do
 
       all_active = MapSet.union(active_paths, tunnel_paths)
 
-      removed =
-        target_path
-        |> File.ls!()
-        |> Enum.reduce(0, fn filename, count ->
-          full_path = Path.join(target_path, filename)
-
-          if File.regular?(full_path) do
-            remove =
-              try do
-                target_hash = Base.decode16!(filename, case: :mixed)
-                not MapSet.member?(all_active, target_hash)
-              rescue
-                _ -> true
-              end
-
-            if remove do
-              File.rm(full_path)
-              count + 1
-            else
-              count
-            end
-          else
-            count
-          end
-        end)
+      removed = remove_inactive_cache_files(target_path, all_active)
 
       if removed > 0 do
         Logger.debug("Removed #{removed} cached announces")
@@ -272,14 +242,16 @@ defmodule RNS.Transport.CacheManagement do
       |> Enum.map(fn {hash, _} -> hash end)
 
     packed = Msgpax.pack!(hashlist, iodata: false)
-    File.write!(file_path, packed)
 
-    Logger.debug("Saved #{length(hashlist)} packet hashlist entries")
-    :ok
-  rescue
-    e ->
-      Logger.error("Could not save packet hashlist: #{Exception.message(e)}")
-      {:error, Exception.message(e)}
+    case File.write(file_path, packed) do
+      :ok ->
+        Logger.debug("Saved #{length(hashlist)} packet hashlist entries")
+        :ok
+
+      {:error, reason} ->
+        Logger.error("Could not save packet hashlist: #{inspect(reason)}")
+        {:error, reason}
+    end
   end
 
   @doc """
@@ -290,24 +262,21 @@ defmodule RNS.Transport.CacheManagement do
   """
   @spec load_packet_hashlist(String.t()) :: :ok | {:error, term()}
   def load_packet_hashlist(file_path) do
-    if File.exists?(file_path) do
-      try do
-        data = File.read!(file_path)
-        hashlist = Msgpax.unpack!(data)
+    with {:ok, data} <- File.read(file_path),
+         {:ok, hashlist} <- Msgpax.unpack(data) do
+      Enum.each(hashlist, fn hash ->
+        :ets.insert(@packet_hashlist_table, {hash, true})
+      end)
 
-        Enum.each(hashlist, fn hash ->
-          :ets.insert(@packet_hashlist_table, {hash, true})
-        end)
-
-        Logger.debug("Loaded #{length(hashlist)} packet hashlist entries")
-        :ok
-      rescue
-        e ->
-          Logger.error("Could not load packet hashlist: #{Exception.message(e)}")
-          {:error, Exception.message(e)}
-      end
+      Logger.debug("Loaded #{length(hashlist)} packet hashlist entries")
+      :ok
     else
-      {:error, :enoent}
+      {:error, reason} ->
+        if reason != :enoent do
+          Logger.error("Could not load packet hashlist: #{inspect(reason)}")
+        end
+
+        {:error, reason}
     end
   end
 
@@ -364,14 +333,16 @@ defmodule RNS.Transport.CacheManagement do
       end)
 
     packed = Msgpax.pack!(serialized_tunnels, iodata: false)
-    File.write!(file_path, packed)
 
-    Logger.debug("Saved #{length(serialized_tunnels)} tunnel table entries")
-    :ok
-  rescue
-    e ->
-      Logger.error("Could not save tunnel table: #{Exception.message(e)}")
-      {:error, Exception.message(e)}
+    case File.write(file_path, packed) do
+      :ok ->
+        Logger.debug("Saved #{length(serialized_tunnels)} tunnel table entries")
+        :ok
+
+      {:error, reason} ->
+        Logger.error("Could not save tunnel table: #{inspect(reason)}")
+        {:error, reason}
+    end
   end
 
   @doc """
@@ -383,64 +354,61 @@ defmodule RNS.Transport.CacheManagement do
   """
   @spec load_tunnel_table(String.t()) :: :ok | {:error, term()}
   def load_tunnel_table(file_path) do
-    if File.exists?(file_path) do
-      try do
-        data = File.read!(file_path)
-        serialized_tunnels = Msgpax.unpack!(data)
+    with {:ok, data} <- File.read(file_path),
+         {:ok, serialized_tunnels} <- Msgpax.unpack(data) do
+      Enum.each(serialized_tunnels, fn serialized_tunnel ->
+        [tunnel_id, _interface_hash, serialized_paths, expires] = serialized_tunnel
 
-        Enum.each(serialized_tunnels, fn serialized_tunnel ->
-          [tunnel_id, _interface_hash, serialized_paths, expires] = serialized_tunnel
+        tunnel_paths =
+          Enum.reduce(serialized_paths, %{}, fn serialized_entry, paths ->
+            [
+              destination_hash,
+              timestamp,
+              received_from,
+              hops,
+              path_expires,
+              random_blobs,
+              _path_interface_hash,
+              packet_hash
+            ] = serialized_entry
 
-          tunnel_paths =
-            Enum.reduce(serialized_paths, %{}, fn serialized_entry, paths ->
-              [
-                destination_hash,
-                timestamp,
-                received_from,
-                hops,
-                path_expires,
-                random_blobs,
-                _path_interface_hash,
-                packet_hash
-              ] = serialized_entry
+            random_blobs = Enum.uniq(random_blobs || [])
 
-              random_blobs = Enum.uniq(random_blobs || [])
-
-              path_entry = %PathEntry{
-                timestamp: timestamp,
-                next_hop: received_from,
-                hops: hops,
-                expires: path_expires,
-                random_blobs: random_blobs,
-                interface: nil,
-                packet_hash: packet_hash
-              }
-
-              Map.put(paths, destination_hash, path_entry)
-            end)
-
-          if map_size(tunnel_paths) > 0 do
-            entry = %TunnelEntry{
-              tunnel_id: tunnel_id,
+            path_entry = %PathEntry{
+              timestamp: timestamp,
+              next_hop: received_from,
+              hops: hops,
+              expires: path_expires,
+              random_blobs: random_blobs,
               interface: nil,
-              paths: tunnel_paths,
-              expires: expires
+              packet_hash: packet_hash
             }
 
-            Transport.put_tunnel_entry(tunnel_id, entry)
-          end
-        end)
+            Map.put(paths, destination_hash, path_entry)
+          end)
 
-        tunnel_count = :ets.info(@tunnel_table, :size)
-        Logger.debug("Loaded #{tunnel_count} tunnel table entries")
-        :ok
-      rescue
-        e ->
-          Logger.error("Could not load tunnel table: #{Exception.message(e)}")
-          {:error, Exception.message(e)}
-      end
+        if map_size(tunnel_paths) > 0 do
+          entry = %TunnelEntry{
+            tunnel_id: tunnel_id,
+            interface: nil,
+            paths: tunnel_paths,
+            expires: expires
+          }
+
+          Transport.put_tunnel_entry(tunnel_id, entry)
+        end
+      end)
+
+      tunnel_count = :ets.info(@tunnel_table, :size)
+      Logger.debug("Loaded #{tunnel_count} tunnel table entries")
+      :ok
     else
-      {:error, :enoent}
+      {:error, reason} ->
+        if reason != :enoent do
+          Logger.error("Could not load tunnel table: #{inspect(reason)}")
+        end
+
+        {:error, reason}
     end
   end
 
@@ -460,6 +428,37 @@ defmodule RNS.Transport.CacheManagement do
   end
 
   # ── Private Helpers ──────────────────────────────────────────────
+
+  defp remove_inactive_cache_files(target_path, all_active) do
+    case File.ls(target_path) do
+      {:ok, files} ->
+        Enum.reduce(files, 0, fn filename, count ->
+          full_path = Path.join(target_path, filename)
+
+          if File.regular?(full_path) and should_remove_cached_file?(filename, all_active) do
+            File.rm(full_path)
+            count + 1
+          else
+            count
+          end
+        end)
+
+      {:error, reason} ->
+        Logger.warning("Could not list cache directory #{target_path}: #{inspect(reason)}")
+        0
+    end
+  end
+
+  defp should_remove_cached_file?(filename, all_active) do
+    case Base.decode16(filename, case: :mixed) do
+      {:ok, target_hash} ->
+        not MapSet.member?(all_active, target_hash)
+
+      :error ->
+        Logger.debug("Invalid hex filename in cache: #{filename}")
+        true
+    end
+  end
 
   defp cache_file_path(hex_hash, packet_type) do
     cachepath = get_cachepath()
