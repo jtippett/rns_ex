@@ -31,6 +31,8 @@ defmodule RNS.Utilities.RNStatus do
   rate, traffic, rx, tx, rxs, txs, announces, arx, atx, held
   """
 
+  require Logger
+
   alias RNS.Interfaces.Interface
 
   # ── Entry Point ──────────────────────────────────────────────────────
@@ -177,7 +179,9 @@ defmodule RNS.Utilities.RNStatus do
         try do
           get_link_count()
         rescue
-          _ -> nil
+          e ->
+            Logger.warning("Stats collection failed: #{inspect(e)}")
+            nil
         end
       end
 
@@ -200,7 +204,9 @@ defmodule RNS.Utilities.RNStatus do
       "txs" => 0
     }
   rescue
-    _ -> nil
+    e ->
+      Logger.warning("Stats collection failed: #{inspect(e)}")
+      nil
   end
 
   @doc """
@@ -661,7 +667,9 @@ defmodule RNS.Utilities.RNStatus do
         Map.get(state, :identity_hash)
     end
   rescue
-    _ -> nil
+    e ->
+      Logger.warning("Stats collection failed: #{inspect(e)}")
+      nil
   end
 
   defp get_transport_uptime do
@@ -675,14 +683,18 @@ defmodule RNS.Utilities.RNStatus do
         if started, do: System.system_time(:second) - started, else: nil
     end
   rescue
-    _ -> nil
+    e ->
+      Logger.warning("Stats collection failed: #{inspect(e)}")
+      nil
   end
 
   defp get_link_count do
     # Count entries in the link table ETS
     :ets.info(:rns_active_links, :size) || 0
   rescue
-    _ -> 0
+    e ->
+      Logger.warning("Stats collection failed: #{inspect(e)}")
+      0
   end
 
   defp print_usage do

@@ -7,6 +7,8 @@ defmodule RNS.Destination do
   The destination type determines if encryption is used and what kind.
   """
 
+  require Logger
+
   alias RNS.Cryptography.Hashes
   alias RNS.Cryptography.Token
   alias RNS.Identity
@@ -953,7 +955,9 @@ defmodule RNS.Destination do
        ) do
     callback.(plaintext, packet)
   rescue
-    _ -> :ok
+    e ->
+      Logger.warning("Packet callback raised: #{inspect(e)}")
+      :ok
   end
 
   defp notify_packet_callback(_dest, _plaintext, _packet), do: :ok

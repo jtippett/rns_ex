@@ -52,6 +52,8 @@ defmodule RNS do
       RNS.log("Debug info", :debug)
   """
 
+  require Logger
+
   @version RNS.Version.version()
 
   # ── Log level atoms ──────────────────────────────────────────────
@@ -542,12 +544,9 @@ defmodule RNS do
   @dialyzer {:nowarn_function, [{:rns_exit, 0}, {:rns_exit, 1}]}
   @spec rns_exit(non_neg_integer()) :: no_return()
   def rns_exit(code \\ 0) do
-    try do
-      Application.stop(:rns_ex)
-    rescue
-      _ -> :ok
-    catch
-      _, _ -> :ok
+    case Application.stop(:rns_ex) do
+      :ok -> :ok
+      {:error, reason} -> Logger.debug("Application stop: #{inspect(reason)}")
     end
 
     System.halt(code)
