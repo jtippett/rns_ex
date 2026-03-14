@@ -243,7 +243,6 @@ defmodule RNS.Vendor.ConfigObj do
     str |> String.to_charlist() |> Enum.count(&(&1 == char))
   end
 
-  defp clean_comment(nil), do: nil
   defp clean_comment(""), do: nil
   defp clean_comment(comment), do: String.trim(comment)
 
@@ -522,11 +521,6 @@ defmodule RNS.Vendor.ConfigObj do
       [] -> section
       path -> rebuild_tree(root, path, section)
     end
-  end
-
-  defp rebuild_tree(_root, [], replacement) do
-    # Merge root-level data
-    %{replacement | path: []}
   end
 
   defp rebuild_tree(root, path, replacement) do

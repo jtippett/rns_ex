@@ -356,13 +356,8 @@ defmodule RNS.Buffer.RawChannelWriter do
         eof: true
       )
 
-    case Channel.send(channel, message) do
-      {:ok, channel, _envelope} ->
-        {writer, channel}
-
-      _ ->
-        {writer, channel}
-    end
+    {:ok, channel, _envelope} = Channel.send(channel, message)
+    {writer, channel}
   end
 
   defp try_compress(data, chunk_len, max_data_len) do

@@ -1068,10 +1068,8 @@ defmodule RNS.Interfaces.I2PInterfacePeer do
     state =
       Enum.reduce(frames, state, fn frame, acc ->
         if byte_size(frame) > @header_minsize do
-          case process_incoming(acc, frame) do
-            {:ok, updated} -> updated
-            _ -> acc
-          end
+          {:ok, updated} = process_incoming(acc, frame)
+          updated
         else
           acc
         end
@@ -1090,10 +1088,8 @@ defmodule RNS.Interfaces.I2PInterfacePeer do
     state =
       Enum.reduce(frames, state, fn {cmd, frame_data}, acc ->
         if cmd == KISS.cmd_data() do
-          case process_incoming(acc, frame_data) do
-            {:ok, updated} -> updated
-            _ -> acc
-          end
+          {:ok, updated} = process_incoming(acc, frame_data)
+          updated
         else
           acc
         end

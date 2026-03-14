@@ -673,9 +673,6 @@ defmodule RNS.Link do
       not Identity.validate(link.destination.identity, signature, signed_data) ->
         {:error, :invalid_signature}
 
-      handshaken.status != @status_handshake ->
-        {:error, :invalid_link_state}
-
       true ->
         now = System.system_time(:second)
         rtt = now - link.request_time

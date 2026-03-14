@@ -1018,8 +1018,6 @@ defmodule RNS.Reticulum do
     end
   end
 
-  defp detach_interface(nil), do: :ok
-
   defp detach_interface(pid) when is_pid(pid) do
     if Process.alive?(pid), do: GenServer.call(pid, :detach)
   catch
@@ -1027,8 +1025,6 @@ defmodule RNS.Reticulum do
   end
 
   # Full cleanup: detach, deregister from Transport, and terminate the process
-  defp cleanup_interface(nil), do: :ok
-
   defp cleanup_interface(pid) when is_pid(pid) do
     detach_interface(pid)
 

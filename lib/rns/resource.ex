@@ -8,6 +8,10 @@ defmodule RNS.Resource do
   the receiving end with integrity verification.
   """
 
+  # Dialyzer infers some boolean fields are always true from current callers,
+  # but the false branches are part of the public API for external consumers.
+  @dialyzer :no_match
+
   import Bitwise
 
   alias RNS.Identity
@@ -356,12 +360,12 @@ defmodule RNS.Resource do
     is_response = Keyword.get(opts, :is_response, false)
     sent_metadata_size = Keyword.get(opts, :sent_metadata_size, 0)
 
-    # Process auto_compress option
+    # Process auto_compress option: true (default), false, or integer limit
     {auto_compress, auto_compress_limit} =
-      case auto_compress_opt do
-        true -> {true, @auto_compress_max_size}
-        false -> {false, @auto_compress_max_size}
-        limit when is_integer(limit) -> {true, limit}
+      cond do
+        is_integer(auto_compress_opt) -> {true, auto_compress_opt}
+        auto_compress_opt -> {true, @auto_compress_max_size}
+        true -> {false, @auto_compress_max_size}
       end
 
     # Process metadata

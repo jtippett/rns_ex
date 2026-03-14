@@ -926,10 +926,8 @@ defmodule RNS.Interfaces.BackboneClientInterface do
     state =
       Enum.reduce(frames, state, fn frame, acc ->
         if byte_size(frame) > @header_minsize do
-          case process_incoming(acc, frame) do
-            {:ok, updated} -> updated
-            _ -> acc
-          end
+          {:ok, updated} = process_incoming(acc, frame)
+          updated
         else
           acc
         end

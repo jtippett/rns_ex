@@ -376,10 +376,7 @@ defmodule RNS.Identity do
   end
 
   defp safe_decrypt(id, shared_key, ciphertext) do
-    case do_decrypt(id, shared_key, ciphertext) do
-      nil -> {:error, :decrypt_failed}
-      plaintext -> {:ok, plaintext}
-    end
+    {:ok, do_decrypt(id, shared_key, ciphertext)}
   rescue
     e -> {:error, {:decrypt, e}}
   end
@@ -600,8 +597,6 @@ defmodule RNS.Identity do
   end
 
   # --- Internal ---
-
-  defp update_hashes(%__MODULE__{pub_bytes: nil} = id), do: id
 
   defp update_hashes(%__MODULE__{} = id) do
     pub = public_key(id)
