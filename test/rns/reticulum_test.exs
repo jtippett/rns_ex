@@ -1599,6 +1599,22 @@ defmodule RNS.ReticulumTest do
     end
   end
 
+  describe "add_interface/2" do
+    test "starts interface and registers with Transport" do
+      opts = [name: "TestUDP[add_interface_test]", listen_port: 0, listen_ip: "127.0.0.1"]
+
+      assert {:ok, pid} = RNS.Reticulum.add_interface(RNS.Interfaces.UDPInterface, opts)
+      assert Process.alive?(pid)
+
+      # Verify it's registered with Transport
+      interfaces = RNS.Transport.get_interfaces()
+      assert Enum.any?(interfaces, fn iface -> iface[:pid] == pid end)
+
+      # Cleanup
+      DynamicSupervisor.terminate_child(RNS.InterfaceSupervisor, pid)
+    end
+  end
+
   # ── Shared-instance detection ──────────────────────────────────
 
   describe "start_local_interface shared-instance detection" do

@@ -372,9 +372,36 @@ defmodule RNS.Reticulum do
   def should_persist_data(server \\ __MODULE__),
     do: GenServer.cast(server, :should_persist_data)
 
-  @doc "Adds a running interface process at runtime with the given options."
-  @spec add_interface(GenServer.server(), pid(), keyword()) :: :ok | {:error, term()}
-  def add_interface(server \\ __MODULE__, interface_pid, opts \\ []) do
+  @doc """
+  Starts an interface under the InterfaceSupervisor and registers it with Transport.
+
+  This is the recommended way to programmatically add interfaces at runtime.
+  The interface will immediately begin routing data through Transport.
+
+  ## Example
+
+      {:ok, pid} = RNS.Reticulum.add_interface(RNS.Interfaces.TCPClientInterface,
+        name: "MyTCP",
+        target_host: "10.0.0.1",
+        target_port: 4242
+      )
+  """
+  @spec add_interface(module(), keyword()) :: {:ok, pid()} | {:error, term()}
+  def add_interface(module, opts \\ []) do
+    case DynamicSupervisor.start_child(RNS.InterfaceSupervisor, {module, opts}) do
+      {:ok, pid} ->
+        register_interface_with_transport(pid)
+        {:ok, pid}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @doc "Registers a running interface process at runtime with the given options."
+  @spec register_runtime_interface(GenServer.server(), pid(), keyword()) ::
+          :ok | {:error, term()}
+  def register_runtime_interface(server \\ __MODULE__, interface_pid, opts \\ []) do
     GenServer.call(server, {:add_interface, interface_pid, opts})
   end
 
