@@ -150,13 +150,13 @@ defmodule RNS.PacketReceipt do
   end
 
   @doc "Sets the delivery success callback."
-  @spec set_delivery_callback(t(), function()) :: t()
+  @spec set_delivery_callback(t(), function() | nil) :: t()
   def set_delivery_callback(%__MODULE__{} = receipt, callback) do
     %{receipt | callbacks: %{receipt.callbacks | delivery: callback}}
   end
 
   @doc "Sets the timeout callback."
-  @spec set_timeout_callback(t(), function()) :: t()
+  @spec set_timeout_callback(t(), function() | nil) :: t()
   def set_timeout_callback(%__MODULE__{} = receipt, callback) do
     %{receipt | callbacks: %{receipt.callbacks | timeout: callback}}
   end
