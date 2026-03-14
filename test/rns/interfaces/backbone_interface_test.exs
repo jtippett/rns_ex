@@ -250,7 +250,7 @@ defmodule RNS.Interfaces.BackboneInterfaceTest do
       :ok = BackboneClientInterface.send_data(client, test_data)
 
       # The server-spawned client should receive and process the HDLC-framed data
-      assert_receive {:backbone_interface_data, ^test_data, _iface}, 2000
+      assert_receive {:interface_data, ^test_data, _iface}, 2000
 
       BackboneClientInterface.stop(client)
       BackboneInterface.stop(server2)
@@ -288,9 +288,9 @@ defmodule RNS.Interfaces.BackboneInterfaceTest do
       :ok = BackboneClientInterface.send_data(client, msg2)
       :ok = BackboneClientInterface.send_data(client, msg3)
 
-      assert_receive {:backbone_interface_data, ^msg1, _}, 2000
-      assert_receive {:backbone_interface_data, ^msg2, _}, 2000
-      assert_receive {:backbone_interface_data, ^msg3, _}, 2000
+      assert_receive {:interface_data, ^msg1, _}, 2000
+      assert_receive {:interface_data, ^msg2, _}, 2000
+      assert_receive {:interface_data, ^msg3, _}, 2000
 
       BackboneClientInterface.stop(client)
       BackboneInterface.stop(server)
@@ -324,7 +324,7 @@ defmodule RNS.Interfaces.BackboneInterfaceTest do
       large_data = :crypto.strong_rand_bytes(10_000)
       :ok = BackboneClientInterface.send_data(client, large_data)
 
-      assert_receive {:backbone_interface_data, ^large_data, _}, 5000
+      assert_receive {:interface_data, ^large_data, _}, 5000
 
       BackboneClientInterface.stop(client)
       BackboneInterface.stop(server)
@@ -380,7 +380,7 @@ defmodule RNS.Interfaces.BackboneInterfaceTest do
       framed = HDLC.frame(test_data)
       :gen_tcp.send(client_sock, framed)
 
-      assert_receive {:backbone_interface_data, ^test_data, _iface}, 2000
+      assert_receive {:interface_data, ^test_data, _iface}, 2000
 
       BackboneClientInterface.stop(iface)
       :gen_tcp.close(client_sock)
@@ -643,7 +643,7 @@ defmodule RNS.Interfaces.BackboneInterfaceTest do
       framed = HDLC.frame(test_data)
       :gen_tcp.send(client_sock, framed)
 
-      assert_receive {:backbone_interface_data, ^test_data, _}, 2000
+      assert_receive {:interface_data, ^test_data, _}, 2000
 
       BackboneClientInterface.stop(iface)
       :gen_tcp.close(client_sock)
@@ -672,14 +672,14 @@ defmodule RNS.Interfaces.BackboneInterfaceTest do
       framed = HDLC.frame(small_data)
       :gen_tcp.send(client_sock, framed)
 
-      refute_receive {:backbone_interface_data, ^small_data, _}, 500
+      refute_receive {:interface_data, ^small_data, _}, 500
 
       # Now send a valid-size frame
       valid_data = :crypto.strong_rand_bytes(25)
       framed2 = HDLC.frame(valid_data)
       :gen_tcp.send(client_sock, framed2)
 
-      assert_receive {:backbone_interface_data, ^valid_data, _}, 2000
+      assert_receive {:interface_data, ^valid_data, _}, 2000
 
       BackboneClientInterface.stop(iface)
       :gen_tcp.close(client_sock)
@@ -717,7 +717,7 @@ defmodule RNS.Interfaces.BackboneInterfaceTest do
       Process.sleep(50)
       :gen_tcp.send(client_sock, part2)
 
-      assert_receive {:backbone_interface_data, ^test_data, _}, 2000
+      assert_receive {:interface_data, ^test_data, _}, 2000
 
       BackboneClientInterface.stop(iface)
       :gen_tcp.close(client_sock)
@@ -802,7 +802,7 @@ defmodule RNS.Interfaces.BackboneInterfaceTest do
       msg1 = :crypto.strong_rand_bytes(30)
       :ok = BackboneClientInterface.send_data(client, msg1)
 
-      assert_receive {:backbone_interface_data, ^msg1, _}, 2000
+      assert_receive {:interface_data, ^msg1, _}, 2000
 
       BackboneClientInterface.stop(client)
       BackboneInterface.stop(server)
@@ -910,7 +910,7 @@ defmodule RNS.Interfaces.BackboneInterfaceTest do
       test_data = :crypto.strong_rand_bytes(50)
       :ok = BackboneClientInterface.send_data(client, test_data)
 
-      assert_receive {:backbone_interface_data, ^test_data, _}, 2000
+      assert_receive {:interface_data, ^test_data, _}, 2000
       Process.sleep(100)
 
       # Server's rxb should reflect the received bytes

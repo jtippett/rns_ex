@@ -613,7 +613,7 @@ defmodule RNS.Interfaces.I2PInterfaceTest do
         )
 
       # Should receive data
-      assert_receive {:i2p_interface_data, data, _iface}, 2000
+      assert_receive {:interface_data, data, _iface}, 2000
       assert byte_size(data) == 20
 
       I2PInterfacePeer.stop(peer)
@@ -763,7 +763,7 @@ defmodule RNS.Interfaces.I2PInterfaceTest do
           connected_socket: client_socket
         )
 
-      assert_receive {:i2p_interface_data, data, _}, 2000
+      assert_receive {:interface_data, data, _}, 2000
       assert data == <<0x7E, 0x7D, 0xFF, 0x00>> <> :binary.copy(<<0xAA>>, 16)
 
       I2PInterfacePeer.stop(peer)
@@ -795,11 +795,11 @@ defmodule RNS.Interfaces.I2PInterfaceTest do
         )
 
       # Should only receive the valid-sized frame
-      assert_receive {:i2p_interface_data, data, _}, 2000
+      assert_receive {:interface_data, data, _}, 2000
       assert data == :binary.copy(<<0xAB>>, 20)
 
       # Should NOT receive the small frame
-      refute_receive {:i2p_interface_data, _, _}, 200
+      refute_receive {:interface_data, _, _}, 200
 
       I2PInterfacePeer.stop(peer)
       :gen_tcp.close(listen)
@@ -830,7 +830,7 @@ defmodule RNS.Interfaces.I2PInterfaceTest do
           connected_socket: client_socket
         )
 
-      assert_receive {:i2p_interface_data, data, _}, 2000
+      assert_receive {:interface_data, data, _}, 2000
       assert data == :binary.copy(<<0xCC>>, 20)
 
       I2PInterfacePeer.stop(peer)
@@ -859,8 +859,8 @@ defmodule RNS.Interfaces.I2PInterfaceTest do
           connected_socket: client_socket
         )
 
-      assert_receive {:i2p_interface_data, data1, _}, 2000
-      assert_receive {:i2p_interface_data, data2, _}, 2000
+      assert_receive {:interface_data, data1, _}, 2000
+      assert_receive {:interface_data, data2, _}, 2000
       assert data1 == :binary.copy(<<0x11>>, 20)
       assert data2 == :binary.copy(<<0x22>>, 20)
 
@@ -899,7 +899,7 @@ defmodule RNS.Interfaces.I2PInterfaceTest do
           kiss_framing: true
         )
 
-      assert_receive {:i2p_interface_data, data, _}, 2000
+      assert_receive {:interface_data, data, _}, 2000
       assert data == :binary.copy(<<0xDD>>, 20)
 
       I2PInterfacePeer.stop(peer)
@@ -1014,7 +1014,7 @@ defmodule RNS.Interfaces.I2PInterfaceTest do
         )
 
       # Wait for incoming data
-      assert_receive {:i2p_interface_data, _, _}, 2000
+      assert_receive {:interface_data, _, _}, 2000
 
       # Send some data
       I2PInterfacePeer.send_data(peer, :binary.copy(<<0xCC>>, 20))

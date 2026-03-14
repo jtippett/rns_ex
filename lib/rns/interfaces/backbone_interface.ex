@@ -608,15 +608,11 @@ defmodule RNS.Interfaces.BackboneClientInterface do
     if state.online and not state.detached do
       updated = %{state | rxb: state.rxb + byte_size(data)}
 
-      # Update parent interface stats
       if updated.parent_interface && is_pid(updated.parent_interface) do
         send(updated.parent_interface, {:update_rxb, byte_size(data)})
       end
 
-      if state.owner do
-        notify_owner(state.owner, data, updated)
-      end
-
+      RNS.Interfaces.Interface.deliver_to_transport(data, updated)
       {:ok, updated}
     else
       {:ok, state}
@@ -999,20 +995,6 @@ defmodule RNS.Interfaces.BackboneClientInterface do
       {:error, reason} -> Logger.debug("Socket close: #{inspect(reason)}")
     end
   end
-
-  defp notify_owner(owner, data, interface) when is_pid(owner) do
-    send(owner, {:backbone_interface_data, data, interface})
-  end
-
-  defp notify_owner({module, fun}, data, interface) when is_atom(module) and is_atom(fun) do
-    apply(module, fun, [data, interface])
-  end
-
-  defp notify_owner(fun, data, interface) when is_function(fun, 2) do
-    fun.(data, interface)
-  end
-
-  defp notify_owner(_, _data, _interface), do: :ok
 
   defp format_name(state) do
     ip = state.target_ip || "unknown"
