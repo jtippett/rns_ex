@@ -394,12 +394,12 @@ defmodule RNS.Utilities.RNX do
     destination =
       if allow_all do
         RNS.Destination.register_request_handler(destination, "command",
-          response_generator: &execute_received_command/5,
+          response_generator: &execute_received_command/2,
           allow: RNS.Destination.allow_all()
         )
       else
         RNS.Destination.register_request_handler(destination, "command",
-          response_generator: &execute_received_command/5,
+          response_generator: &execute_received_command/2,
           allow: RNS.Destination.allow_list(),
           allowed_list: allowed_hashes
         )
@@ -624,9 +624,8 @@ defmodule RNS.Utilities.RNX do
 
   Returns a result list: [executed, return_value, stdout, stderr, stdout_len, stderr_len, started, concluded].
   """
-  @spec execute_received_command(String.t(), list(), binary(), RNS.Identity.t() | nil, number()) ::
-          list()
-  def execute_received_command(_path, data, _request_id, remote_identity, _requested_at) do
+  @spec execute_received_command(list(), map()) :: list()
+  def execute_received_command(data, %{remote_identity: remote_identity}) do
     command = Enum.at(data, 0) |> decode_string()
     timeout = Enum.at(data, 1)
     o_limit = Enum.at(data, 2)

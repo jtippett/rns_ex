@@ -625,10 +625,11 @@ defmodule RNS.Resource do
     end
   end
 
-  defp pack_resource_part(_link, data) do
-    # In the real implementation, this would create a Packet and pack it.
-    # For now, we just store the data as the raw representation.
-    data
+  defp pack_resource_part(link, data) do
+    link
+    |> RNS.Packet.new(data, context: RNS.Packet.context_resource())
+    |> RNS.Packet.pack()
+    |> Map.get(:raw)
   end
 
   @doc "Compute a map hash for a part."

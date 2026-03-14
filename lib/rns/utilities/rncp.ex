@@ -356,12 +356,12 @@ defmodule RNS.Utilities.RNCP do
           RNS.Log.log("Allowing unauthenticated fetch requests", :warning)
 
           RNS.Destination.register_request_handler(destination, "fetch_file",
-            response_generator: &fetch_request/6,
+            response_generator: &fetch_request/2,
             allow: RNS.Destination.allow_all()
           )
         else
           RNS.Destination.register_request_handler(destination, "fetch_file",
-            response_generator: &fetch_request/6,
+            response_generator: &fetch_request/2,
             allow: RNS.Destination.allow_list(),
             allowed_list: allowed_hashes
           )
@@ -744,15 +744,8 @@ defmodule RNS.Utilities.RNCP do
   @doc """
   Callback for fetch requests in listen mode.
   """
-  @spec fetch_request(
-          String.t(),
-          String.t(),
-          binary(),
-          binary(),
-          RNS.Identity.t() | nil,
-          number()
-        ) :: term()
-  def fetch_request(_path, data, _request_id, _link_id, _remote_identity, _requested_at) do
+  @spec fetch_request(String.t(), map()) :: term()
+  def fetch_request(data, _context) do
     allow_fetch = Process.get(:rncp_allow_fetch, false)
     fetch_jail = Process.get(:rncp_fetch_jail)
 

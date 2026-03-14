@@ -448,11 +448,13 @@ defmodule RNS.Utilities.RNCPTest do
 
   # ── Fetch Request ───────────────────────────────────────────────────
 
-  describe "fetch_request/6" do
+  describe "fetch_request/2" do
+    @default_context %{path: "path", request_id: <<>>, link_id: <<>>, remote_identity: nil, requested_at: 0}
+
     test "returns REQ_FETCH_NOT_ALLOWED when fetch not allowed" do
       Process.put(:rncp_allow_fetch, false)
 
-      result = RNCP.fetch_request("path", "file.txt", <<>>, <<>>, nil, 0)
+      result = RNCP.fetch_request("file.txt", @default_context)
       assert result == 0xF0
     end
 
@@ -460,7 +462,7 @@ defmodule RNS.Utilities.RNCPTest do
       Process.put(:rncp_allow_fetch, true)
       Process.put(:rncp_fetch_jail, nil)
 
-      result = RNCP.fetch_request("path", "/nonexistent/file_xyz_123.txt", <<>>, <<>>, nil, 0)
+      result = RNCP.fetch_request("/nonexistent/file_xyz_123.txt", @default_context)
       assert result == false
     end
 
@@ -469,7 +471,7 @@ defmodule RNS.Utilities.RNCPTest do
       Process.put(:rncp_fetch_jail, nil)
 
       # Use a file we know exists
-      result = RNCP.fetch_request("path", "mix.exs", <<>>, <<>>, nil, 0)
+      result = RNCP.fetch_request("mix.exs", @default_context)
       assert result == true
     end
 
@@ -480,7 +482,7 @@ defmodule RNS.Utilities.RNCPTest do
       Process.put(:rncp_allow_fetch, true)
       Process.put(:rncp_fetch_jail, jail_dir)
 
-      result = RNCP.fetch_request("path", "../../etc/passwd", <<>>, <<>>, nil, 0)
+      result = RNCP.fetch_request("../../etc/passwd", @default_context)
       assert result == 0xF0
 
       File.rm_rf!(jail_dir)

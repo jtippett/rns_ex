@@ -395,10 +395,12 @@ defmodule RNS.Utilities.RNXTest do
 
   # ── Execute Received Command ───────────────────────────────────────
 
-  describe "execute_received_command/5" do
+  describe "execute_received_command/2" do
+    @default_context %{path: "command", request_id: <<>>, link_id: <<>>, remote_identity: nil, requested_at: 0}
+
     test "executes simple echo command" do
       data = ["echo hello", nil, nil, nil, nil]
-      result = RNX.execute_received_command("command", data, <<>>, nil, 0)
+      result = RNX.execute_received_command(data, @default_context)
 
       # result[0] = executed
       assert Enum.at(result, 0) == true
@@ -412,7 +414,7 @@ defmodule RNS.Utilities.RNXTest do
 
     test "captures exit code from failing command" do
       data = ["false", nil, nil, nil, nil]
-      result = RNX.execute_received_command("command", data, <<>>, nil, 0)
+      result = RNX.execute_received_command(data, @default_context)
 
       assert Enum.at(result, 0) == true
       assert Enum.at(result, 1) != 0
@@ -420,7 +422,7 @@ defmodule RNS.Utilities.RNXTest do
 
     test "returns not executed for nonexistent command" do
       data = ["__nonexistent_command_xyz_#{:rand.uniform(100_000)}", nil, nil, nil, nil]
-      result = RNX.execute_received_command("command", data, <<>>, nil, 0)
+      result = RNX.execute_received_command(data, @default_context)
 
       # Should not have executed
       assert Enum.at(result, 0) == false
@@ -429,7 +431,7 @@ defmodule RNS.Utilities.RNXTest do
     test "truncates stdout to limit" do
       # echo produces a small output, set limit to 3 bytes
       data = ["echo hello_world", nil, 3, nil, nil]
-      result = RNX.execute_received_command("command", data, <<>>, nil, 0)
+      result = RNX.execute_received_command(data, @default_context)
 
       assert Enum.at(result, 0) == true
       stdout = Enum.at(result, 2)
@@ -441,7 +443,7 @@ defmodule RNS.Utilities.RNXTest do
 
     test "records timestamps" do
       data = ["echo test", nil, nil, nil, nil]
-      result = RNX.execute_received_command("command", data, <<>>, nil, 0)
+      result = RNX.execute_received_command(data, @default_context)
 
       started = Enum.at(result, 6)
       assert is_number(started)
@@ -450,7 +452,7 @@ defmodule RNS.Utilities.RNXTest do
 
     test "handles command with arguments" do
       data = ["printf 'abc'", nil, nil, nil, nil]
-      result = RNX.execute_received_command("command", data, <<>>, nil, 0)
+      result = RNX.execute_received_command(data, @default_context)
 
       assert Enum.at(result, 0) == true
     end

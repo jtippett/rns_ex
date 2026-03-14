@@ -1391,8 +1391,12 @@ defmodule RNS.Link do
 
     if dest && Map.has_key?(dest, :request_handlers) &&
          Map.has_key?(dest.request_handlers, path_hash) do
-      {_path, response_generator, allow, allowed_list, _auto_compress} =
-        Map.get(dest.request_handlers, path_hash)
+      %{
+        path: path,
+        response_generator: response_generator,
+        allow: allow,
+        allowed_list: allowed_list
+      } = Map.get(dest.request_handlers, path_hash)
 
       allowed =
         case allow do
@@ -1411,8 +1415,15 @@ defmodule RNS.Link do
         end
 
       if allowed do
-        response =
-          response_generator.(request_data, request_id, link.peer.remote_identity, requested_at)
+        context = %{
+          path: path,
+          request_id: request_id,
+          link_id: link.link_id,
+          remote_identity: link.peer.remote_identity,
+          requested_at: requested_at
+        }
+
+        response = response_generator.(request_data, context)
 
         if response != nil do
           packed_response = Msgpax.pack!([request_id, response]) |> IO.iodata_to_binary()

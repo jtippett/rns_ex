@@ -622,7 +622,7 @@ defmodule RNS.DestinationTest do
   describe "register_request_handler/3" do
     test "registers a handler" do
       dest = Destination.new(nil, Destination.direction_in(), Destination.plain(), "myapp")
-      gen = fn _path, _data, _req_id, _link_id, _remote_id, _at -> "response" end
+      gen = fn _data, _context -> "response" end
 
       dest = Destination.register_request_handler(dest, "/test", response_generator: gen)
       path_hash = Identity.truncated_hash("/test")
@@ -636,7 +636,7 @@ defmodule RNS.DestinationTest do
 
     test "registers with ALLOW_ALL policy" do
       dest = Destination.new(nil, Destination.direction_in(), Destination.plain(), "myapp")
-      gen = fn _p, _d, _r, _l, _ri, _a -> "ok" end
+      gen = fn _data, _context -> "ok" end
 
       dest =
         Destination.register_request_handler(dest, "/api",

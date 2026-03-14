@@ -848,7 +848,9 @@ defmodule RNS.Destination do
 
   ## Options
 
-    * `:response_generator` - a function to generate responses (required)
+    * `:response_generator` - a `(request_data, context)` callback (required).
+      `context` is a map with keys: `:path`, `:request_id`, `:link_id`,
+      `:remote_identity`, `:requested_at`
     * `:allow` - request policy (default: ALLOW_NONE)
     * `:allowed_list` - list of allowed identity hashes
     * `:auto_compress` - whether to auto-compress responses (default: true)

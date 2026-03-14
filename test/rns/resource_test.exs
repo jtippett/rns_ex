@@ -9,9 +9,12 @@ defmodule RNS.ResourceTest do
   defp mock_link(opts \\ []) do
     key = RNS.Cryptography.Token.generate_key()
     token = RNS.Cryptography.Token.new(key)
+    link_id = :crypto.strong_rand_bytes(16)
 
     %{
-      link_id: :crypto.strong_rand_bytes(16),
+      link_id: link_id,
+      hash: RNS.Identity.truncated_hash(link_id),
+      type: RNS.Destination.link(),
       mdu: RNS.Link.mdu(),
       mtu: Keyword.get(opts, :mtu, 500),
       rtt: Keyword.get(opts, :rtt, 0.5),
@@ -28,8 +31,12 @@ defmodule RNS.ResourceTest do
   # ── Helper: build a plain mock link (no encryption) ──────────
 
   defp plain_link(opts \\ []) do
+    link_id = :crypto.strong_rand_bytes(16)
+
     %{
-      link_id: :crypto.strong_rand_bytes(16),
+      link_id: link_id,
+      hash: RNS.Identity.truncated_hash(link_id),
+      type: RNS.Destination.link(),
       mdu: RNS.Packet.mdu(),
       mtu: Keyword.get(opts, :mtu, 500),
       rtt: Keyword.get(opts, :rtt, 0.5),

@@ -293,6 +293,17 @@ defmodule RNS.Interfaces.WeaveInterface do
   def handle_call(:peer_count, _from, state), do: {:reply, peer_count(state), state}
 
   @impl true
+  def handle_cast({:deliver_outgoing, command_data}, state) do
+    if state.connection && state.connection.switch_id do
+      frame = WDCL.build_send(state.connection.switch_id, WDCL.constants().wdcl_t_cmd, command_data)
+      {_framed, conn} = WDCL.process_outgoing(state.connection, frame)
+      {:noreply, %{state | connection: conn, txb: state.txb + byte_size(command_data)}}
+    else
+      {:noreply, state}
+    end
+  end
+
+  @impl true
   def handle_info(:peer_jobs, state) do
     now = System.system_time(:millisecond) / 1000
 
@@ -1279,6 +1290,8 @@ defmodule RNS.Interfaces.WeaveInterface.WeaveInterfacePeer do
 
   use RNS.Interfaces.Interface
 
+  alias RNS.Interfaces.WeaveInterface.WeaveDevice
+
   defstruct default_fields() ++
               [
                 owner: nil,
@@ -1365,8 +1378,11 @@ defmodule RNS.Interfaces.WeaveInterface.WeaveInterfacePeer do
   @spec process_outgoing(%__MODULE__{}, binary()) :: %__MODULE__{}
   def process_outgoing(peer, data) do
     if peer._online do
-      # In the real implementation, this would call
-      # peer.owner.device.deliver_packet(peer.endpoint_addr, data)
+      if peer.owner && peer.owner.server_name do
+        deliver_data = WeaveDevice.build_deliver_packet(peer.endpoint_addr, data)
+        GenServer.cast(peer.owner.server_name, {:deliver_outgoing, deliver_data})
+      end
+
       %{peer | txb: peer.txb + byte_size(data)}
     else
       peer

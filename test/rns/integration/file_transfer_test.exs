@@ -407,9 +407,13 @@ defmodule RNS.Integration.FileTransferTest do
     token = Token.new(key)
     link_id = :crypto.strong_rand_bytes(16)
 
+    hash = RNS.Identity.truncated_hash(link_id)
+
     # Sender link (initiator)
     sender_link = %{
       link_id: link_id,
+      hash: hash,
+      type: 0x03,
       mdu: Link.mdu(),
       mtu: 500,
       rtt: 0.5,
@@ -425,6 +429,8 @@ defmodule RNS.Integration.FileTransferTest do
     # Receiver link (same token — simulates derived key agreement)
     receiver_link = %{
       link_id: link_id,
+      hash: hash,
+      type: 0x03,
       mdu: Link.mdu(),
       mtu: 500,
       rtt: 0.5,

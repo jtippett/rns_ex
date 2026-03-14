@@ -94,6 +94,9 @@ defmodule RNS.Transport do
   @announce_rate_table :rns_announce_rate_table
   @path_requests_table :rns_path_requests
   @path_states_table :rns_path_states
+  @discovery_pr_tags_table :rns_discovery_pr_tags
+  @discovery_path_requests_table :rns_discovery_path_requests
+  @pending_local_path_requests_table :rns_pending_local_path_requests
 
   # ── Packet/Destination constants (avoid cross-module compile dependency) ─
   @packet_data 0x00
@@ -683,9 +686,15 @@ defmodule RNS.Transport do
   Broadcasts a path request packet to all registered interfaces.
   This is asynchronous — the path may not be available immediately.
   """
-  @spec request_path(binary()) :: :ok
-  def request_path(destination_hash) do
-    GenServer.cast(__MODULE__, {:request_path, destination_hash})
+  @spec request_path(binary(), map() | nil, keyword()) :: :ok
+  def request_path(destination_hash, on_interface \\ nil, opts \\ []) do
+    GenServer.cast(__MODULE__, {:request_path, destination_hash, on_interface, opts})
+  end
+
+  @doc "Sets the owner (Reticulum) pid for callbacks."
+  @spec set_owner(pid()) :: :ok
+  def set_owner(pid) do
+    GenServer.call(__MODULE__, {:set_owner, pid})
   end
 
   # ── Path Table Queries (direct ETS reads for concurrency) ─────────────
@@ -806,6 +815,61 @@ defmodule RNS.Transport do
       _ -> false
     end
   end
+
+  # ── Local Client Helpers ─────────────────────────────────────────────
+
+  @doc "Returns true if the packet was received from a local client interface."
+  @spec from_local_client?(map()) :: boolean()
+  def from_local_client?(packet) do
+    case Map.get(packet, :receiving_interface) do
+      nil -> false
+      iface -> local_client_interface?(iface)
+    end
+  end
+
+  @doc "Returns true if the interface is a local shared instance client."
+  @spec local_client_interface?(map()) :: boolean()
+  def local_client_interface?(interface) do
+    case Map.get(interface, :parent_interface) do
+      nil -> false
+      parent -> Map.get(parent, :is_local_shared_instance, false) == true
+    end
+  end
+
+  # ── Stats Accessors (for Reticulum stats functions) ──────────────────
+
+  @doc "Returns total received bytes."
+  @spec traffic_rxb() :: non_neg_integer()
+  def traffic_rxb, do: GenServer.call(__MODULE__, :traffic_rxb)
+
+  @doc "Returns total transmitted bytes."
+  @spec traffic_txb() :: non_neg_integer()
+  def traffic_txb, do: GenServer.call(__MODULE__, :traffic_txb)
+
+  @doc "Returns the Transport start time."
+  @spec start_time() :: non_neg_integer()
+  def start_time, do: GenServer.call(__MODULE__, :start_time)
+
+  @doc "Returns the Transport identity hash, or nil."
+  @spec identity_hash() :: binary() | nil
+  def identity_hash do
+    case GenServer.call(__MODULE__, :identity) do
+      nil -> nil
+      id -> id.hash
+    end
+  end
+
+  @doc "Returns the number of entries in the link table."
+  @spec link_table_size() :: non_neg_integer()
+  def link_table_size, do: :ets.info(@link_table, :size)
+
+  @doc "Returns all path table entries as {hash, entry} tuples."
+  @spec get_all_path_entries() :: [{binary(), PathEntry.t()}]
+  def get_all_path_entries, do: :ets.tab2list(@path_table)
+
+  @doc "Returns all announce rate table entries."
+  @spec get_all_rate_entries() :: [{binary(), map()}]
+  def get_all_rate_entries, do: :ets.tab2list(@announce_rate_table)
 
   # ── Packet Hashlist ───────────────────────────────────────────────────
 
@@ -2175,9 +2239,11 @@ defmodule RNS.Transport do
       instance_destination: nil,
       network_destination: nil,
       control_hashes: [],
-      mgmt_hashes: []
+      mgmt_hashes: [],
+      local_client_interfaces: []
     }
 
+    update_transport_config(state)
     {:ok, state}
   end
 
@@ -2208,6 +2274,7 @@ defmodule RNS.Transport do
       load_persisted_data(storage_path)
     end
 
+    update_transport_config(state)
     {:reply, :ok, state}
   end
 
@@ -2340,21 +2407,76 @@ defmodule RNS.Transport do
     do: {:reply, state.blackholed_identities, state}
 
   @impl true
-  def handle_cast({:request_path, destination_hash}, state) do
-    # Send path request to all outgoing interfaces
-    interfaces = get_interfaces()
+  def handle_call(:transport_enabled?, _from, state),
+    do: {:reply, state.transport_enabled, state}
 
-    Enum.each(interfaces, fn iface ->
-      if Map.get(iface, :out, false) do
-        try do
-          if iface[:pid] do
-            GenServer.cast(iface.pid, {:path_request, destination_hash})
-          end
-        rescue
-          _ -> :ok
-        end
+  @impl true
+  def handle_call(:local_client_interfaces, _from, state),
+    do: {:reply, state.local_client_interfaces, state}
+
+  @impl true
+  def handle_call({:set_owner, pid}, _from, state),
+    do: {:reply, :ok, %{state | owner: pid}}
+
+  @impl true
+  def handle_call(:traffic_rxb, _from, state), do: {:reply, state.traffic_rxb, state}
+
+  @impl true
+  def handle_call(:traffic_txb, _from, state), do: {:reply, state.traffic_txb, state}
+
+  @impl true
+  def handle_call(:start_time, _from, state), do: {:reply, state.start_time, state}
+
+
+  @impl true
+  def handle_cast({:request_path, destination_hash, on_interface, opts}, state) do
+    tag = Keyword.get(opts, :tag) || RNS.Identity.random_hash()
+    recursive = Keyword.get(opts, :recursive, false)
+
+    path_request_data =
+      if state.transport_enabled and state.identity do
+        destination_hash <> state.identity.hash <> tag
+      else
+        destination_hash <> tag
       end
-    end)
+
+    path_request_dest =
+      build_destination(nil, RNS.Destination.plain(), @app_name, ["path", "request"])
+
+    packet =
+      RNS.Packet.new(path_request_dest, path_request_data,
+        packet_type: @packet_data,
+        transport_type: @broadcast,
+        header_type: @header_1,
+        attached_interface: on_interface
+      )
+
+    should_send =
+      if on_interface != nil and recursive do
+        _announce_cap = Map.get(on_interface, :announce_cap, RNS.Interfaces.Interface.default_announce_cap())
+        announce_allowed_at = Map.get(on_interface, :announce_allowed_at, 0)
+        announce_queue = Map.get(on_interface, :announce_queue, [])
+
+        cond do
+          length(announce_queue) > 0 ->
+            Logger.debug("Blocking recursive path request on #{on_interface} due to queued announces")
+            false
+
+          System.system_time(:second) < announce_allowed_at ->
+            Logger.debug("Blocking recursive path request on #{on_interface} due to active announce cap")
+            false
+
+          true ->
+            true
+        end
+      else
+        true
+      end
+
+    if should_send do
+      RNS.Packet.send(packet)
+      :ets.insert(@path_requests_table, {destination_hash, System.system_time(:second)})
+    end
 
     {:noreply, state}
   end
@@ -2479,12 +2601,12 @@ defmodule RNS.Transport do
         dest =
           build_destination(identity, RNS.Destination.single(), @app_name, ["remote", "management"])
           |> RNS.Destination.register_request_handler("/status",
-            response_generator: &remote_status_handler/6,
+            response_generator: &remote_status_handler/2,
             allow: RNS.Destination.allow_list(),
             allowed_list: remote_mgmt_allowed
           )
           |> RNS.Destination.register_request_handler("/path",
-            response_generator: &remote_path_handler/6,
+            response_generator: &remote_path_handler/2,
             allow: RNS.Destination.allow_list(),
             allowed_list: remote_mgmt_allowed
           )
@@ -2502,7 +2624,7 @@ defmodule RNS.Transport do
         dest =
           build_destination(identity, RNS.Destination.single(), @app_name, ["info", "blackhole"])
           |> RNS.Destination.register_request_handler("/list",
-            response_generator: &blackhole_list_handler/6,
+            response_generator: &blackhole_list_handler/2,
             allow: RNS.Destination.allow_all()
           )
 
@@ -2565,6 +2687,227 @@ defmodule RNS.Transport do
     RNS.Destination.set_packet_callback(dest, &RNS.Transport.TunnelManagement.tunnel_synthesize_handler/2)
   end
 
+  # ── Path Request Processing ─────────────────────────────────────────
+
+  # Core path request routing logic. Called within the GenServer process
+  # from path_request_handler. Matches Python's Transport.path_request().
+  @doc false
+  def transport_enabled? do
+    case :ets.lookup(@path_states_table, :_transport_config) do
+      [{:_transport_config, config}] -> Map.get(config, :transport_enabled, false)
+      [] -> false
+    end
+  end
+
+  @doc false
+  def local_client_interfaces do
+    case :ets.lookup(@path_states_table, :_transport_config) do
+      [{:_transport_config, config}] -> Map.get(config, :local_client_interfaces, [])
+      [] -> []
+    end
+  end
+
+  defp update_transport_config(state) do
+    config = %{
+      transport_enabled: state.transport_enabled,
+      local_client_interfaces: state.local_client_interfaces
+    }
+
+    :ets.insert(@path_states_table, {:_transport_config, config})
+  end
+
+  defp do_path_request(destination_hash, is_from_local_client, attached_interface, requestor_transport_id, tag) do
+    transport_enabled = transport_enabled?()
+    local_client_ifaces = local_client_interfaces()
+    interface_str = if attached_interface, do: " on #{attached_interface}", else: ""
+
+    Logger.debug("Path request for #{RNS.prettyhexrep(destination_hash)}#{interface_str}")
+
+    # Check if destination exists on a local client
+    if length(local_client_ifaces) > 0 do
+      case get_path_entry(destination_hash) do
+        %{interface: iface} when iface != nil ->
+          if local_client_interface?(iface) do
+            :ets.insert(@pending_local_path_requests_table, {destination_hash, attached_interface})
+          end
+
+        _ ->
+          :ok
+      end
+    end
+
+    # Find local destination
+    local_destination =
+      get_destinations()
+      |> Enum.find(fn dest -> dest.hash == destination_hash end)
+
+    cond do
+      # Branch 1: Local destination — respond with announce
+      local_destination != nil ->
+        RNS.Destination.announce(local_destination,
+          path_response: true,
+          tag: tag,
+          attached_interface: attached_interface
+        )
+
+        Logger.debug(
+          "Answering path request for #{RNS.prettyhexrep(destination_hash)}#{interface_str}, destination is local"
+        )
+
+      # Branch 2: Known path in table
+      (transport_enabled or is_from_local_client) and has_path(destination_hash) ->
+        handle_known_path_request(
+          destination_hash,
+          is_from_local_client,
+          attached_interface,
+          requestor_transport_id,
+          interface_str
+        )
+
+      # Branch 3: From local client, no known path — forward to all interfaces
+      is_from_local_client ->
+        Logger.debug(
+          "Forwarding path request from local client for #{RNS.prettyhexrep(destination_hash)}#{interface_str}"
+        )
+
+        request_tag = RNS.Identity.random_hash()
+        interfaces = get_interfaces()
+
+        Enum.each(interfaces, fn iface ->
+          if iface != attached_interface do
+            request_path(destination_hash, iface, tag: request_tag)
+          end
+        end)
+
+      # Branch 4: Should search for unknown (transport + discoverable mode)
+      transport_enabled and attached_interface != nil and
+          Map.get(attached_interface, :mode) in RNS.Interfaces.Interface.discover_paths_for() ->
+        if :ets.member(@discovery_path_requests_table, destination_hash) do
+          Logger.debug(
+            "Already waiting for path to #{RNS.prettyhexrep(destination_hash)}#{interface_str}"
+          )
+        else
+          Logger.debug(
+            "Discovering unknown path to #{RNS.prettyhexrep(destination_hash)}#{interface_str}"
+          )
+
+          pr_entry = %{
+            timeout: System.system_time(:second) + @path_request_timeout,
+            requesting_interface: attached_interface
+          }
+
+          :ets.insert(@discovery_path_requests_table, {destination_hash, pr_entry})
+
+          interfaces = get_interfaces()
+
+          Enum.each(interfaces, fn iface ->
+            if iface != attached_interface do
+              request_path(destination_hash, iface, tag: tag, recursive: true)
+            end
+          end)
+        end
+
+      # Branch 5: Not from local client, but local clients exist — forward to them
+      not is_from_local_client and length(local_client_ifaces) > 0 ->
+        Logger.debug(
+          "Forwarding path request for #{RNS.prettyhexrep(destination_hash)}#{interface_str} to local clients"
+        )
+
+        Enum.each(local_client_ifaces, fn iface ->
+          request_path(destination_hash, iface)
+        end)
+
+      # No path known
+      true ->
+        Logger.debug(
+          "Ignoring path request for #{RNS.prettyhexrep(destination_hash)}#{interface_str}, no path known"
+        )
+    end
+  end
+
+  # Branch 2 helper: handle path request when we have a known path
+  defp handle_known_path_request(destination_hash, is_from_local_client, attached_interface, requestor_transport_id, interface_str) do
+    path_entry = get_path_entry(destination_hash)
+    packet = get_cached_packet(path_entry.packet_hash, packet_type: "announce")
+    next_hop = path_entry.next_hop
+    received_from = path_entry.interface
+
+    cond do
+      packet == nil ->
+        Logger.error(
+          "Could not retrieve cached announce for path request #{RNS.prettyhexrep(destination_hash)}"
+        )
+
+      attached_interface != nil and
+        Map.get(attached_interface, :mode) == RNS.Interfaces.Interface.mode_roaming() and
+          attached_interface == received_from ->
+        Logger.debug(
+          "Not answering path request on roaming-mode interface, next hop is on same interface"
+        )
+
+      requestor_transport_id != nil and next_hop == requestor_transport_id ->
+        Logger.debug(
+          "Not answering path request for #{RNS.prettyhexrep(destination_hash)}#{interface_str}, next hop is requestor"
+        )
+
+      true ->
+        Logger.debug(
+          "Answering path request for #{RNS.prettyhexrep(destination_hash)}#{interface_str}, path is known"
+        )
+
+        now = System.system_time(:second)
+        retries = @pathfinder_r
+        local_rebroadcasts = 0
+        block_rebroadcasts = true
+        announce_hops = path_entry.hops
+
+        unpacked = RNS.Packet.unpack(packet)
+        unpacked = %{unpacked | hops: announce_hops}
+
+        retransmit_timeout =
+          cond do
+            is_from_local_client ->
+              now
+
+            local_client_interface?(next_hop_interface(destination_hash)) ->
+              now
+
+            true ->
+              base = now + @path_request_grace
+
+              if attached_interface != nil and
+                   Map.get(attached_interface, :mode) == RNS.Interfaces.Interface.mode_roaming() do
+                base + @path_request_rg
+              else
+                base
+              end
+          end
+
+        # Handle held-announces edge case
+        case get_announce_entry(destination_hash) do
+          nil ->
+            :ok
+
+          existing_entry ->
+            :ets.insert(@held_announces_table, {destination_hash, existing_entry})
+        end
+
+        announce_entry = %AnnounceHandler.AnnounceEntry{
+          timestamp: now,
+          retransmit_timeout: retransmit_timeout,
+          retries: retries,
+          received_from: received_from,
+          hops: announce_hops,
+          packet: unpacked,
+          local_rebroadcasts: local_rebroadcasts,
+          block_rebroadcasts: block_rebroadcasts,
+          attached_interface: attached_interface
+        }
+
+        AnnounceHandler.put_announce_entry(destination_hash, announce_entry)
+    end
+  end
+
   # Path request handler callback — processes incoming path request packets.
   # Matches Python's Transport.path_request_handler.
   defp path_request_handler(data, packet) do
@@ -2601,21 +2944,26 @@ defmodule RNS.Transport do
               tag_bytes
             end
 
-          _unique_tag = destination_hash <> tag_bytes
+          unique_tag = destination_hash <> tag_bytes
 
-          # Delegate to Transport path request processing
-          _receiving_interface = Map.get(packet, :receiving_interface)
+          if :ets.member(@discovery_pr_tags_table, unique_tag) do
+            Logger.debug(
+              "Ignoring duplicate path request for #{RNS.prettyhexrep(destination_hash)}"
+            )
+          else
+            :ets.insert(@discovery_pr_tags_table, {unique_tag, System.system_time(:second)})
 
-          Logger.debug(
-            "Received path request for #{Base.encode16(destination_hash, case: :lower)}" <>
-              if(requesting_transport_instance,
-                do: " from transport #{Base.encode16(requesting_transport_instance, case: :lower)}",
-                else: ""
-              )
-          )
+            do_path_request(
+              destination_hash,
+              from_local_client?(packet),
+              Map.get(packet, :receiving_interface),
+              requesting_transport_instance,
+              tag_bytes
+            )
+          end
         else
           Logger.debug(
-            "Ignoring tagless path request for #{Base.encode16(destination_hash, case: :lower)}"
+            "Ignoring tagless path request for #{RNS.prettyhexrep(destination_hash)}"
           )
         end
       end
@@ -2627,27 +2975,62 @@ defmodule RNS.Transport do
 
   # Remote status handler — returns interface stats and optionally link counts.
   # Matches Python's Transport.remote_status_handler.
-  defp remote_status_handler(_path, _data, _request_id, _link_id, remote_identity, _requested_at) do
+  defp remote_status_handler(data, %{remote_identity: remote_identity}) do
     if remote_identity != nil do
       Logger.debug("Remote status request received")
-      # NOTE: returns interface stats when Reticulum.get_interface_stats is wired
-      nil
+
+      try do
+        response = [RNS.Reticulum.get_interface_stats()]
+
+        if is_list(data) and length(data) > 0 and hd(data) == true do
+          response ++ [RNS.Reticulum.get_link_count()]
+        else
+          response
+        end
+      rescue
+        e ->
+          Logger.error("Error processing remote status request: #{Exception.message(e)}")
+          nil
+      end
     end
   end
 
   # Remote path handler — returns filtered path table or rate table.
   # Matches Python's Transport.remote_path_handler.
-  defp remote_path_handler(_path, _data, _request_id, _link_id, remote_identity, _requested_at) do
+  defp remote_path_handler(data, %{remote_identity: remote_identity}) do
     if remote_identity != nil do
       Logger.debug("Remote path request received")
-      # NOTE: returns path/rate table when Reticulum.get_path_table is wired
-      nil
+
+      try do
+        if is_list(data) and length(data) > 0 do
+          command = hd(data)
+          destination_hash = if length(data) > 1, do: Enum.at(data, 1)
+          max_hops = if length(data) > 2, do: Enum.at(data, 2)
+
+          table =
+            case command do
+              "table" -> RNS.Reticulum.get_path_table(max_hops)
+              "rates" -> RNS.Reticulum.get_rate_table()
+              _ -> []
+            end
+
+          if destination_hash do
+            Enum.filter(table, fn entry -> entry.hash == destination_hash end)
+          else
+            table
+          end
+        end
+      rescue
+        e ->
+          Logger.error("Error processing remote path request: #{Exception.message(e)}")
+          nil
+      end
     end
   end
 
   # Blackhole list handler — returns the current blackhole list.
   # Matches Python's Transport.blackhole_list_handler.
-  defp blackhole_list_handler(_path, _data, _request_id, _link_id, _remote_identity, _requested_at) do
+  defp blackhole_list_handler(_data, _context) do
     GenServer.call(__MODULE__, :blackholed_identities)
   rescue
     _ -> nil
@@ -2767,6 +3150,8 @@ defmodule RNS.Transport do
       cull_reverse_table(now)
       cull_link_table(now)
       cull_tunnel_table(now)
+      cull_discovery_pr_tags()
+      cull_discovery_path_requests(now)
 
       %{state | tables_last_culled: now}
     else
@@ -2867,6 +3252,41 @@ defmodule RNS.Transport do
     :ok
   end
 
+  @doc "Removes discovery path request tags when the table exceeds max size."
+  @spec cull_discovery_pr_tags() :: :ok
+  def cull_discovery_pr_tags do
+    size = :ets.info(@discovery_pr_tags_table, :size)
+
+    if size > @max_pr_tags do
+      # Find the timestamp threshold: keep only the newest @max_pr_tags entries
+      timestamps =
+        :ets.tab2list(@discovery_pr_tags_table)
+        |> Enum.map(fn {_tag, ts} -> ts end)
+        |> Enum.sort(:desc)
+
+      cutoff = Enum.at(timestamps, @max_pr_tags - 1, 0)
+
+      :ets.select_delete(@discovery_pr_tags_table, [
+        {{:_, :"$1"}, [{:<, :"$1", cutoff}], [true]}
+      ])
+    end
+
+    :ok
+  end
+
+  @doc "Removes expired discovery path requests."
+  @spec cull_discovery_path_requests(non_neg_integer()) :: :ok
+  def cull_discovery_path_requests(now) do
+    :ets.tab2list(@discovery_path_requests_table)
+    |> Enum.each(fn {dest_hash, entry} ->
+      if now > entry.timeout do
+        :ets.delete(@discovery_path_requests_table, dest_hash)
+      end
+    end)
+
+    :ok
+  end
+
   # ── Private Functions ─────────────────────────────────────────────────
 
   defp schedule_job(msg, interval) do
@@ -2896,6 +3316,11 @@ defmodule RNS.Transport do
     safe_create_table(@announce_rate_table, ets_opts)
     safe_create_table(@path_requests_table, ets_opts)
     safe_create_table(@path_states_table, ets_opts)
+
+    # Path request deduplication and discovery
+    safe_create_table(@discovery_pr_tags_table, ets_opts)
+    safe_create_table(@discovery_path_requests_table, ets_opts)
+    safe_create_table(@pending_local_path_requests_table, ets_opts)
   end
 
   defp safe_create_table(name, opts) do

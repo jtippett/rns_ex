@@ -267,6 +267,97 @@ defmodule RNS.Reticulum do
   @spec identity(GenServer.server()) :: RNS.Identity.t() | nil
   def identity(server \\ __MODULE__), do: GenServer.call(server, :identity)
 
+  # ── Stats Functions (read ETS directly, no GenServer call needed) ────
+
+  @doc "Returns interface statistics for all registered interfaces."
+  @spec get_interface_stats() :: map()
+  def get_interface_stats do
+    interfaces =
+      RNS.Transport.get_interfaces()
+      |> Enum.map(fn iface ->
+        %{
+          name: to_string(Map.get(iface, :name, "unknown")),
+          hash: Map.get(iface, :hash),
+          type: interface_type_name(iface),
+          rxb: Map.get(iface, :rxb, 0),
+          txb: Map.get(iface, :txb, 0),
+          status: Map.get(iface, :online, false),
+          mode: Map.get(iface, :mode),
+          bitrate: Map.get(iface, :bitrate),
+          peers: get_peer_count(iface)
+        }
+      end)
+
+    stats = %{
+      interfaces: interfaces,
+      rxb: RNS.Transport.traffic_rxb(),
+      txb: RNS.Transport.traffic_txb()
+    }
+
+    if RNS.Transport.transport_enabled?() do
+      Map.merge(stats, %{
+        transport_id: RNS.Transport.identity_hash(),
+        transport_uptime: System.system_time(:second) - RNS.Transport.start_time()
+      })
+    else
+      stats
+    end
+  end
+
+  defp interface_type_name(iface) do
+    case Map.get(iface, :__struct__) do
+      nil -> "unknown"
+      mod -> mod |> Module.split() |> List.last()
+    end
+  end
+
+  defp get_peer_count(iface) do
+    case Map.get(iface, :peers) do
+      peers when is_map(peers) -> map_size(peers)
+      _ -> nil
+    end
+  end
+
+  @doc "Returns the number of active links."
+  @spec get_link_count() :: non_neg_integer()
+  def get_link_count do
+    RNS.Transport.link_table_size()
+  end
+
+  @doc "Returns the path table, optionally filtered by max hops."
+  @spec get_path_table(non_neg_integer() | nil) :: [map()]
+  def get_path_table(max_hops \\ nil) do
+    RNS.Transport.get_all_path_entries()
+    |> Enum.filter(fn {_hash, entry} ->
+      max_hops == nil or entry.hops <= max_hops
+    end)
+    |> Enum.map(fn {hash, entry} ->
+      %{
+        hash: hash,
+        timestamp: entry.timestamp,
+        via: entry.next_hop,
+        hops: entry.hops,
+        expires: entry.expires,
+        interface: if(entry.interface, do: to_string(entry.interface), else: nil)
+      }
+    end)
+  end
+
+  @doc "Returns the announce rate table."
+  @spec get_rate_table() :: [map()]
+  def get_rate_table do
+    RNS.Transport.get_all_rate_entries()
+    |> Enum.map(fn {hash, entry} ->
+      %{
+        hash: hash,
+        last: Map.get(entry, :last),
+        rate_violations: Map.get(entry, :rate_violations, 0),
+        blocked_until: Map.get(entry, :blocked_until),
+        timestamps: Map.get(entry, :timestamps, [])
+      }
+    end)
+  end
+
   @doc """
   Persists all state to disk (known destinations, packet hashlist, path table, tunnels).
 
@@ -840,6 +931,9 @@ defmodule RNS.Reticulum do
       cachepath: state.cachepath,
       transport_enabled: state.transport_enabled
     )
+
+    # Wire Transport.owner so remote handlers can access stats
+    RNS.Transport.set_owner(self())
   end
 
   defp schedule_job do

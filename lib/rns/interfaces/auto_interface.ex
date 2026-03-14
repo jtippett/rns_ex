@@ -838,10 +838,11 @@ defmodule RNS.Interfaces.AutoInterface do
     %{state | peers: peers, spawned_interfaces: spawned_interfaces}
   end
 
-  defp find_ifname_for_peer(_state, _addr) do
-    # In a real implementation, we'd determine the interface from the source address
-    # For now return nil
-    nil
+  defp find_ifname_for_peer(state, addr) do
+    case Map.get(state.peers, addr) do
+      %{ifname: ifname} -> ifname
+      _ -> nil
+    end
   end
 
   # ── Private: Periodic jobs ───────────────────────────────────
