@@ -3300,9 +3300,9 @@ defmodule RNS.Transport do
   @spec cull_path_states() :: :ok
   def cull_path_states do
     :ets.tab2list(@path_states_table)
-    |> Enum.each(fn {dest_hash, _state} ->
-      unless has_path(dest_hash) do
-        :ets.delete(@path_states_table, dest_hash)
+    |> Enum.each(fn {key, _state} ->
+      if is_binary(key) and not has_path(key) do
+        :ets.delete(@path_states_table, key)
       end
     end)
 
