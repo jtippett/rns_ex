@@ -396,6 +396,7 @@ defmodule RNS.Utilities.RNCP do
   @doc """
   Sends a file to a remote rncp listener.
   """
+  @dialyzer {:nowarn_function, handle_send: 1}
   @spec handle_send(map()) :: :ok | no_return()
   # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   def handle_send(opts) do
@@ -532,6 +533,7 @@ defmodule RNS.Utilities.RNCP do
   @doc """
   Fetches a file from a remote rncp listener.
   """
+  @dialyzer {:nowarn_function, handle_fetch: 1}
   @spec handle_fetch(map()) :: :ok | no_return()
   def handle_fetch(opts) do
     destination_hash =

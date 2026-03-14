@@ -73,13 +73,22 @@ defmodule RNS.Vendor.ConfigObj do
 
   # --- Private parsing ---
 
+  @dialyzer {:nowarn_function, strip_bom: 1}
   defp strip_bom(<<0xEF, 0xBB, 0xBF, rest::binary>>), do: rest
 
-  defp strip_bom(<<0xFF, 0xFE, rest::binary>>),
-    do: :unicode.characters_to_binary(rest, :utf16_little)
+  defp strip_bom(<<0xFF, 0xFE, rest::binary>>) do
+    case :unicode.characters_to_binary(rest, :utf16_little) do
+      result when is_binary(result) -> result
+      _ -> rest
+    end
+  end
 
-  defp strip_bom(<<0xFE, 0xFF, rest::binary>>),
-    do: :unicode.characters_to_binary(rest, :utf16_big)
+  defp strip_bom(<<0xFE, 0xFF, rest::binary>>) do
+    case :unicode.characters_to_binary(rest, :utf16_big) do
+      result when is_binary(result) -> result
+      _ -> rest
+    end
+  end
 
   defp strip_bom(other), do: other
 

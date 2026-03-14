@@ -104,6 +104,7 @@ defmodule RNS.Utilities.RNSD do
 
   This function does not return under normal operation.
   """
+  @dialyzer {:nowarn_function, program_setup: 1}
   @spec program_setup(map()) :: :ok | no_return()
   def program_setup(opts) do
     target_verbosity = opts.verbosity - opts.quietness

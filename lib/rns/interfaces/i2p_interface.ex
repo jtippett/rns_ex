@@ -1427,7 +1427,7 @@ defmodule RNS.Interfaces.I2PController do
       iex> RNS.Interfaces.I2PController.parse_sam_response("SESSION STATUS RESULT=DUPLICATED_ID\\n")
       %{command: "SESSION STATUS", "RESULT" => "DUPLICATED_ID"}
   """
-  @spec parse_sam_response(String.t()) :: %{String.t() => String.t()}
+  @spec parse_sam_response(String.t()) :: map()
   def parse_sam_response(response) do
     response = String.trim(response)
 

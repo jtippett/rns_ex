@@ -339,10 +339,7 @@ defmodule RNS.Utilities.RNStatus do
     # Clients
     if ifstat["clients"] != nil do
       clients_string = format_clients_string(name, ifstat["clients"])
-
-      if clients_string != "" do
-        IO.puts("    #{clients_string}")
-      end
+      IO.puts("    #{clients_string}")
     end
 
     # Mode (skip for certain interface types)

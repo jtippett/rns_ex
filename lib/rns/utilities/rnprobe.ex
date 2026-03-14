@@ -145,6 +145,7 @@ defmodule RNS.Utilities.RNProbe do
   @doc """
   Executes the probe operation with the given options.
   """
+  @dialyzer {:nowarn_function, program_setup: 1}
   @spec program_setup(map()) :: :ok | no_return()
   def program_setup(opts) do
     if opts.full_name == nil do

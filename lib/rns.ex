@@ -539,6 +539,7 @@ defmodule RNS do
 
   Matches Python's `RNS.exit(code)`.
   """
+  @dialyzer {:nowarn_function, [{:rns_exit, 0}, {:rns_exit, 1}]}
   @spec rns_exit(non_neg_integer()) :: no_return()
   def rns_exit(code \\ 0) do
     try do

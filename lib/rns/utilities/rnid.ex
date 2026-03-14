@@ -652,6 +652,7 @@ defmodule RNS.Utilities.RNID do
 
   # ── Sign Operation ──────────────────────────────────────────────────
 
+  @dialyzer {:nowarn_function, do_sign: 3}
   defp do_sign(identity, data_input, opts) do
     if identity.prv_bytes == nil do
       RNS.Log.log("Specified Identity does not hold a private key. Cannot sign.", :error)
@@ -704,6 +705,7 @@ defmodule RNS.Utilities.RNID do
 
   # ── Validate Operation ──────────────────────────────────────────────
 
+  @dialyzer {:nowarn_function, do_validate: 3}
   defp do_validate(identity, data_input, opts) do
     if data_input == nil do
       if not opts.stdout do
@@ -751,6 +753,7 @@ defmodule RNS.Utilities.RNID do
 
   # ── Encrypt Operation ───────────────────────────────────────────────
 
+  @dialyzer {:nowarn_function, do_encrypt: 3}
   defp do_encrypt(identity, data_input, opts) do
     if data_input == nil do
       if not opts.stdout do
@@ -796,6 +799,7 @@ defmodule RNS.Utilities.RNID do
 
   # ── Decrypt Operation ───────────────────────────────────────────────
 
+  @dialyzer {:nowarn_function, do_decrypt: 3}
   defp do_decrypt(identity, data_input, opts) do
     if identity.prv_bytes == nil do
       RNS.Log.log("Specified Identity does not hold a private key. Cannot decrypt.", :error)

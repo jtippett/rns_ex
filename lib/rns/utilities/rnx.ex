@@ -421,6 +421,7 @@ defmodule RNS.Utilities.RNX do
   @doc """
   Sends a command to a remote rnx listener for execution.
   """
+  @dialyzer {:nowarn_function, handle_execute: 1}
   @spec handle_execute(map()) :: :ok | non_neg_integer() | nil | no_return()
   def handle_execute(opts) do
     destination_hash =
@@ -526,6 +527,7 @@ defmodule RNS.Utilities.RNX do
   @doc """
   Enters interactive mode for repeated command execution.
   """
+  @dialyzer {:nowarn_function, handle_interactive: 1}
   @spec handle_interactive(map()) :: :ok | no_return()
   def handle_interactive(opts) do
     # First execute any initial command
@@ -536,6 +538,7 @@ defmodule RNS.Utilities.RNX do
     interactive_loop(opts, nil)
   end
 
+  @dialyzer {:nowarn_function, interactive_loop: 2}
   defp interactive_loop(opts, code) do
     cstr = if code && code != 0, do: "#{code}", else: ""
     prompt = "#{cstr}> "
@@ -920,7 +923,7 @@ defmodule RNS.Utilities.RNX do
     if limit == 0 do
       <<>>
     else
-      if output != nil and byte_size(output) > limit do
+      if byte_size(output) > limit do
         binary_part(output, 0, limit)
       else
         output
