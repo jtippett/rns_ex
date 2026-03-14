@@ -669,32 +669,30 @@ defmodule RNS.Link do
     sig_len = div(Identity.siglength(), 8)
     <<signature::binary-size(sig_len), _::binary>> = proof_data
 
-    cond do
-      not Identity.validate(link.destination.identity, signature, signed_data) ->
-        {:error, :invalid_signature}
+    if Identity.validate(link.destination.identity, signature, signed_data) do
+      now = System.system_time(:second)
+      rtt = now - link.request_time
+      mtu = confirmed_mtu || @mtu
 
-      true ->
-        now = System.system_time(:second)
-        rtt = now - link.request_time
-        mtu = confirmed_mtu || @mtu
+      activated =
+        %{
+          handshaken
+          | stats: %{handshaken.stats | rtt: rtt, last_proof: now},
+            attached_interface: Map.get(packet, :receiving_interface),
+            peer: %{handshaken.peer | remote_identity: link.destination.identity},
+            mtu: mtu,
+            status: @status_active,
+            activated_at: now,
+            establishment_cost:
+              handshaken.establishment_cost + byte_size(Map.get(packet, :raw, <<>>))
+        }
+        |> update_mdu()
+        |> maybe_set_establishment_rate(rtt)
+        |> update_keepalive()
 
-        activated =
-          %{
-            handshaken
-            | stats: %{handshaken.stats | rtt: rtt, last_proof: now},
-              attached_interface: Map.get(packet, :receiving_interface),
-              peer: %{handshaken.peer | remote_identity: link.destination.identity},
-              mtu: mtu,
-              status: @status_active,
-              activated_at: now,
-              establishment_cost:
-                handshaken.establishment_cost + byte_size(Map.get(packet, :raw, <<>>))
-          }
-          |> update_mdu()
-          |> maybe_set_establishment_rate(rtt)
-          |> update_keepalive()
-
-        {:ok, activated}
+      {:ok, activated}
+    else
+      {:error, :invalid_signature}
     end
   end
 
