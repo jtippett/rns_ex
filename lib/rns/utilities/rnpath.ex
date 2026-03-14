@@ -268,9 +268,6 @@ defmodule RNS.Utilities.RNPath do
       json_table =
         Enum.map(table, fn entry ->
           Map.new(entry, fn
-            {k, v} when is_binary(v) and not is_bitstring(v) ->
-              {Atom.to_string(k), RNS.hexrep(v, false)}
-
             {k, v} when is_binary(v) ->
               if String.valid?(v),
                 do: {Atom.to_string(k), v},

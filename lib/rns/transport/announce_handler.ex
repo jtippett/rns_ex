@@ -213,7 +213,7 @@ defmodule RNS.Transport.AnnounceHandler do
           true
 
         path_entry ->
-          existing_blobs = path_entry.random_blobs || []
+          existing_blobs = path_entry.random_blobs
 
           if packet.hops <= path_entry.hops do
             # Equal or better hop count

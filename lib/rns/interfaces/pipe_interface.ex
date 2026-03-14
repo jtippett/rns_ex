@@ -167,11 +167,7 @@ defmodule RNS.Interfaces.PipeInterface do
 
       case open_pipe(state) do
         {:ok, new_state} ->
-          if new_state.pipe_is_open do
-            {:ok, configure_pipe(new_state)}
-          else
-            {:stop, {:error, :could_not_connect_pipe}}
-          end
+          {:ok, configure_pipe(new_state)}
 
         {:error, reason} ->
           {:stop, {:error, reason}}
@@ -214,12 +210,7 @@ defmodule RNS.Interfaces.PipeInterface do
 
       case open_pipe(state) do
         {:ok, new_state} ->
-          if new_state.pipe_is_open do
-            {:noreply, configure_pipe(new_state)}
-          else
-            schedule_respawn(state.respawn_delay)
-            {:noreply, state}
-          end
+          {:noreply, configure_pipe(new_state)}
 
         {:error, _reason} ->
           schedule_respawn(state.respawn_delay)

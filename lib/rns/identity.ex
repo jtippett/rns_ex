@@ -437,7 +437,7 @@ defmodule RNS.Identity do
         new(create_keys: false)
         |> load_public_key(public_key)
 
-      identity.pub_bytes != nil and validate(identity, signature, signed_data)
+      validate(identity, signature, signed_data)
     else
       _ -> false
     end

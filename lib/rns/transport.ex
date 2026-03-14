@@ -1895,7 +1895,7 @@ defmodule RNS.Transport do
         existing_blobs =
           case get_path_entry(packet.destination_hash) do
             nil -> []
-            pe -> pe.random_blobs || []
+            pe -> pe.random_blobs
           end
 
         random_blobs = AnnounceHandler.update_random_blobs(existing_blobs, random_blob)
