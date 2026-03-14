@@ -171,10 +171,10 @@ defmodule RNS.Interfaces.AutoInterface do
   # ── Behaviour callbacks ─────────────────────────────────────
 
   @impl RNS.Interfaces.Interface
-  def process_outgoing(_state, _data), do: {:ok, nil}
+  def process_outgoing(state, _data), do: {:ok, state}
 
   @impl RNS.Interfaces.Interface
-  def process_incoming(_state, _data), do: {:ok, nil}
+  def process_incoming(state, _data), do: {:ok, state}
 
   @impl RNS.Interfaces.Interface
   def detach(_state), do: :ok

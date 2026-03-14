@@ -480,9 +480,9 @@ defmodule RNS.Interfaces.LocalInterfaceTest do
       assert RNS.Interfaces.Interface in behaviours
     end
 
-    test "server process_outgoing returns :ok (no-op)" do
+    test "server process_outgoing returns {:ok, state} (no-op)" do
       state = %LocalServerInterface{name: "srv"}
-      assert :ok = LocalServerInterface.process_outgoing(state, "data")
+      assert {:ok, ^state} = LocalServerInterface.process_outgoing(state, "data")
     end
   end
 

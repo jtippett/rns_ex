@@ -36,7 +36,7 @@ defmodule RNS.Interfaces.Interface do
   @callback process_incoming(state :: map(), data :: binary()) :: {:ok, map()} | {:error, term()}
 
   @doc "Detach and clean up this interface."
-  @callback detach(state :: map()) :: :ok
+  @callback detach(state :: map()) :: :ok | map()
 
   # ── Default struct fields ──────────────────────────────────────────
 

@@ -202,26 +202,26 @@ defmodule RNS.Interfaces.WeaveInterface do
 
   @impl true
   @doc "Process incoming data from a specific endpoint."
-  @spec process_incoming(map(), binary(), binary() | nil) :: map()
+  @spec process_incoming(map(), binary(), binary() | nil) :: {:ok, map()} | {:error, term()}
   def process_incoming(state, data, endpoint_addr \\ nil) do
     if state._online and endpoint_addr != nil and
          Map.has_key?(state.spawned_interfaces, endpoint_addr) do
       peer = state.spawned_interfaces[endpoint_addr]
       {peer, state} = WeaveInterfacePeer.process_incoming(peer, data, state)
-      %{state | spawned_interfaces: Map.put(state.spawned_interfaces, endpoint_addr, peer)}
+      {:ok, %{state | spawned_interfaces: Map.put(state.spawned_interfaces, endpoint_addr, peer)}}
     else
-      state
+      {:ok, state}
     end
   end
 
   @impl true
   @doc "Process outgoing data (no-op on parent)."
-  @spec process_outgoing(map(), binary()) :: map()
-  def process_outgoing(state, _data), do: state
+  @spec process_outgoing(map(), binary()) :: {:ok, map()} | {:error, term()}
+  def process_outgoing(state, _data), do: {:ok, state}
 
   @impl true
   @doc "Detach the interface."
-  @spec detach(map()) :: map()
+  @spec detach(map()) :: :ok | map()
   def detach(state) do
     %{state | _online: false}
   end
@@ -1342,9 +1342,9 @@ defmodule RNS.Interfaces.WeaveInterface.WeaveInterfacePeer do
 
   @impl true
   @doc "Process incoming data (behaviour callback, no parent state)."
-  @spec process_incoming(%__MODULE__{}, binary()) :: %__MODULE__{}
+  @spec process_incoming(%__MODULE__{}, binary()) :: {:ok, %__MODULE__{}} | {:error, term()}
   def process_incoming(peer, data) do
-    %{peer | rxb: peer.rxb + byte_size(data)}
+    {:ok, %{peer | rxb: peer.rxb + byte_size(data)}}
   end
 
   @doc "Process incoming data with multi-interface deduplication."
@@ -1375,7 +1375,7 @@ defmodule RNS.Interfaces.WeaveInterface.WeaveInterfacePeer do
 
   @impl true
   @doc "Process outgoing data through parent device."
-  @spec process_outgoing(%__MODULE__{}, binary()) :: %__MODULE__{}
+  @spec process_outgoing(%__MODULE__{}, binary()) :: {:ok, %__MODULE__{}} | {:error, term()}
   def process_outgoing(peer, data) do
     if peer._online do
       if peer.owner && peer.owner.server_name do
@@ -1383,15 +1383,15 @@ defmodule RNS.Interfaces.WeaveInterface.WeaveInterfacePeer do
         GenServer.cast(peer.owner.server_name, {:deliver_outgoing, deliver_data})
       end
 
-      %{peer | txb: peer.txb + byte_size(data)}
+      {:ok, %{peer | txb: peer.txb + byte_size(data)}}
     else
-      peer
+      {:ok, peer}
     end
   end
 
   @impl true
   @doc "Detach the peer."
-  @spec detach(%__MODULE__{}) :: %__MODULE__{}
+  @spec detach(%__MODULE__{}) :: :ok | %__MODULE__{}
   def detach(peer) do
     %{peer | _online: false, detached: true}
   end

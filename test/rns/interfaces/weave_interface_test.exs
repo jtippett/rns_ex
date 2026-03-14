@@ -517,13 +517,13 @@ defmodule RNS.Interfaces.WeaveInterfaceTest do
     test "process_outgoing/2 when online" do
       peer = WeaveInterfacePeer.new(endpoint_addr: <<1::64>>)
       peer = %{peer | _online: true}
-      peer = WeaveInterfacePeer.process_outgoing(peer, "test data")
+      {:ok, peer} = WeaveInterfacePeer.process_outgoing(peer, "test data")
       assert peer.txb == 9
     end
 
     test "process_outgoing/2 when offline" do
       peer = WeaveInterfacePeer.new(endpoint_addr: <<1::64>>)
-      peer = WeaveInterfacePeer.process_outgoing(peer, "test data")
+      {:ok, peer} = WeaveInterfacePeer.process_outgoing(peer, "test data")
       assert peer.txb == 0
     end
 
@@ -717,7 +717,7 @@ defmodule RNS.Interfaces.WeaveInterfaceTest do
   describe "WeaveInterface process_outgoing" do
     test "no-op on parent" do
       state = %WeaveInterface{txb: 0}
-      result = WeaveInterface.process_outgoing(state, "test")
+      {:ok, result} = WeaveInterface.process_outgoing(state, "test")
       assert result.txb == 0
     end
   end

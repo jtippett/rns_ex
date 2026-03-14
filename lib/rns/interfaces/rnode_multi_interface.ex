@@ -799,7 +799,7 @@ defmodule RNS.Interfaces.RNodeMultiInterface do
             acc
 
           sub ->
-            updated_sub = RNS.Interfaces.RNodeSubInterface.process_incoming(sub, frame_data)
+            {:ok, updated_sub} = RNS.Interfaces.RNodeSubInterface.process_incoming(sub, frame_data)
             notify_owner(acc, frame_data, index)
             %{acc | subinterfaces: Map.put(acc.subinterfaces, index, updated_sub)}
         end
@@ -829,10 +829,10 @@ defmodule RNS.Interfaces.RNodeMultiInterface do
 
   @impl true
   @doc "Process outgoing data for a sub-interface."
-  @spec process_outgoing(map(), binary()) :: map()
+  @spec process_outgoing(map(), binary()) :: {:ok, map()} | {:error, term()}
   def process_outgoing(state, _data) do
     # Direct transmission on parent is a no-op, matching Python
-    state
+    {:ok, state}
   end
 
   @doc "Process outgoing data routed through a specific sub-interface."
@@ -869,16 +869,16 @@ defmodule RNS.Interfaces.RNodeMultiInterface do
 
   @impl true
   @doc "Process incoming data (called from sub-interface)."
-  @spec process_incoming(map(), binary()) :: map()
+  @spec process_incoming(map(), binary()) :: {:ok, map()} | {:error, term()}
   def process_incoming(state, data) do
-    %{state | rxb: state.rxb + byte_size(data)}
+    {:ok, %{state | rxb: state.rxb + byte_size(data)}}
   end
 
   # ── Detach ─────────────────────────────────────────────────────────
 
   @impl true
   @doc "Detach the interface."
-  @spec detach(map()) :: map()
+  @spec detach(map()) :: :ok | map()
   def detach(state) do
     do_detach(state)
   end
@@ -1203,16 +1203,16 @@ defmodule RNS.Interfaces.RNodeSubInterface do
 
   @impl true
   @doc "Process incoming data on this sub-interface."
-  @spec process_incoming(%__MODULE__{}, binary()) :: %__MODULE__{}
+  @spec process_incoming(%__MODULE__{}, binary()) :: {:ok, %__MODULE__{}} | {:error, term()}
   def process_incoming(sub, data) do
     sub = %{sub | rxb: sub.rxb + byte_size(data), r_stat_rssi: nil, r_stat_snr: nil}
     notify_owner(sub, data)
-    sub
+    {:ok, sub}
   end
 
   @impl true
   @doc "Process outgoing data through parent interface."
-  @spec process_outgoing(%__MODULE__{}, binary()) :: %__MODULE__{}
+  @spec process_outgoing(%__MODULE__{}, binary()) :: {:ok, %__MODULE__{}} | {:error, term()}
   def process_outgoing(sub, data) do
     if sub.online do
       if sub.interface_ready do
@@ -1230,12 +1230,12 @@ defmodule RNS.Interfaces.RNodeSubInterface do
           GenServer.call(sub.parent_pid, {:send_data, data, sub.index})
         end
 
-        sub
+        {:ok, sub}
       else
-        queue(sub, data)
+        {:ok, queue(sub, data)}
       end
     else
-      sub
+      {:ok, sub}
     end
   end
 
@@ -1251,7 +1251,8 @@ defmodule RNS.Interfaces.RNodeSubInterface do
     case :queue.out(sub.packet_queue) do
       {{:value, data}, remaining} ->
         sub = %{sub | packet_queue: remaining, interface_ready: true}
-        process_outgoing(sub, data)
+        {:ok, sub} = process_outgoing(sub, data)
+        sub
 
       {:empty, _} ->
         %{sub | interface_ready: true}
@@ -1260,7 +1261,7 @@ defmodule RNS.Interfaces.RNodeSubInterface do
 
   @impl true
   @doc "Detach the sub-interface."
-  @spec detach(%__MODULE__{}) :: %__MODULE__{}
+  @spec detach(%__MODULE__{}) :: :ok | %__MODULE__{}
   def detach(sub) do
     %{sub | online: false, detached: true}
   end

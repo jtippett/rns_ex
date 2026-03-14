@@ -659,10 +659,10 @@ defmodule RNS.Interfaces.LocalServerInterface do
   # ── Behaviour callbacks ───────────────────────────────────────────
 
   @impl RNS.Interfaces.Interface
-  def process_outgoing(_state, _data) do
+  def process_outgoing(state, _data) do
     # Server interfaces don't directly process outgoing data
     # Matches Python: pass
-    :ok
+    {:ok, state}
   end
 
   @impl RNS.Interfaces.Interface

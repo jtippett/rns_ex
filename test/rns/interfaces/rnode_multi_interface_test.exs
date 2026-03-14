@@ -768,7 +768,7 @@ defmodule RNS.Interfaces.RNodeMultiInterfaceTest do
     test "updates rxb and clears RSSI/SNR" do
       sub = Sub.new(name: "test", owner: self())
       sub = %{sub | r_stat_rssi: -80, r_stat_snr: 5.0}
-      updated = Sub.process_incoming(sub, "test data")
+      {:ok, updated} = Sub.process_incoming(sub, "test data")
       assert updated.rxb == 9
       assert updated.r_stat_rssi == nil
       assert updated.r_stat_snr == nil
@@ -945,13 +945,13 @@ defmodule RNS.Interfaces.RNodeMultiInterfaceTest do
   describe "Interface behaviour" do
     test "process_outgoing on parent is no-op" do
       state = %Multi{txb: 0}
-      result = Multi.process_outgoing(state, "test")
+      {:ok, result} = Multi.process_outgoing(state, "test")
       assert result.txb == 0
     end
 
     test "process_incoming updates rxb" do
       state = %Multi{rxb: 0}
-      result = Multi.process_incoming(state, "test data")
+      {:ok, result} = Multi.process_incoming(state, "test data")
       assert result.rxb == 9
     end
 
