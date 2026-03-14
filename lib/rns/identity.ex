@@ -371,7 +371,7 @@ defmodule RNS.Identity do
     {:ok, X25519.from_private_bytes(bytes)}
   rescue
     e ->
-      Logger.debug("X25519 key load failed: #{inspect(e)}")
+      RNS.Log.trace("X25519 key load failed: #{inspect(e)}")
       {:error, {:key_load, e}}
   end
 
@@ -379,7 +379,7 @@ defmodule RNS.Identity do
     {:ok, X25519.exchange(kp, pub_bytes)}
   rescue
     e ->
-      Logger.debug("X25519 key exchange failed: #{inspect(e)}")
+      RNS.Log.trace("X25519 key exchange failed: #{inspect(e)}")
       {:error, {:exchange, e}}
   end
 
@@ -387,7 +387,7 @@ defmodule RNS.Identity do
     {:ok, do_decrypt(id, shared_key, ciphertext)}
   rescue
     e ->
-      Logger.debug("Token decryption failed: #{inspect(e)}")
+      RNS.Log.trace("Token decryption failed: #{inspect(e)}")
       {:error, {:decrypt, e}}
   end
 
@@ -457,15 +457,15 @@ defmodule RNS.Identity do
     # Binary pattern match failures (MatchError) and crypto errors are both expected
     # when processing malformed or adversarial announce packets.
     e in [MatchError] ->
-      Logger.debug("Announce validation failed (match error): #{inspect(e)}")
+      RNS.Log.trace("Announce validation failed (match error): #{inspect(e)}")
       :error
 
     e in [ArgumentError] ->
-      Logger.debug("Announce validation failed (argument error): #{inspect(e)}")
+      RNS.Log.trace("Announce validation failed (argument error): #{inspect(e)}")
       :error
 
     e ->
-      Logger.debug("Announce validation failed: #{inspect(e)}")
+      RNS.Log.trace("Announce validation failed: #{inspect(e)}")
       :error
   end
 

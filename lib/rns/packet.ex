@@ -369,7 +369,7 @@ defmodule RNS.Packet do
     update_hash(packet)
   rescue
     e ->
-      Logger.debug("Packet unpacking failed: #{inspect(e)}")
+      RNS.Log.trace("Packet unpacking failed: #{inspect(e)}")
       false
   end
 

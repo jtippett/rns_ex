@@ -710,7 +710,7 @@ defmodule RNS.Destination do
     # Token.decrypt raises ArgumentError on HMAC failure or decryption errors.
     # Return nil to signal decryption failure to callers.
     e in [ArgumentError] ->
-      Logger.debug("Group decryption failed (HMAC mismatch): #{inspect(e)}")
+      RNS.Log.trace("Group decryption failed (HMAC mismatch): #{inspect(e)}")
       nil
   end
 

@@ -65,4 +65,23 @@ defmodule RNS.Log do
     Logger.log(logger_level, msg, rns_level: level)
     :ok
   end
+
+  @doc """
+  Log a trace-level message for malformed packets, failed crypto operations,
+  and other noisy but expected events. Only emits when
+  `config :rns_ex, verbose_logging: true` is set.
+
+  Use this for messages that are routine in normal operation (adversarial
+  packets, invalid signatures, match errors on corrupt data) but useful
+  when diagnosing specific issues.
+  """
+  @spec trace(String.t()) :: :ok
+  if Application.compile_env(:rns_ex, :verbose_logging, false) do
+    def trace(msg) do
+      Logger.debug(msg, rns_level: :extreme)
+      :ok
+    end
+  else
+    def trace(_msg), do: :ok
+  end
 end

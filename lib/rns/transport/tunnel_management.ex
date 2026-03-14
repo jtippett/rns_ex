@@ -58,12 +58,12 @@ defmodule RNS.Transport.TunnelManagement do
           handle_tunnel(tunnel_id, receiving_interface)
           :ok
         else
-          Logger.debug("Tunnel establishment packet signature validation failed")
+          RNS.Log.trace("Tunnel establishment packet signature validation failed")
           :invalid
         end
       rescue
         e ->
-          Logger.debug("Error validating tunnel establishment packet: #{Exception.message(e)}")
+          RNS.Log.trace("Error validating tunnel establishment packet: #{Exception.message(e)}")
           :invalid
       end
     else

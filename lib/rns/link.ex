@@ -395,7 +395,7 @@ defmodule RNS.Link do
     {:ok, plaintext}
   rescue
     e ->
-      Logger.debug("Link decryption failed: #{inspect(e)}")
+      RNS.Log.trace("Link decryption failed: #{inspect(e)}")
       {:error, e}
   end
 
@@ -1017,7 +1017,7 @@ defmodule RNS.Link do
     end
   rescue
     e ->
-      Logger.debug("Link teardown packet decryption failed: #{inspect(e)}")
+      RNS.Log.trace("Link teardown packet decryption failed: #{inspect(e)}")
       {:error, :decryption_failed}
   end
 

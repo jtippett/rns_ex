@@ -107,7 +107,7 @@ defmodule RNS.Cryptography.Ed25519 do
   rescue
     # Eddy raises WithClauseError when signature contains invalid curve points
     e ->
-      Logger.debug("Ed25519 verification failed (invalid curve point): #{inspect(e)}")
+      RNS.Log.trace("Ed25519 verification failed (invalid curve point): #{inspect(e)}")
       false
   end
 
