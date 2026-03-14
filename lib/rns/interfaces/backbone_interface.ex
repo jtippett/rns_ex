@@ -234,13 +234,7 @@ defmodule RNS.Interfaces.BackboneInterface do
 
     # Stop all spawned clients
     Enum.each(state.spawned_interfaces, fn pid ->
-      if Process.alive?(pid) do
-        try do
-          RNS.Interfaces.BackboneClientInterface.stop(pid)
-        catch
-          _, _ -> :ok
-        end
-      end
+      if is_pid(pid) and Process.alive?(pid), do: RNS.Interfaces.BackboneClientInterface.stop(pid)
     end)
 
     {:reply, :ok,

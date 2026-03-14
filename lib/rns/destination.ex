@@ -306,12 +306,11 @@ defmodule RNS.Destination do
   """
   @spec register(t()) :: :ok | {:error, :already_registered}
   def register(%__MODULE__{} = dest) do
-    RNS.Transport.register_destination(dest)
-  rescue
-    # Transport GenServer may not be running in unit tests
-    _ -> :ok
-  catch
-    :exit, _ -> :ok
+    if Process.whereis(RNS.Transport) do
+      RNS.Transport.register_destination(dest)
+    else
+      :ok
+    end
   end
 
   @doc """
@@ -322,11 +321,11 @@ defmodule RNS.Destination do
   """
   @spec deregister(t()) :: :ok
   def deregister(%__MODULE__{} = dest) do
-    RNS.Transport.deregister_destination(dest)
-  rescue
-    _ -> :ok
-  catch
-    :exit, _ -> :ok
+    if Process.whereis(RNS.Transport) do
+      RNS.Transport.deregister_destination(dest)
+    else
+      :ok
+    end
   end
 
   defp resolve_identity(nil, @in_direction, @plain, aspects), do: {nil, aspects}
@@ -912,12 +911,11 @@ defmodule RNS.Destination do
   # the destination struct. Silently no-ops if Transport is not running
   # (e.g., in unit tests).
   defp maybe_update_registration(%__MODULE__{} = dest) do
-    RNS.Transport.update_destination(dest)
+    if Process.whereis(RNS.Transport) do
+      RNS.Transport.update_destination(dest)
+    end
+
     dest
-  rescue
-    _ -> dest
-  catch
-    :exit, _ -> dest
   end
 
   # ── Receive ─────────────────────────────────────────────────────

@@ -135,8 +135,12 @@ defmodule RNS.Interfaces.LocalClientInterface do
   @doc "Detaches and stops the interface."
   @spec stop(GenServer.server()) :: :ok
   def stop(server) do
-    GenServer.call(server, :detach)
-    GenServer.stop(server, :normal)
+    if is_pid(server) and Process.alive?(server) do
+      GenServer.call(server, :detach)
+      if Process.alive?(server), do: GenServer.stop(server, :normal)
+    end
+
+    :ok
   catch
     :exit, _ -> :ok
   end
@@ -648,8 +652,12 @@ defmodule RNS.Interfaces.LocalServerInterface do
   @doc "Detaches and stops the server interface."
   @spec stop(GenServer.server()) :: :ok
   def stop(server) do
-    GenServer.call(server, :detach)
-    GenServer.stop(server, :normal)
+    if is_pid(server) and Process.alive?(server) do
+      GenServer.call(server, :detach)
+      if Process.alive?(server), do: GenServer.stop(server, :normal)
+    end
+
+    :ok
   catch
     :exit, _ -> :ok
   end
@@ -774,13 +782,7 @@ defmodule RNS.Interfaces.LocalServerInterface do
 
     # Stop all spawned clients
     Enum.each(state.spawned_interfaces, fn pid ->
-      if Process.alive?(pid) do
-        try do
-          RNS.Interfaces.LocalClientInterface.stop(pid)
-        catch
-          _, _ -> :ok
-        end
-      end
+      if is_pid(pid) and Process.alive?(pid), do: RNS.Interfaces.LocalClientInterface.stop(pid)
     end)
 
     {:reply, :ok,

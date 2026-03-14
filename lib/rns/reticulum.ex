@@ -1021,7 +1021,7 @@ defmodule RNS.Reticulum do
   defp detach_interface(pid) when is_pid(pid) do
     if Process.alive?(pid), do: GenServer.call(pid, :detach)
   catch
-    _, _ -> :ok
+    :exit, _ -> :ok
   end
 
   # Full cleanup: detach, deregister from Transport, and terminate the process
@@ -1029,18 +1029,19 @@ defmodule RNS.Reticulum do
     detach_interface(pid)
 
     # Deregister from Transport
-    try do
+    if Process.alive?(pid) do
       iface_state = GenServer.call(pid, :get_state)
       hash = Map.get(iface_state, :hash) || RNS.Interfaces.Interface.hash(iface_state)
-      RNS.Transport.deregister_interface(%{hash: hash})
-    catch
-      _, _ -> :ok
+
+      if Process.whereis(RNS.Transport) do
+        RNS.Transport.deregister_interface(%{hash: hash})
+      end
     end
 
     # Terminate the process under DynamicSupervisor
     DynamicSupervisor.terminate_child(RNS.InterfaceSupervisor, pid)
   catch
-    _, _ -> :ok
+    :exit, _ -> :ok
   end
 
   defp start_shared_server(state) do
@@ -1305,10 +1306,8 @@ defmodule RNS.Reticulum do
     # Get the interface's current state, merge any post-init updates,
     # add the pid, compute the hash, and register with Transport.
     state =
-      try do
+      if Process.alive?(pid) do
         GenServer.call(pid, :get_state)
-      catch
-        _, _ -> nil
       end
 
     if state do
@@ -1342,37 +1341,26 @@ defmodule RNS.Reticulum do
   defp detach_all_interfaces(state) do
     # Get all interfaces from Transport, detach them, and deregister
     interfaces =
-      try do
+      if Process.whereis(RNS.Transport) do
         RNS.Transport.get_interfaces()
-      rescue
-        _ -> []
+      else
+        []
       end
 
     for interface <- interfaces do
-      try do
-        # Deregister from Transport
+      if Process.whereis(RNS.Transport) do
         RNS.Transport.deregister_interface(interface)
-      rescue
-        _ -> :ok
       end
 
-      try do
-        if is_map(interface) and Map.has_key?(interface, :pid) and is_pid(interface.pid) do
-          send(interface.pid, :detach)
-        end
-      rescue
-        _ -> :ok
+      if is_map(interface) and Map.has_key?(interface, :pid) and is_pid(interface.pid) do
+        send(interface.pid, :detach)
       end
     end
 
     # Also stop any interfaces we directly started
     for pid <- Map.get(state, :started_interfaces, []) do
-      try do
-        if Process.alive?(pid) do
-          DynamicSupervisor.terminate_child(RNS.InterfaceSupervisor, pid)
-        end
-      rescue
-        _ -> :ok
+      if Process.alive?(pid) do
+        DynamicSupervisor.terminate_child(RNS.InterfaceSupervisor, pid)
       end
     end
 

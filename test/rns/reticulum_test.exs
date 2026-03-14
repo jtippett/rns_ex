@@ -1832,7 +1832,7 @@ defmodule RNS.ReticulumTest do
       end
 
       if Process.alive?(result1.shared_instance_interface) do
-        GenServer.call(result1.shared_instance_interface, :detach)
+        RNS.Interfaces.LocalServerInterface.stop(result1.shared_instance_interface)
       end
 
       if Process.alive?(pid1), do: GenServer.stop(pid1)
