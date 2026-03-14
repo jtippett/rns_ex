@@ -3212,9 +3212,9 @@ defmodule RNS.Transport do
     if now > state.announces_last_checked + div(@announces_check_interval, 1000) do
       {outgoing, _completed} = AnnounceHandler.process_announce_queue()
 
-      # Broadcast retransmit packets on all outgoing interfaces
+      # Transmit retransmit packets on all outgoing interfaces
       Enum.each(outgoing, fn packet ->
-        outbound_broadcast(packet)
+        outbound(packet)
       end)
 
       # Check for held announces to reinsert

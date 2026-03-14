@@ -384,7 +384,15 @@ defmodule RNS.Transport.AnnounceHandler do
 
   # ── Private Helpers ───────────────────────────────────────────────
 
-  defp build_retransmit_packet(_destination_hash, entry) do
+  @doc """
+  Builds a HEADER_2 transport packet for announce retransmission.
+
+  Matches Python RNS behavior: creates a new packet with HEADER_2,
+  TRANSPORT type, and the local transport node's identity hash,
+  then packs it for transmission.
+  """
+  @spec build_retransmit_packet(binary(), AnnounceEntry.t()) :: map()
+  def build_retransmit_packet(destination_hash, entry) do
     announce_context =
       if entry.block_rebroadcasts do
         # PATH_RESPONSE
@@ -394,8 +402,48 @@ defmodule RNS.Transport.AnnounceHandler do
         0x00
       end
 
-    # Return the original packet with updated context for retransmission.
-    # The packet retains its .raw field for broadcasting via transmit/2.
-    %{entry.packet | context: announce_context, hops: entry.hops}
+    transport_identity = Transport.identity()
+    transport_id = if transport_identity, do: transport_identity.hash, else: nil
+
+    # Build a destination stub for Packet.new
+    announce_identity = RNS.Identity.recall(destination_hash)
+
+    destination = %{
+      hash: destination_hash,
+      type: 0x00,
+      mtu: nil
+    }
+
+    # If identity is available, use a proper outbound destination
+    destination =
+      if announce_identity do
+        RNS.Destination.new(
+          announce_identity,
+          RNS.Destination.direction_out(),
+          RNS.Destination.single(),
+          "unknown",
+          ["unknown"]
+        )
+        |> Map.put(:hash, destination_hash)
+      else
+        destination
+      end
+
+    packet =
+      RNS.Packet.new(
+        destination,
+        entry.packet.data,
+        packet_type: 0x01,
+        context: announce_context,
+        context_flag: Map.get(entry.packet, :context_flag, 0x00),
+        header_type: 0x01,
+        transport_type: 0x01,
+        transport_id: transport_id,
+        attached_interface: entry.attached_interface,
+        create_receipt: false
+      )
+
+    packet = %{packet | hops: entry.hops}
+    RNS.Packet.pack(packet)
   end
 end
