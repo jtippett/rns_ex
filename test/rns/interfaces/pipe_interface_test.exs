@@ -176,7 +176,7 @@ defmodule RNS.Interfaces.PipeInterfaceTest do
       data = "Hello, Pipe!"
       :ok = PipeInterface.send_data(pid, data)
 
-      assert_receive {:pipe_interface_data, ^data, _iface}, 2000
+      assert_receive {:interface_data, ^data, _iface}, 2000
       PipeInterface.stop(pid)
     end
 
@@ -191,7 +191,7 @@ defmodule RNS.Interfaces.PipeInterfaceTest do
       data = <<0x01, 0x02, 0xFF, 0xFE, 0x00, 0xAB>>
       :ok = PipeInterface.send_data(pid, data)
 
-      assert_receive {:pipe_interface_data, ^data, _iface}, 2000
+      assert_receive {:interface_data, ^data, _iface}, 2000
       PipeInterface.stop(pid)
     end
 
@@ -207,7 +207,7 @@ defmodule RNS.Interfaces.PipeInterfaceTest do
       data = <<0x7E, 0x7D, 0x01, 0x7E, 0x7D>>
       :ok = PipeInterface.send_data(pid, data)
 
-      assert_receive {:pipe_interface_data, ^data, _iface}, 2000
+      assert_receive {:interface_data, ^data, _iface}, 2000
       PipeInterface.stop(pid)
     end
 
@@ -227,9 +227,9 @@ defmodule RNS.Interfaces.PipeInterfaceTest do
       :ok = PipeInterface.send_data(pid, data2)
       :ok = PipeInterface.send_data(pid, data3)
 
-      assert_receive {:pipe_interface_data, ^data1, _}, 2000
-      assert_receive {:pipe_interface_data, ^data2, _}, 2000
-      assert_receive {:pipe_interface_data, ^data3, _}, 2000
+      assert_receive {:interface_data, ^data1, _}, 2000
+      assert_receive {:interface_data, ^data2, _}, 2000
+      assert_receive {:interface_data, ^data3, _}, 2000
       PipeInterface.stop(pid)
     end
 
@@ -246,12 +246,12 @@ defmodule RNS.Interfaces.PipeInterfaceTest do
       :ok = PipeInterface.send_data(pid, big_data)
 
       # Should not receive it (dropped due to size)
-      refute_receive {:pipe_interface_data, _, _}, 500
+      refute_receive {:interface_data, _, _}, 500
 
       # But a small frame should still work
       small_data = "small"
       :ok = PipeInterface.send_data(pid, small_data)
-      assert_receive {:pipe_interface_data, ^small_data, _}, 2000
+      assert_receive {:interface_data, ^small_data, _}, 2000
       PipeInterface.stop(pid)
     end
 
@@ -266,7 +266,7 @@ defmodule RNS.Interfaces.PipeInterfaceTest do
       # Send an actual data frame after to verify processing continues
       data = "after_empty"
       :ok = PipeInterface.send_data(pid, data)
-      assert_receive {:pipe_interface_data, ^data, _}, 2000
+      assert_receive {:interface_data, ^data, _}, 2000
       PipeInterface.stop(pid)
     end
   end
@@ -285,7 +285,7 @@ defmodule RNS.Interfaces.PipeInterfaceTest do
       data = "test data"
       :ok = PipeInterface.send_data(pid, data)
       # Wait for the echoed frame
-      assert_receive {:pipe_interface_data, _, _}, 2000
+      assert_receive {:interface_data, _, _}, 2000
 
       state = PipeInterface.get_state(pid)
       assert state.txb > 0
@@ -321,14 +321,14 @@ defmodule RNS.Interfaces.PipeInterfaceTest do
 
       data = "incoming test"
       :ok = PipeInterface.send_data(pid, data)
-      assert_receive {:pipe_interface_data, ^data, _}, 2000
+      assert_receive {:interface_data, ^data, _}, 2000
 
       state = PipeInterface.get_state(pid)
       assert state.rxb > 0
       PipeInterface.stop(pid)
     end
 
-    test "notifies owner pid with :pipe_interface_data message" do
+    test "notifies owner pid with :interface_data message" do
       {:ok, pid} =
         PipeInterface.start_link(
           name: "owner_pid_pipe",
@@ -338,7 +338,7 @@ defmodule RNS.Interfaces.PipeInterfaceTest do
 
       data = "notify me"
       :ok = PipeInterface.send_data(pid, data)
-      assert_receive {:pipe_interface_data, ^data, iface}, 2000
+      assert_receive {:interface_data, ^data, iface}, 2000
       assert iface.name == "owner_pid_pipe"
       PipeInterface.stop(pid)
     end
@@ -376,7 +376,7 @@ defmodule RNS.Interfaces.PipeInterfaceTest do
 
       data = "mfa test"
       :ok = PipeInterface.send_data(pid, data)
-      assert_receive {:pipe_interface_data, ^data, _}, 2000
+      assert_receive {:interface_data, ^data, _}, 2000
       PipeInterface.stop(pid)
       Agent.stop(agent)
     end
@@ -477,7 +477,7 @@ defmodule RNS.Interfaces.PipeInterfaceTest do
 
       data = "counter test"
       :ok = PipeInterface.send_data(pid, data)
-      assert_receive {:pipe_interface_data, ^data, _}, 2000
+      assert_receive {:interface_data, ^data, _}, 2000
 
       state = PipeInterface.get_state(pid)
       # txb includes HDLC framing overhead

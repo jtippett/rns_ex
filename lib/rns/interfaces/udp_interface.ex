@@ -159,11 +159,7 @@ defmodule RNS.Interfaces.UDPInterface do
   @impl RNS.Interfaces.Interface
   def process_incoming(state, data) do
     updated = %{state | rxb: state.rxb + byte_size(data)}
-
-    if state.owner do
-      notify_owner(state.owner, data, updated)
-    end
-
+    RNS.Interfaces.Interface.deliver_to_transport(data, updated)
     {:ok, updated}
   end
 
@@ -366,20 +362,6 @@ defmodule RNS.Interfaces.UDPInterface do
         {:error, :send_failed}
     end
   end
-
-  defp notify_owner(owner, data, interface) when is_pid(owner) do
-    send(owner, {:udp_interface_data, data, interface})
-  end
-
-  defp notify_owner({module, fun}, data, interface) when is_atom(module) and is_atom(fun) do
-    apply(module, fun, [data, interface])
-  end
-
-  defp notify_owner(fun, data, interface) when is_function(fun, 2) do
-    fun.(data, interface)
-  end
-
-  defp notify_owner(_, _data, _interface), do: :ok
 
   defp parse_ip!(ip_string) when is_binary(ip_string) do
     case :inet.parse_address(String.to_charlist(ip_string)) do

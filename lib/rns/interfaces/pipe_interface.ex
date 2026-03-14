@@ -123,11 +123,7 @@ defmodule RNS.Interfaces.PipeInterface do
   @impl RNS.Interfaces.Interface
   def process_incoming(state, data) do
     updated = %{state | rxb: state.rxb + byte_size(data)}
-
-    if state.owner do
-      notify_owner(state.owner, data, updated)
-    end
-
+    RNS.Interfaces.Interface.deliver_to_transport(data, updated)
     {:ok, updated}
   end
 
@@ -333,20 +329,6 @@ defmodule RNS.Interfaces.PipeInterface do
   defp schedule_respawn(delay) do
     Process.send_after(self(), :respawn, delay)
   end
-
-  defp notify_owner(owner, data, interface) when is_pid(owner) do
-    send(owner, {:pipe_interface_data, data, interface})
-  end
-
-  defp notify_owner({module, fun}, data, interface) when is_atom(module) and is_atom(fun) do
-    apply(module, fun, [data, interface])
-  end
-
-  defp notify_owner(fun, data, interface) when is_function(fun, 2) do
-    fun.(data, interface)
-  end
-
-  defp notify_owner(_, _data, _interface), do: :ok
 
   # ── String.Chars protocol ────────────────────────────────────────
 

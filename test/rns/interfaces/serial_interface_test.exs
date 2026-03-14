@@ -200,7 +200,7 @@ defmodule RNS.Interfaces.SerialInterfaceTest do
       # Inject the framed data as if it came from the serial port
       send(pid, {:serial_data, framed})
 
-      assert_receive {:serial_interface_data, ^original, _iface}, 1000
+      assert_receive {:interface_data, ^original, _iface}, 1000
 
       GenServer.stop(pid)
     end
@@ -221,7 +221,7 @@ defmodule RNS.Interfaces.SerialInterfaceTest do
 
       send(pid, {:serial_data, framed})
 
-      assert_receive {:serial_interface_data, ^original, _iface}, 1000
+      assert_receive {:interface_data, ^original, _iface}, 1000
 
       GenServer.stop(pid)
     end
@@ -243,7 +243,7 @@ defmodule RNS.Interfaces.SerialInterfaceTest do
 
       send(pid, {:serial_data, framed})
 
-      assert_receive {:serial_interface_data, ^original, _iface}, 1000
+      assert_receive {:interface_data, ^original, _iface}, 1000
 
       GenServer.stop(pid)
     end
@@ -267,9 +267,9 @@ defmodule RNS.Interfaces.SerialInterfaceTest do
       combined = HDLC.frame(msg1) <> HDLC.frame(msg2) <> HDLC.frame(msg3)
       send(pid, {:serial_data, combined})
 
-      assert_receive {:serial_interface_data, ^msg1, _}, 1000
-      assert_receive {:serial_interface_data, ^msg2, _}, 1000
-      assert_receive {:serial_interface_data, ^msg3, _}, 1000
+      assert_receive {:interface_data, ^msg1, _}, 1000
+      assert_receive {:interface_data, ^msg2, _}, 1000
+      assert_receive {:interface_data, ^msg3, _}, 1000
 
       GenServer.stop(pid)
     end
@@ -298,7 +298,7 @@ defmodule RNS.Interfaces.SerialInterfaceTest do
       Process.sleep(10)
       send(pid, {:serial_data, part2})
 
-      assert_receive {:serial_interface_data, ^original, _iface}, 1000
+      assert_receive {:interface_data, ^original, _iface}, 1000
 
       GenServer.stop(pid)
     end
@@ -319,8 +319,8 @@ defmodule RNS.Interfaces.SerialInterfaceTest do
       data = <<0x7E, 0x7E>> <> HDLC.frame(real_msg)
       send(pid, {:serial_data, data})
 
-      assert_receive {:serial_interface_data, ^real_msg, _}, 1000
-      refute_receive {:serial_interface_data, <<>>, _}, 100
+      assert_receive {:interface_data, ^real_msg, _}, 1000
+      refute_receive {:interface_data, <<>>, _}, 100
 
       GenServer.stop(pid)
     end
@@ -346,8 +346,8 @@ defmodule RNS.Interfaces.SerialInterfaceTest do
       send(pid, {:serial_data, framed_oversized <> framed_valid})
 
       # Should only receive the valid message, not the oversized one
-      assert_receive {:serial_interface_data, ^valid_msg, _}, 1000
-      refute_receive {:serial_interface_data, ^oversized, _}, 100
+      assert_receive {:interface_data, ^valid_msg, _}, 1000
+      refute_receive {:interface_data, ^oversized, _}, 100
 
       GenServer.stop(pid)
     end
@@ -387,10 +387,10 @@ defmodule RNS.Interfaces.SerialInterfaceTest do
       msg1 = "hello"
       msg2 = "world!"
       send(pid, {:serial_data, HDLC.frame(msg1)})
-      assert_receive {:serial_interface_data, ^msg1, _}, 1000
+      assert_receive {:interface_data, ^msg1, _}, 1000
 
       send(pid, {:serial_data, HDLC.frame(msg2)})
-      assert_receive {:serial_interface_data, ^msg2, _}, 1000
+      assert_receive {:interface_data, ^msg2, _}, 1000
 
       state = SerialInterface.get_state(pid)
       assert state.rxb == byte_size(msg1) + byte_size(msg2)
@@ -461,7 +461,7 @@ defmodule RNS.Interfaces.SerialInterfaceTest do
       {:ok, updated} = SerialInterface.process_incoming(state, "incoming_data")
       assert updated.rxb == byte_size("incoming_data")
 
-      assert_receive {:serial_interface_data, "incoming_data", _}, 100
+      assert_receive {:interface_data, "incoming_data", _}, 100
     end
 
     test "process_incoming/2 with function callback" do

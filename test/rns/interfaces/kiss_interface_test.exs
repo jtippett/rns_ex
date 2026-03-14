@@ -284,7 +284,7 @@ defmodule RNS.Interfaces.KISSInterfaceTest do
 
       send(pid, {:serial_data, framed})
 
-      assert_receive {:kiss_interface_data, ^original, _iface}, 1000
+      assert_receive {:interface_data, ^original, _iface}, 1000
 
       GenServer.stop(pid)
     end
@@ -306,7 +306,7 @@ defmodule RNS.Interfaces.KISSInterfaceTest do
 
       send(pid, {:serial_data, framed})
 
-      assert_receive {:kiss_interface_data, ^original, _iface}, 1000
+      assert_receive {:interface_data, ^original, _iface}, 1000
 
       GenServer.stop(pid)
     end
@@ -329,9 +329,9 @@ defmodule RNS.Interfaces.KISSInterfaceTest do
       combined = KISS.frame(msg1) <> KISS.frame(msg2) <> KISS.frame(msg3)
       send(pid, {:serial_data, combined})
 
-      assert_receive {:kiss_interface_data, ^msg1, _}, 1000
-      assert_receive {:kiss_interface_data, ^msg2, _}, 1000
-      assert_receive {:kiss_interface_data, ^msg3, _}, 1000
+      assert_receive {:interface_data, ^msg1, _}, 1000
+      assert_receive {:interface_data, ^msg2, _}, 1000
+      assert_receive {:interface_data, ^msg3, _}, 1000
 
       GenServer.stop(pid)
     end
@@ -358,7 +358,7 @@ defmodule RNS.Interfaces.KISSInterfaceTest do
       Process.sleep(10)
       send(pid, {:serial_data, part2})
 
-      assert_receive {:kiss_interface_data, ^original, _iface}, 1000
+      assert_receive {:interface_data, ^original, _iface}, 1000
 
       GenServer.stop(pid)
     end
@@ -379,8 +379,8 @@ defmodule RNS.Interfaces.KISSInterfaceTest do
       data = <<0xC0, 0xC0>> <> KISS.frame(real_msg)
       send(pid, {:serial_data, data})
 
-      assert_receive {:kiss_interface_data, ^real_msg, _}, 1000
-      refute_receive {:kiss_interface_data, <<>>, _}, 100
+      assert_receive {:interface_data, ^real_msg, _}, 1000
+      refute_receive {:interface_data, <<>>, _}, 100
 
       GenServer.stop(pid)
     end
@@ -405,8 +405,8 @@ defmodule RNS.Interfaces.KISSInterfaceTest do
 
       send(pid, {:serial_data, framed_oversized <> framed_valid})
 
-      assert_receive {:kiss_interface_data, ^valid_msg, _}, 1000
-      refute_receive {:kiss_interface_data, ^oversized, _}, 100
+      assert_receive {:interface_data, ^valid_msg, _}, 1000
+      refute_receive {:interface_data, ^oversized, _}, 100
 
       GenServer.stop(pid)
     end
@@ -427,7 +427,7 @@ defmodule RNS.Interfaces.KISSInterfaceTest do
 
       send(pid, {:serial_data, framed})
 
-      assert_receive {:kiss_interface_data, ^original, _iface}, 1000
+      assert_receive {:interface_data, ^original, _iface}, 1000
 
       GenServer.stop(pid)
     end
@@ -582,10 +582,10 @@ defmodule RNS.Interfaces.KISSInterfaceTest do
       msg1 = "hello"
       msg2 = "world!"
       send(pid, {:serial_data, KISS.frame(msg1)})
-      assert_receive {:kiss_interface_data, ^msg1, _}, 1000
+      assert_receive {:interface_data, ^msg1, _}, 1000
 
       send(pid, {:serial_data, KISS.frame(msg2)})
-      assert_receive {:kiss_interface_data, ^msg2, _}, 1000
+      assert_receive {:interface_data, ^msg2, _}, 1000
 
       state = KISSInterface.get_state(pid)
       assert state.rxb == byte_size(msg1) + byte_size(msg2)
@@ -656,7 +656,7 @@ defmodule RNS.Interfaces.KISSInterfaceTest do
       {:ok, updated} = KISSInterface.process_incoming(state, "incoming_data")
       assert updated.rxb == byte_size("incoming_data")
 
-      assert_receive {:kiss_interface_data, "incoming_data", _}, 100
+      assert_receive {:interface_data, "incoming_data", _}, 100
     end
 
     test "process_incoming/2 with function callback" do

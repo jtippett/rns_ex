@@ -1071,7 +1071,7 @@ defmodule RNS.Interfaces.RNodeInterfaceTest do
       escaped = RNodeInterface.kiss_escape(original)
       frame = <<0xC0, 0x00>> <> escaped <> <<0xC0>>
       send(pid, {:serial_data, frame})
-      assert_receive {:rnode_interface_data, ^original, _iface}, 1000
+      assert_receive {:interface_data, ^original, _iface}, 1000
     end
 
     test "data with special KISS bytes", %{pid: pid} do
@@ -1079,7 +1079,7 @@ defmodule RNS.Interfaces.RNodeInterfaceTest do
       escaped = RNodeInterface.kiss_escape(original)
       frame = <<0xC0, 0x00>> <> escaped <> <<0xC0>>
       send(pid, {:serial_data, frame})
-      assert_receive {:rnode_interface_data, ^original, _iface}, 1000
+      assert_receive {:interface_data, ^original, _iface}, 1000
     end
 
     test "multiple frames", %{pid: pid} do
@@ -1088,8 +1088,8 @@ defmodule RNS.Interfaces.RNodeInterfaceTest do
       frame1 = <<0xC0, 0x00>> <> RNodeInterface.kiss_escape(data1) <> <<0xC0>>
       frame2 = <<0xC0, 0x00>> <> RNodeInterface.kiss_escape(data2) <> <<0xC0>>
       send(pid, {:serial_data, frame1 <> frame2})
-      assert_receive {:rnode_interface_data, ^data1, _}, 1000
-      assert_receive {:rnode_interface_data, ^data2, _}, 1000
+      assert_receive {:interface_data, ^data1, _}, 1000
+      assert_receive {:interface_data, ^data2, _}, 1000
     end
 
     test "fragmented delivery", %{pid: pid} do
@@ -1101,9 +1101,9 @@ defmodule RNS.Interfaces.RNodeInterfaceTest do
       second_half = binary_part(frame, 3, byte_size(frame) - 3)
 
       send(pid, {:serial_data, first_half})
-      refute_receive {:rnode_interface_data, _, _}, 100
+      refute_receive {:interface_data, _, _}, 100
       send(pid, {:serial_data, second_half})
-      assert_receive {:rnode_interface_data, ^original, _}, 1000
+      assert_receive {:interface_data, ^original, _}, 1000
     end
 
     test "oversized frames are dropped", %{pid: pid} do
@@ -1111,13 +1111,13 @@ defmodule RNS.Interfaces.RNodeInterfaceTest do
       escaped = RNodeInterface.kiss_escape(data)
       frame = <<0xC0, 0x00>> <> escaped <> <<0xC0>>
       send(pid, {:serial_data, frame})
-      refute_receive {:rnode_interface_data, _, _}, 200
+      refute_receive {:interface_data, _, _}, 200
     end
 
     test "empty data frames are dropped", %{pid: pid} do
       frame = <<0xC0, 0x00, 0xC0>>
       send(pid, {:serial_data, frame})
-      refute_receive {:rnode_interface_data, _, _}, 200
+      refute_receive {:interface_data, _, _}, 200
     end
 
     test "command responses update state via serial data", %{pid: pid} do
@@ -1153,7 +1153,7 @@ defmodule RNS.Interfaces.RNodeInterfaceTest do
       # Now receive data — RSSI/SNR should be cleared
       data_frame = <<0xC0, 0x00, 0x42, 0xC0>>
       send(pid, {:serial_data, data_frame})
-      assert_receive {:rnode_interface_data, <<0x42>>, _}, 1000
+      assert_receive {:interface_data, <<0x42>>, _}, 1000
 
       state = RNodeInterface.get_state(pid)
       assert state.r_stat_rssi == nil
@@ -1246,9 +1246,9 @@ defmodule RNS.Interfaces.RNodeInterfaceTest do
       frame2 = <<0xC0, 0x00>> <> RNodeInterface.kiss_escape(data2) <> <<0xC0>>
 
       send(pid, {:serial_data, frame1})
-      assert_receive {:rnode_interface_data, _, _}, 1000
+      assert_receive {:interface_data, _, _}, 1000
       send(pid, {:serial_data, frame2})
-      assert_receive {:rnode_interface_data, _, _}, 1000
+      assert_receive {:interface_data, _, _}, 1000
 
       state = RNodeInterface.get_state(pid)
       assert state.rxb == 5
@@ -1300,7 +1300,7 @@ defmodule RNS.Interfaces.RNodeInterfaceTest do
       state = %RNodeInterface{name: "test", owner: self()}
       {:ok, updated} = RNodeInterface.process_incoming(state, <<1, 2, 3>>)
       assert updated.rxb == 3
-      assert_receive {:rnode_interface_data, <<1, 2, 3>>, _}
+      assert_receive {:interface_data, <<1, 2, 3>>, _}
     end
 
     test "process_incoming with function owner" do
@@ -1372,7 +1372,7 @@ defmodule RNS.Interfaces.RNodeInterfaceTest do
           <<0xC0, 0x00, 0xAA, 0xBB, 0xC0>>
 
       send(pid, {:serial_data, stream})
-      assert_receive {:rnode_interface_data, <<0xAA, 0xBB>>, _}, 1000
+      assert_receive {:interface_data, <<0xAA, 0xBB>>, _}, 1000
 
       :timer.sleep(50)
       state = RNodeInterface.get_state(pid)

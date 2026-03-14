@@ -160,7 +160,7 @@ defmodule RNS.Interfaces.UDPInterfaceTest do
       :ok = UDPInterface.send_data(sender, test_data)
 
       # Receiver should get it via owner notification
-      assert_receive {:udp_interface_data, ^test_data, _iface}, 1000
+      assert_receive {:interface_data, ^test_data, _iface}, 1000
 
       # Check TX bytes on sender
       sender_state = UDPInterface.get_state(sender)
@@ -195,7 +195,7 @@ defmodule RNS.Interfaces.UDPInterfaceTest do
       test_data = :crypto.strong_rand_bytes(100)
       :ok = UDPInterface.send_data(sender, test_data)
 
-      assert_receive {:udp_interface_data, ^test_data, _iface}, 1000
+      assert_receive {:interface_data, ^test_data, _iface}, 1000
 
       GenServer.stop(sender)
       GenServer.stop(receiver)
@@ -227,9 +227,9 @@ defmodule RNS.Interfaces.UDPInterfaceTest do
       :ok = UDPInterface.send_data(sender, "msg333")
 
       # Wait for all three messages
-      assert_receive {:udp_interface_data, "msg1", _}, 1000
-      assert_receive {:udp_interface_data, "msg22", _}, 1000
-      assert_receive {:udp_interface_data, "msg333", _}, 1000
+      assert_receive {:interface_data, "msg1", _}, 1000
+      assert_receive {:interface_data, "msg22", _}, 1000
+      assert_receive {:interface_data, "msg333", _}, 1000
 
       sender_state = UDPInterface.get_state(sender)
       assert sender_state.txb == 4 + 5 + 6
@@ -390,7 +390,7 @@ defmodule RNS.Interfaces.UDPInterfaceTest do
       {:ok, updated} = UDPInterface.process_outgoing(state, "behaviour_test")
       assert updated.txb == byte_size("behaviour_test")
 
-      assert_receive {:udp_interface_data, "behaviour_test", _}, 1000
+      assert_receive {:interface_data, "behaviour_test", _}, 1000
 
       GenServer.stop(receiver)
     end
@@ -407,7 +407,7 @@ defmodule RNS.Interfaces.UDPInterfaceTest do
       {:ok, updated} = UDPInterface.process_incoming(state, "incoming_data")
       assert updated.rxb == byte_size("incoming_data")
 
-      assert_receive {:udp_interface_data, "incoming_data", _}, 100
+      assert_receive {:interface_data, "incoming_data", _}, 100
     end
 
     test "process_outgoing/2 returns error when not forwarding" do
