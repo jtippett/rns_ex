@@ -808,6 +808,16 @@ defmodule RNS.Interfaces.LocalServerInterface do
     {:noreply, state}
   end
 
+  def handle_info({:process_outgoing, raw}, state) when is_binary(raw) do
+    Enum.each(state.spawned_interfaces, fn pid ->
+      if is_pid(pid) and Process.alive?(pid) do
+        send(pid, {:process_outgoing, raw})
+      end
+    end)
+
+    {:noreply, state}
+  end
+
   def handle_info(_msg, state) do
     {:noreply, state}
   end

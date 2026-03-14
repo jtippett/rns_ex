@@ -420,6 +420,11 @@ defmodule RNS.Interfaces.TCPClientInterface do
     {:noreply, state}
   end
 
+  def handle_info({:process_outgoing, raw}, state) when is_binary(raw) do
+    process_outgoing(state, raw)
+    {:noreply, %{state | txb: state.txb + byte_size(raw)}}
+  end
+
   def handle_info(_msg, state) do
     {:noreply, state}
   end
@@ -936,6 +941,16 @@ defmodule RNS.Interfaces.TCPServerInterface do
     if state.hash do
       :ets.insert(:rns_interfaces, {state.hash, %{state | pid: self()}})
     end
+
+    {:noreply, state}
+  end
+
+  def handle_info({:process_outgoing, raw}, state) when is_binary(raw) do
+    Enum.each(state.spawned_interfaces, fn pid ->
+      if is_pid(pid) and Process.alive?(pid) do
+        send(pid, {:process_outgoing, raw})
+      end
+    end)
 
     {:noreply, state}
   end
