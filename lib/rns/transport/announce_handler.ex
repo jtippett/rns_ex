@@ -123,7 +123,7 @@ defmodule RNS.Transport.AnnounceHandler do
   """
   @spec check_announce_rate(binary(), map()) :: {boolean(), map() | nil}
   def check_announce_rate(destination_hash, interface) do
-    if interface[:announce_rate_target] == nil do
+    if Map.get(interface, :announce_rate_target) == nil do
       {false, nil}
     else
       now = System.system_time(:second)
