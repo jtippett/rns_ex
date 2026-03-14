@@ -524,6 +524,36 @@ defmodule RNS.Interfaces.Interface do
   def default_announce_cap, do: @default_announce_cap
   def queued_announce_life, do: @queued_announce_life
 
+  @doc """
+  Delivers inbound data to Transport for processing, then notifies the
+  owner (if configured). This is the standard inbound data path — every
+  interface should call this from process_incoming/2.
+  """
+  @spec deliver_to_transport(binary(), map()) :: :ok
+  def deliver_to_transport(data, interface_state) do
+    RNS.Transport.inbound(data, interface_state)
+
+    if interface_state.owner do
+      notify_owner(interface_state.owner, data, interface_state)
+    end
+
+    :ok
+  end
+
+  defp notify_owner(pid, data, interface) when is_pid(pid) do
+    send(pid, {:interface_data, data, interface})
+  end
+
+  defp notify_owner({module, fun}, data, interface) when is_atom(module) and is_atom(fun) do
+    apply(module, fun, [data, interface])
+  end
+
+  defp notify_owner(fun, data, interface) when is_function(fun, 2) do
+    fun.(data, interface)
+  end
+
+  defp notify_owner(_, _data, _interface), do: :ok
+
   # ── HDLC framing helpers ───────────────────────────────────────────
 
   defmodule HDLC do

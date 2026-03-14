@@ -876,6 +876,61 @@ defmodule RNS.Interfaces.InterfaceTest do
     end
   end
 
+  # ── deliver_to_transport/2 ─────────────────────────────────────────
+
+  describe "deliver_to_transport/2" do
+    test "calls Transport.inbound with data and interface state" do
+      iface = new_interface(%{name: "TestInterface[deliver]", hash: :crypto.strong_rand_bytes(32), owner: nil})
+      data = :crypto.strong_rand_bytes(64)
+
+      # Transport.inbound is a module function that accesses ETS tables.
+      # With tables available (they're created by Transport GenServer in test env),
+      # it should return :ok or :dropped — not crash.
+      result = Interface.deliver_to_transport(data, iface)
+      assert result == :ok
+    end
+
+    test "notifies pid owner with {:interface_data, data, state}" do
+      iface = new_interface(%{
+        name: "TestInterface[owner_pid]",
+        hash: :crypto.strong_rand_bytes(32),
+        owner: self()
+      })
+      data = <<1, 2, 3>>
+
+      Interface.deliver_to_transport(data, iface)
+      assert_receive {:interface_data, ^data, ^iface}, 500
+    end
+
+    test "notifies function owner" do
+      test_pid = self()
+      callback = fn received_data, received_iface ->
+        send(test_pid, {:callback_hit, received_data, received_iface})
+      end
+      iface = new_interface(%{
+        name: "TestInterface[owner_fn]",
+        hash: :crypto.strong_rand_bytes(32),
+        owner: callback
+      })
+      data = <<4, 5, 6>>
+
+      Interface.deliver_to_transport(data, iface)
+      assert_receive {:callback_hit, ^data, ^iface}, 500
+    end
+
+    test "does not crash when owner is nil" do
+      iface = new_interface(%{
+        name: "TestInterface[no_owner]",
+        hash: :crypto.strong_rand_bytes(32),
+        owner: nil
+      })
+      data = <<7, 8, 9>>
+
+      # Should not crash
+      assert Interface.deliver_to_transport(data, iface) == :ok
+    end
+  end
+
   # ── AnnounceQueueEntry struct ──────────────────────────────────────
 
   describe "AnnounceQueueEntry" do
