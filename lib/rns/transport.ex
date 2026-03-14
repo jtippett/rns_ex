@@ -491,8 +491,10 @@ defmodule RNS.Transport do
   """
   @spec subscribe(atom()) :: :ok | {:error, :invalid_topic}
   def subscribe(topic) when topic in @valid_topics do
-    {:ok, _} = Registry.register(RNS.Transport.Registry, topic, [])
-    :ok
+    case Registry.register(RNS.Transport.Registry, topic, []) do
+      {:ok, _} -> :ok
+      {:error, {:already_registered, _}} -> :ok
+    end
   end
 
   def subscribe(_topic), do: {:error, :invalid_topic}

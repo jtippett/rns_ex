@@ -27,6 +27,12 @@ defmodule RNS.Transport.PubSubTest do
     test "subscribe with invalid topic returns error" do
       assert {:error, :invalid_topic} = RNS.Transport.subscribe(:bogus)
     end
+
+    test "subscribe is idempotent (calling twice does not crash)" do
+      :ok = RNS.Transport.subscribe(:announces)
+      :ok = RNS.Transport.subscribe(:announces)
+      assert Registry.lookup(RNS.Transport.Registry, :announces) != []
+    end
   end
 
   describe "announce notifications" do
