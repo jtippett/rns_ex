@@ -16,6 +16,21 @@ defmodule RNS.Destination do
   use RNS.Constants.Packet
   use RNS.Constants.Destination
 
+  defmodule RequestHandler do
+    @moduledoc """
+    A registered request handler for a destination path.
+    """
+    @type t :: %__MODULE__{
+            path: String.t(),
+            response_generator: function(),
+            allow: atom(),
+            allowed_list: [binary()] | nil,
+            auto_compress: boolean()
+          }
+
+    defstruct [:path, :response_generator, :allow, :allowed_list, auto_compress: true]
+  end
+
   @types [@single, @group, @plain, @link]
   @proof_strategies [@prove_none, @prove_app, @prove_all]
   @request_policies [@allow_none, @allow_all, @allow_list]
@@ -885,7 +900,7 @@ defmodule RNS.Destination do
 
     path_hash = Identity.truncated_hash(path)
 
-    handler = %{
+    handler = %RequestHandler{
       path: path,
       response_generator: response_generator,
       allow: allow,

@@ -1407,7 +1407,7 @@ defmodule RNS.Link do
 
     if dest && Map.has_key?(dest, :request_handlers) &&
          Map.has_key?(dest.request_handlers, path_hash) do
-      %{
+      %RNS.Destination.RequestHandler{
         path: path,
         response_generator: response_generator,
         allow: allow,
