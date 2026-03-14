@@ -1131,22 +1131,21 @@ defmodule RNS.Reticulum do
 
       Logger.info("Bringing up system interfaces...")
 
-      seen_names = MapSet.new()
+      {_seen, final_state} =
+        Enum.reduce(interface_names, {MapSet.new(), state}, fn name, {seen, acc_state} ->
+          if MapSet.member?(seen, name) do
+            Logger.error(
+              "The interface name \"#{name}\" was already used. Check your configuration file for errors!"
+            )
 
-      Enum.reduce(interface_names, state, fn name, acc_state ->
-        if MapSet.member?(seen_names, name) do
-          Logger.error(
-            "The interface name \"#{name}\" was already used. Check your configuration file for errors!"
-          )
+            {seen, acc_state}
+          else
+            new_state = synthesize_interface(acc_state, Section.get(interfaces_section, name), name)
+            {MapSet.put(seen, name), new_state}
+          end
+        end)
 
-          acc_state
-        else
-          # seen_names tracking happens across iterations but we don't mutate it
-          # since ConfigObj already enforces unique section names
-          interface_config = Section.get(interfaces_section, name)
-          synthesize_interface(acc_state, interface_config, name)
-        end
-      end)
+      final_state
     else
       state
     end
