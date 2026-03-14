@@ -113,7 +113,10 @@ defmodule RNS.Interfaces.Interface do
       ifac_key: nil,
 
       # Interface hash (cached)
-      hash: nil
+      hash: nil,
+
+      # Process identity (set in init, used by Transport for outgoing)
+      pid: nil
     ]
   end
 
