@@ -1548,6 +1548,9 @@ defmodule RNS.Transport do
   """
   @spec inbound(binary(), map() | nil, keyword()) :: :ok | :dropped
   def inbound(raw, interface, opts \\ []) do
+    # Ensure transport_enabled reflects actual Transport state, not caller defaults
+    opts = Keyword.put_new_lazy(opts, :transport_enabled, fn -> transport_enabled?() end)
+
     # Validate minimum packet length
     if byte_size(raw) <= 2 do
       :dropped
