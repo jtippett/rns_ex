@@ -404,29 +404,11 @@ defmodule RNS.Transport.AnnounceHandler do
 
     transport_id = if transport_identity, do: transport_identity.hash, else: nil
 
-    # Build a destination stub for Packet.new
-    announce_identity = RNS.Identity.recall(destination_hash)
-
-    destination = %{
-      hash: destination_hash,
-      type: 0x00,
-      mtu: nil
-    }
-
-    # If identity is available, use a proper outbound destination
-    destination =
-      if announce_identity do
-        RNS.Destination.new(
-          announce_identity,
-          RNS.Destination.direction_out(),
-          RNS.Destination.single(),
-          "unknown",
-          ["unknown"]
-        )
-        |> Map.put(:hash, destination_hash)
-      else
-        destination
-      end
+    # Lightweight destination stub — only :hash, :type, and :mtu are read
+    # by Packet.new/3. Do NOT use Destination.new here because it calls
+    # Transport.register_destination (a GenServer.call), and this function
+    # runs inside Transport's handle_info.
+    destination = %{hash: destination_hash, type: 0x00, mtu: nil}
 
     packet =
       RNS.Packet.new(
