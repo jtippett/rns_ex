@@ -2279,6 +2279,16 @@ defmodule RNS.Transport do
     GenServer.cast(__MODULE__, :start_jobs)
   end
 
+  @doc """
+  Ensures Transport periodic jobs are running. Idempotent — safe to call
+  multiple times. Used by Reticulum.add_interface/2 to auto-start jobs
+  in start_network: false mode.
+  """
+  @spec ensure_jobs_started() :: :ok
+  def ensure_jobs_started do
+    GenServer.cast(__MODULE__, :start_jobs)
+  end
+
   # ── GenServer Callbacks ───────────────────────────────────────────────
 
   @impl true

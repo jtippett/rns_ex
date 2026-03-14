@@ -2180,33 +2180,33 @@ defmodule RNS.TransportTest do
       assert is_binary(identity.sig_prv_bytes)
     end
 
-    test "transport identity persists to disk" do
+    test "transport identity persists to disk and survives reconfigure" do
+      # Use a dedicated temp dir to avoid races with other test modules
+      # that reconfigure Transport concurrently.
+      tmp_dir = System.tmp_dir!() |> Path.join("rns_test_persist_#{:rand.uniform(999_999)}")
+      File.mkdir_p!(tmp_dir)
+      original_state = GenServer.call(RNS.Reticulum, :get_state)
+
+      on_exit(fn ->
+        Transport.configure(storage_path: original_state.storagepath, cachepath: original_state.cachepath)
+        File.rm_rf!(tmp_dir)
+      end)
+
+      # Configure with our isolated temp dir (creates or loads identity)
+      Transport.configure(storage_path: tmp_dir)
       identity = Transport.identity()
-      reticulum_state = GenServer.call(RNS.Reticulum, :get_state)
-      identity_path = Path.join(reticulum_state.storagepath, "transport_identity")
+
+      identity_path = Path.join(tmp_dir, "transport_identity")
       assert File.exists?(identity_path)
 
-      # Loading the file should produce an identity with the same hash
       loaded = RNS.Identity.from_file(identity_path)
       assert loaded != nil
       assert loaded.hash == identity.hash
-    end
 
-    test "transport identity survives reconfigure" do
-      identity_before = Transport.identity()
-      assert identity_before != nil
-
-      # Reconfigure with the same storage path
-      reticulum_state = GenServer.call(RNS.Reticulum, :get_state)
-
-      Transport.configure(
-        storage_path: reticulum_state.storagepath,
-        cachepath: reticulum_state.cachepath
-      )
-
+      # Reconfigure with the same path — identity should survive
+      Transport.configure(storage_path: tmp_dir)
       identity_after = Transport.identity()
-      # Should load the same identity from disk
-      assert identity_after.hash == identity_before.hash
+      assert identity_after.hash == identity.hash
     end
 
     test "transport identity is created fresh when no file exists" do

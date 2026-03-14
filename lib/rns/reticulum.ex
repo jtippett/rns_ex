@@ -398,6 +398,12 @@ defmodule RNS.Reticulum do
         }
 
         register_interface_with_transport(pid, post_init)
+
+        # Auto-start Transport jobs if not already running, so consumers
+        # don't have to know about Transport.start_jobs() when using
+        # start_network: false mode.
+        RNS.Transport.ensure_jobs_started()
+
         {:ok, pid}
 
       {:error, reason} ->
@@ -703,6 +709,19 @@ defmodule RNS.Reticulum do
         started_interfaces: [],
         blackholed_identities: %{}
       })
+
+    # Allow app env to override transport_enabled from config file.
+    # When start_network: false, default to true — consumers who manually
+    # wire interfaces clearly want Transport to process their data.
+    transport_enabled_override =
+      Application.get_env(:rns_ex, :transport_enabled, if(skip_start, do: true, else: nil))
+
+    state =
+      if transport_enabled_override != nil do
+        %{state | transport_enabled: transport_enabled_override}
+      else
+        state
+      end
 
     # Always configure Transport so it can process packets
     configure_transport(state)
