@@ -11,6 +11,8 @@ defmodule RNS.Discovery do
   - `BlackholeUpdater` — network blackhole detection and distribution
   """
 
+  require Logger
+
   # ── Field identifier constants (matching Python's module-level constants) ──
 
   @name 0xFF
@@ -975,7 +977,9 @@ defmodule RNS.Discovery.InterfaceDiscovery do
           if should_include, do: [info | acc], else: acc
         end
       rescue
-        _ -> acc
+        e ->
+          Logger.debug("Discovery entry processing failed: #{inspect(e)}")
+          acc
       end
     end)
     |> Enum.sort_by(

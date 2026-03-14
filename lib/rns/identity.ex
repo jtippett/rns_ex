@@ -10,6 +10,8 @@ defmodule RNS.Identity do
   public keys.
   """
 
+  require Logger
+
   alias RNS.Cryptography.Ed25519
   alias RNS.Cryptography.Hashes
   alias RNS.Cryptography.HKDF
@@ -140,7 +142,9 @@ defmodule RNS.Identity do
 
     {:ok, updated}
   rescue
-    e -> {:error, e}
+    e ->
+      Logger.debug("Failed to load private key: #{inspect(e)}")
+      {:error, e}
   end
 
   def load_private_key(%__MODULE__{}, _), do: {:error, :invalid_key_length}
@@ -366,19 +370,25 @@ defmodule RNS.Identity do
   defp safe_from_private(bytes) do
     {:ok, X25519.from_private_bytes(bytes)}
   rescue
-    e -> {:error, {:key_load, e}}
+    e ->
+      Logger.debug("X25519 key load failed: #{inspect(e)}")
+      {:error, {:key_load, e}}
   end
 
   defp safe_exchange(kp, pub_bytes) do
     {:ok, X25519.exchange(kp, pub_bytes)}
   rescue
-    e -> {:error, {:exchange, e}}
+    e ->
+      Logger.debug("X25519 key exchange failed: #{inspect(e)}")
+      {:error, {:exchange, e}}
   end
 
   defp safe_decrypt(id, shared_key, ciphertext) do
     {:ok, do_decrypt(id, shared_key, ciphertext)}
   rescue
-    e -> {:error, {:decrypt, e}}
+    e ->
+      Logger.debug("Token decryption failed: #{inspect(e)}")
+      {:error, {:decrypt, e}}
   end
 
   defp do_decrypt(id, shared_key, ciphertext) do
@@ -442,9 +452,17 @@ defmodule RNS.Identity do
     # Broad rescue is intentional: announce validation must never crash the caller.
     # Binary pattern match failures (MatchError) and crypto errors are both expected
     # when processing malformed or adversarial announce packets.
-    MatchError -> false
-    ArgumentError -> false
-    _ -> false
+    e in [MatchError] ->
+      Logger.debug("Announce validation failed (match error): #{inspect(e)}")
+      false
+
+    e in [ArgumentError] ->
+      Logger.debug("Announce validation failed (argument error): #{inspect(e)}")
+      false
+
+    e ->
+      Logger.debug("Announce validation failed: #{inspect(e)}")
+      false
   end
 
   # --- Hash helpers ---

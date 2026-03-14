@@ -22,6 +22,8 @@ defmodule RNS.Utilities.RNSD do
     * `--version` - Print version and exit
   """
 
+  require Logger
+
   @doc """
   Entry point for the rnsd escript and programmatic invocation.
   """
@@ -128,7 +130,9 @@ defmodule RNS.Utilities.RNSD do
       try do
         RNS.Reticulum.is_connected_to_shared_instance?()
       rescue
-        _ -> false
+        e ->
+          Logger.debug("Shared instance check failed: #{inspect(e)}")
+          false
       end
 
     version = RNS.Version.version()

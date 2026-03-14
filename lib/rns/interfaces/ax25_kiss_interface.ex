@@ -628,7 +628,9 @@ defmodule RNS.Interfaces.AX25KISSInterface do
     Port.command(ref, data)
     :ok
   rescue
-    _ -> {:error, :write_failed}
+    e ->
+      Logger.warning("AX.25 port write failed: #{inspect(e)}")
+      {:error, :write_failed}
   end
 
   defp do_write(%{skip_open: true}, _data), do: :ok
@@ -644,13 +646,17 @@ defmodule RNS.Interfaces.AX25KISSInterface do
     Circuits.UART.close(pid)
     Circuits.UART.stop(pid)
   rescue
-    _ -> :ok
+    e ->
+      Logger.debug("AX.25 UART close failed (may already be closed): #{inspect(e)}")
+      :ok
   end
 
   defp close_port(%{backend: :port, port_ref: ref}) when ref != nil do
     Port.close(ref)
   rescue
-    _ -> :ok
+    e ->
+      Logger.debug("AX.25 port close failed (may already be closed): #{inspect(e)}")
+      :ok
   end
 
   defp close_port(_), do: :ok

@@ -609,8 +609,13 @@ defmodule RNS.Destination do
             # binary_to_term raises ArgumentError on malformed data.
             # MatchError occurs if the deserialized term doesn't match {signature, packed}.
             # Both indicate a corrupt ratchets file — fall back to empty ratchets.
-            ArgumentError -> %{dest | ratchets: []}
-            MatchError -> %{dest | ratchets: []}
+            e in [ArgumentError] ->
+              Logger.warning("Corrupt ratchets file at #{path}, resetting: #{inspect(e)}")
+              %{dest | ratchets: []}
+
+            e in [MatchError] ->
+              Logger.warning("Malformed ratchets data at #{path}, resetting: #{inspect(e)}")
+              %{dest | ratchets: []}
           end
 
         {:error, _} ->
@@ -689,7 +694,9 @@ defmodule RNS.Destination do
   rescue
     # Token.decrypt raises ArgumentError on HMAC failure or decryption errors.
     # Return nil to signal decryption failure to callers.
-    ArgumentError -> nil
+    e in [ArgumentError] ->
+      Logger.debug("Group decryption failed (HMAC mismatch): #{inspect(e)}")
+      nil
   end
 
   # ── Signing ─────────────────────────────────────────────────────

@@ -22,6 +22,8 @@ defmodule RNS.RequestReceipt do
   check status, response time, and response data when the request concludes.
   """
 
+  require Logger
+
   # ── Status constants ──────────────────────────────────────────
 
   @failed 0x00
@@ -178,7 +180,9 @@ defmodule RNS.RequestReceipt do
       try do
         updated.callbacks.failed.(updated)
       rescue
-        _ -> :ok
+        e ->
+          Logger.warning("Request receipt failed callback raised: #{inspect(e)}")
+          :ok
       end
     end
 
@@ -208,7 +212,9 @@ defmodule RNS.RequestReceipt do
       try do
         updated.callbacks.progress.(updated)
       rescue
-        _ -> :ok
+        e ->
+          Logger.warning("Request receipt progress callback raised: #{inspect(e)}")
+          :ok
       end
     end
 
@@ -216,7 +222,9 @@ defmodule RNS.RequestReceipt do
       try do
         updated.callbacks.response.(updated)
       rescue
-        _ -> :ok
+        e ->
+          Logger.warning("Request receipt response callback raised: #{inspect(e)}")
+          :ok
       end
     end
 
@@ -240,7 +248,9 @@ defmodule RNS.RequestReceipt do
       try do
         updated.callbacks.progress.(updated)
       rescue
-        _ -> :ok
+        e ->
+          Logger.warning("Request receipt resource progress callback raised: #{inspect(e)}")
+          :ok
       end
     end
 

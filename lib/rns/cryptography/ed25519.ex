@@ -5,6 +5,8 @@ defmodule RNS.Cryptography.Ed25519 do
   Wraps the `eddy` hex package to provide Ed25519 signing and verification.
   """
 
+  require Logger
+
   @key_length 32
   @sig_length 64
 
@@ -104,7 +106,9 @@ defmodule RNS.Cryptography.Ed25519 do
     end
   rescue
     # Eddy raises WithClauseError when signature contains invalid curve points
-    _ -> false
+    e ->
+      Logger.debug("Ed25519 verification failed (invalid curve point): #{inspect(e)}")
+      false
   end
 
   def verify(_signature, _message, _pub_bytes), do: false

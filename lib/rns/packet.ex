@@ -6,6 +6,8 @@ defmodule RNS.Packet do
   automatically encrypted when addressed to SINGLE, GROUP, or LINK destinations.
   """
 
+  require Logger
+
   import Bitwise
 
   use RNS.Constants.Packet
@@ -366,7 +368,9 @@ defmodule RNS.Packet do
 
     update_hash(packet)
   rescue
-    _ -> false
+    e ->
+      Logger.debug("Packet unpacking failed: #{inspect(e)}")
+      false
   end
 
   # ── Hash computation ─────────────────────────────────────────────

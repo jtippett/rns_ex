@@ -182,9 +182,15 @@ defmodule RNS.Interfaces.Interface do
     RNS.Transport.deregister_interface(%{hash: iface_hash})
     :ok
   rescue
-    _ -> :ok
+    e ->
+      require Logger
+      Logger.debug("Interface deregister on terminate failed: #{inspect(e)}")
+      :ok
   catch
-    :exit, _ -> :ok
+    :exit, reason ->
+      require Logger
+      Logger.debug("Interface deregister on terminate exited: #{inspect(reason)}")
+      :ok
   end
 
   @doc """

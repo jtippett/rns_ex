@@ -122,6 +122,8 @@ defmodule RNS.Link do
   resource management, and watchdog checks (Task 5.3).
   """
 
+  require Logger
+
   import Bitwise
 
   alias RNS.Cryptography.Ed25519
@@ -380,7 +382,9 @@ defmodule RNS.Link do
     token = get_or_create_token(link)
     {:ok, Token.encrypt(token, plaintext)}
   rescue
-    e -> {:error, e}
+    e ->
+      Logger.debug("Link encryption failed: #{inspect(e)}")
+      {:error, e}
   end
 
   @doc "Decrypts ciphertext using the link's derived key."
@@ -390,7 +394,9 @@ defmodule RNS.Link do
     plaintext = Token.decrypt(token, ciphertext)
     {:ok, plaintext}
   rescue
-    e -> {:error, e}
+    e ->
+      Logger.debug("Link decryption failed: #{inspect(e)}")
+      {:error, e}
   end
 
   defp get_or_create_token(%__MODULE__{crypto: %CryptoState{token: %Token{} = token}}), do: token
@@ -415,7 +421,9 @@ defmodule RNS.Link do
       ) do
     Ed25519.verify(signature, message, peer_sig_pub_bytes)
   rescue
-    _ -> false
+    e ->
+      Logger.debug("Link signature validation failed: #{inspect(e)}")
+      false
   end
 
   # ── Update MDU ──────────────────────────────────────────────────
@@ -530,7 +538,9 @@ defmodule RNS.Link do
       error -> error
     end
   rescue
-    e -> {:error, e}
+    e ->
+      Logger.debug("Link request validation failed: #{inspect(e)}")
+      {:error, e}
   end
 
   # ── Validate proof (initiator side) ─────────────────────────────
@@ -592,6 +602,7 @@ defmodule RNS.Link do
     end
   rescue
     e ->
+      Logger.debug("Link proof validation failed: #{inspect(e)}")
       {:error, e}
   end
 
@@ -646,7 +657,9 @@ defmodule RNS.Link do
         {:error, reason}
     end
   rescue
-    e -> {:error, e}
+    e ->
+      Logger.debug("Link handshake failed: #{inspect(e)}")
+      {:error, e}
   end
 
   # ── Update keepalive ────────────────────────────────────────────
@@ -1003,7 +1016,9 @@ defmodule RNS.Link do
         {:error, reason}
     end
   rescue
-    _ -> {:error, :decryption_failed}
+    e ->
+      Logger.debug("Link teardown packet decryption failed: #{inspect(e)}")
+      {:error, :decryption_failed}
   end
 
   # ── Link closed (internal cleanup) ─────────────────────────────
@@ -1203,7 +1218,9 @@ defmodule RNS.Link do
         {:ok, link, []}
     end
   rescue
-    _ -> {:ok, link, []}
+    e ->
+      Logger.debug("Link request packet processing failed: #{inspect(e)}")
+      {:ok, link, []}
   end
 
   defp do_receive_packet(link, packet, :data, :response) do
@@ -1221,7 +1238,9 @@ defmodule RNS.Link do
         {:ok, link, []}
     end
   rescue
-    _ -> {:ok, link, []}
+    e ->
+      Logger.debug("Link response packet processing failed: #{inspect(e)}")
+      {:ok, link, []}
   end
 
   defp do_receive_packet(link, packet, :data, :lrrtt) do
@@ -1356,7 +1375,9 @@ defmodule RNS.Link do
               actions
             end
           rescue
-            _ -> actions
+            e ->
+              Logger.warning("Link proof_requested callback raised: #{inspect(e)}")
+              actions
           end
 
         true ->

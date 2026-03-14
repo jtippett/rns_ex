@@ -1109,14 +1109,18 @@ defmodule RNS.Interfaces.I2PInterfacePeer do
           :inet.setopts(socket, [{:raw, 6, 5, <<@i2p_probe_interval::native-32>>}])
           :inet.setopts(socket, [{:raw, 6, 6, <<@i2p_probes::native-32>>}])
         rescue
-          _ -> :ok
+          e ->
+            Logger.debug("I2P TCP keepalive setup (Linux): #{inspect(e)}")
+            :ok
         end
 
       {:unix, :darwin} ->
         try do
           :inet.setopts(socket, [{:raw, 6, 0x10, <<@i2p_probe_after::native-32>>}])
         rescue
-          _ -> :ok
+          e ->
+            Logger.debug("I2P TCP keepalive setup (macOS): #{inspect(e)}")
+            :ok
         end
 
       _ ->
@@ -1145,17 +1149,25 @@ defmodule RNS.Interfaces.I2PInterfacePeer do
     try do
       :gen_tcp.shutdown(socket, :read_write)
     rescue
-      _ -> :ok
+      e ->
+        Logger.debug("I2P socket shutdown: #{inspect(e)}")
+        :ok
     catch
-      _, _ -> :ok
+      _, reason ->
+        Logger.debug("I2P socket shutdown caught: #{inspect(reason)}")
+        :ok
     end
 
     try do
       :gen_tcp.close(socket)
     rescue
-      _ -> :ok
+      e ->
+        Logger.debug("I2P socket close: #{inspect(e)}")
+        :ok
     catch
-      _, _ -> :ok
+      _, reason ->
+        Logger.debug("I2P socket close caught: #{inspect(reason)}")
+        :ok
     end
   end
 

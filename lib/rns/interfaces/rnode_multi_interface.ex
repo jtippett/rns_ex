@@ -906,13 +906,17 @@ defmodule RNS.Interfaces.RNodeMultiInterface do
     Circuits.UART.close(pid)
     Circuits.UART.stop(pid)
   rescue
-    _ -> :ok
+    e ->
+      Logger.debug("RNodeMulti UART close failed (may already be closed): #{inspect(e)}")
+      :ok
   end
 
   defp close_port(%{backend: :port, port_ref: ref}) when is_port(ref) do
     Port.close(ref)
   rescue
-    _ -> :ok
+    e ->
+      Logger.debug("RNodeMulti port close failed (may already be closed): #{inspect(e)}")
+      :ok
   end
 
   defp close_port(_state), do: :ok
@@ -1152,7 +1156,9 @@ defmodule RNS.Interfaces.RNodeSubInterface do
   def calculate_bitrate(sf, cr, bw) when sf > 0 and cr > 0 and bw > 0 do
     sf * (4.0 / cr / (:math.pow(2, sf) / (bw / 1000))) * 1000
   rescue
-    _ -> 0.0
+    e ->
+      Logger.debug("Bitrate calculation failed (sf=#{sf}, cr=#{cr}, bw=#{bw}): #{inspect(e)}")
+      0.0
   end
 
   def calculate_bitrate(_, _, _), do: 0.0
@@ -1175,7 +1181,9 @@ defmodule RNS.Interfaces.RNodeSubInterface do
       true -> quality
     end
   rescue
-    _ -> nil
+    e ->
+      Logger.debug("Signal quality calculation failed: #{inspect(e)}")
+      nil
   end
 
   @doc "Update bitrate based on reported radio parameters."

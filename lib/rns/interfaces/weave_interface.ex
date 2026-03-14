@@ -1177,7 +1177,9 @@ defmodule RNS.Interfaces.WeaveInterface.WeaveDevice do
 
           %{device | active_tasks: active_tasks}
         rescue
-          _ -> device
+          e ->
+            Logger.debug("Weave task stat parsing failed: #{inspect(e)}")
+            device
         end
 
       frame.event == Evt.et_stat_cpu() and byte_size(frame.data) >= 1 ->

@@ -3090,9 +3090,13 @@ defmodule RNS.Transport do
   defp blackhole_list_handler(_data, _context) do
     GenServer.call(__MODULE__, :blackholed_identities)
   rescue
-    _ -> nil
+    e ->
+      Logger.warning("Blackhole list handler failed: #{inspect(e)}")
+      nil
   catch
-    :exit, _ -> nil
+    :exit, reason ->
+      Logger.warning("Blackhole list handler exited: #{inspect(reason)}")
+      nil
   end
 
   # ── Periodic Job Logic ────────────────────────────────────────────────
@@ -3168,7 +3172,9 @@ defmodule RNS.Transport do
             try do
               receipt.callbacks.timeout.(receipt)
             rescue
-              _ -> :ok
+              e ->
+                Logger.warning("Receipt timeout callback raised: #{inspect(e)}")
+                :ok
             end
           end
 

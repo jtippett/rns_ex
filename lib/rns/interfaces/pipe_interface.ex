@@ -284,7 +284,9 @@ defmodule RNS.Interfaces.PipeInterface do
     Port.command(ref, data)
     :ok
   rescue
-    _ -> {:error, :write_failed}
+    e ->
+      Logger.warning("Pipe write failed: #{inspect(e)}")
+      {:error, :write_failed}
   end
 
   defp do_write(_, _data), do: {:error, :no_pipe}
@@ -292,7 +294,9 @@ defmodule RNS.Interfaces.PipeInterface do
   defp close_pipe(%{port_ref: ref}) when is_port(ref) do
     Port.close(ref)
   rescue
-    _ -> :ok
+    e ->
+      Logger.debug("Pipe close failed (may already be closed): #{inspect(e)}")
+      :ok
   end
 
   defp close_pipe(_), do: :ok
