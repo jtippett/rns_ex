@@ -566,6 +566,7 @@ defmodule RNS.Interfaces.AX25KISSInterface do
     if Code.ensure_loaded?(Circuits.UART), do: :circuits_uart, else: :port
   end
 
+  @dialyzer {:nowarn_function, open_port: 1}
   defp open_port(%{backend: :circuits_uart} = state) do
     case Circuits.UART.start_link() do
       {:ok, pid} ->
@@ -618,6 +619,7 @@ defmodule RNS.Interfaces.AX25KISSInterface do
   defp stopbits_to_stty(2), do: "cstopb"
   defp stopbits_to_stty(_), do: "-cstopb"
 
+  @dialyzer {:nowarn_function, do_write: 2}
   defp do_write(%{backend: :circuits_uart, uart_pid: pid}, data) when pid != nil do
     Circuits.UART.write(pid, data)
   end
@@ -637,6 +639,7 @@ defmodule RNS.Interfaces.AX25KISSInterface do
     do_write(state, <<KISS.fend(), command, value, KISS.fend()>>)
   end
 
+  @dialyzer {:nowarn_function, close_port: 1}
   defp close_port(%{backend: :circuits_uart, uart_pid: pid}) when pid != nil do
     Circuits.UART.close(pid)
     Circuits.UART.stop(pid)

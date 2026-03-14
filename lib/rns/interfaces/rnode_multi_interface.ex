@@ -694,6 +694,7 @@ defmodule RNS.Interfaces.RNodeMultiInterface do
     end
   end
 
+  @dialyzer {:nowarn_function, open_serial: 1}
   defp open_serial(state) do
     backend = if circuits_uart_available?(), do: :circuits_uart, else: :port
 
@@ -854,6 +855,7 @@ defmodule RNS.Interfaces.RNodeMultiInterface do
     end
   end
 
+  @dialyzer {:nowarn_function, do_write: 2}
   defp do_write(%{backend: :circuits_uart, uart_pid: pid}, data) do
     Circuits.UART.write(pid, data)
   end
@@ -899,6 +901,7 @@ defmodule RNS.Interfaces.RNodeMultiInterface do
     %{state | online: false, detached: true}
   end
 
+  @dialyzer {:nowarn_function, close_port: 1}
   defp close_port(%{backend: :circuits_uart, uart_pid: pid}) when pid != nil do
     Circuits.UART.close(pid)
     Circuits.UART.stop(pid)
