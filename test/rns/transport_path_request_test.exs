@@ -3,6 +3,7 @@ defmodule RNS.Transport.PathRequestTest do
 
   alias RNS.Transport
   alias RNS.Transport.AnnounceHandler
+  alias RNS.Transport.DiscoveryRequest
 
   # ── Setup ──────────────────────────────────────────────────────────
 
@@ -73,12 +74,12 @@ defmodule RNS.Transport.PathRequestTest do
 
       :ets.insert(:rns_discovery_path_requests, {
         expired_hash,
-        %{timeout: now - 10, requesting_interface: nil}
+        %DiscoveryRequest{timeout: now - 10, requesting_interface: nil}
       })
 
       :ets.insert(:rns_discovery_path_requests, {
         valid_hash,
-        %{timeout: now + 100, requesting_interface: nil}
+        %DiscoveryRequest{timeout: now + 100, requesting_interface: nil}
       })
 
       Transport.cull_discovery_path_requests(now)

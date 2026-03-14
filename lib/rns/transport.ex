@@ -285,6 +285,20 @@ defmodule RNS.Transport do
     defstruct [:timestamp, :next_hop, :hops, :expires, :random_blobs, :interface, :packet_hash]
   end
 
+  # ── DiscoveryRequest struct ─────────────────────────────────────────────
+
+  defmodule DiscoveryRequest do
+    @moduledoc """
+    A pending discovery path request, tracking timeout and requesting interface.
+    """
+    @type t :: %__MODULE__{
+            timeout: non_neg_integer(),
+            requesting_interface: map() | nil
+          }
+
+    defstruct [:timeout, :requesting_interface]
+  end
+
   # ── LinkEntry struct ──────────────────────────────────────────────────
 
   defmodule LinkEntry do
@@ -2878,7 +2892,7 @@ defmodule RNS.Transport do
             "Discovering unknown path to #{RNS.prettyhexrep(destination_hash)}#{interface_str}"
           )
 
-          pr_entry = %{
+          pr_entry = %DiscoveryRequest{
             timeout: System.system_time(:second) + @path_request_timeout,
             requesting_interface: attached_interface
           }
