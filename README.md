@@ -247,6 +247,22 @@ These wire-critical constants match the Python reference implementation exactly:
 | Plain MDU | ~463 bytes |
 | Link MDU | ~383 bytes |
 
+## Configuration
+
+```elixir
+# config/config.exs
+
+# Skip auto-starting interfaces from config (for programmatic use)
+config :rns_ex, start_network: false
+
+# Override transport_enabled regardless of config file
+config :rns_ex, transport_enabled: true
+
+# Enable verbose logging for malformed packets and crypto failures
+# (requires recompilation — these are suppressed by default)
+config :rns_ex, verbose_logging: true
+```
+
 ## Development
 
 ```bash

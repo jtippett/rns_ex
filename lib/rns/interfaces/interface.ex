@@ -569,6 +569,52 @@ defmodule RNS.Interfaces.Interface do
     :timer.send_interval(1_000, :refresh_ets)
   end
 
+  @doc """
+  Starts a child interface under the InterfaceSupervisor if available,
+  falling back to a direct start_link when the supervisor isn't running
+  (e.g. in tests or standalone usage).
+  """
+  @spec start_child(module(), keyword()) :: {:ok, pid()} | {:error, term()}
+  def start_child(module, opts) do
+    if Process.whereis(RNS.InterfaceSupervisor) do
+      DynamicSupervisor.start_child(RNS.InterfaceSupervisor, {module, opts})
+    else
+      module.start_link(opts)
+    end
+  end
+
+  @doc """
+  Registers a spawned interface with Transport, if Transport and Reticulum
+  are running. No-op in standalone/test environments.
+  """
+  @spec maybe_register_with_transport(pid(), map()) :: :ok
+  def maybe_register_with_transport(pid, extra_updates \\ %{}) do
+    if Process.whereis(RNS.Reticulum) do
+      RNS.Reticulum.register_interface_with_transport(pid, extra_updates)
+    end
+
+    :ok
+  end
+
+  @doc """
+  Deregisters an interface from Transport by PID. Finds the interface
+  in Transport's ETS table and removes it. No-op if Transport isn't running
+  or the interface isn't registered.
+  """
+  @spec maybe_deregister_by_pid(pid()) :: :ok
+  def maybe_deregister_by_pid(pid) do
+    if Process.whereis(RNS.Transport) != nil and :ets.info(:rns_interfaces) != :undefined do
+      interfaces = RNS.Transport.get_interfaces()
+
+      case Enum.find(interfaces, fn iface -> Map.get(iface, :pid) == pid end) do
+        nil -> :ok
+        iface -> RNS.Transport.deregister_interface(%{hash: Map.get(iface, :hash)})
+      end
+    end
+
+    :ok
+  end
+
   # ── HDLC framing helpers ───────────────────────────────────────────
 
   defmodule HDLC do

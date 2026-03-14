@@ -791,14 +791,7 @@ defmodule RNS.Interfaces.LocalServerInterface do
   end
 
   def handle_info({:DOWN, _ref, :process, pid, _reason}, state) do
-    # Deregister the dead interface from Transport
-    interfaces = RNS.Transport.get_interfaces()
-
-    case Enum.find(interfaces, fn iface -> Map.get(iface, :pid) == pid end) do
-      nil -> :ok
-      iface -> RNS.Transport.deregister_interface(%{hash: Map.get(iface, :hash)})
-    end
-
+    RNS.Interfaces.Interface.maybe_deregister_by_pid(pid)
     spawned = List.delete(state.spawned_interfaces, pid)
     clients = max(state.clients - 1, 0)
     {:noreply, %{state | spawned_interfaces: spawned, clients: clients}}
@@ -938,7 +931,7 @@ defmodule RNS.Interfaces.LocalServerInterface do
       connected_socket: client_socket
     ]
 
-    case DynamicSupervisor.start_child(RNS.InterfaceSupervisor, {RNS.Interfaces.LocalClientInterface, client_opts}) do
+    case RNS.Interfaces.Interface.start_child(RNS.Interfaces.LocalClientInterface, client_opts) do
       {:ok, pid} ->
         # Transfer socket ownership from server to spawned client and activate
         :gen_tcp.controlling_process(client_socket, pid)
@@ -956,7 +949,7 @@ defmodule RNS.Interfaces.LocalServerInterface do
         )
 
         # Register with Transport so it knows about this interface
-        RNS.Reticulum.register_interface_with_transport(pid, %{out: true})
+        RNS.Interfaces.Interface.maybe_register_with_transport(pid, %{out: true})
 
         alive = Enum.filter(state.spawned_interfaces, &Process.alive?/1)
         clients = state.clients + 1
