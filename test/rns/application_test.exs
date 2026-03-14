@@ -118,6 +118,21 @@ defmodule RNS.ApplicationTest do
   end
 
   describe "subsystem configuration (Task 1.2)" do
+    setup do
+      # Re-synchronize subsystem paths with Reticulum's actual state,
+      # since other test modules may have reconfigured them with temp dirs.
+      reticulum_state = GenServer.call(RNS.Reticulum, :get_state)
+      RNS.IdentityStore.configure(reticulum_state.storagepath)
+
+      RNS.Transport.configure(
+        storage_path: reticulum_state.storagepath,
+        cachepath: reticulum_state.cachepath,
+        transport_enabled: reticulum_state.transport_enabled
+      )
+
+      :ok
+    end
+
     test "IdentityStore has been configured with a storage path" do
       storagepath = RNS.IdentityStore.storagepath()
       assert is_binary(storagepath)
