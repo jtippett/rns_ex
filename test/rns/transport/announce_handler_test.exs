@@ -154,6 +154,21 @@ defmodule RNS.Transport.AnnounceHandlerTest do
     end
   end
 
+  describe "extract_name_hash/1" do
+    test "extracts 10-byte name hash from announce packet data" do
+      key_size = div(RNS.Identity.keysize(), 8)
+      name_hash_size = div(RNS.Identity.name_hash_length(), 8)
+
+      public_key = :crypto.strong_rand_bytes(key_size)
+      name_hash = :crypto.strong_rand_bytes(name_hash_size)
+      random_blob = :crypto.strong_rand_bytes(10)
+      extra = :crypto.strong_rand_bytes(20)
+
+      packet = %{data: public_key <> name_hash <> random_blob <> extra}
+      assert AnnounceHandler.extract_name_hash(packet) == name_hash
+    end
+  end
+
   # ── Rate Limiting ─────────────────────────────────────────────────
 
   describe "check_announce_rate/3" do
