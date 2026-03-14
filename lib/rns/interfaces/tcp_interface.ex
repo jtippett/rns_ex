@@ -414,7 +414,7 @@ defmodule RNS.Interfaces.TCPClientInterface do
 
   def handle_info(:refresh_ets, state) do
     if state.hash do
-      :ets.insert(:rns_interfaces, {state.hash, state})
+      :ets.insert(:rns_interfaces, {state.hash, %{state | pid: self()}})
     end
 
     {:noreply, state}
@@ -934,7 +934,7 @@ defmodule RNS.Interfaces.TCPServerInterface do
 
   def handle_info(:refresh_ets, state) do
     if state.hash do
-      :ets.insert(:rns_interfaces, {state.hash, state})
+      :ets.insert(:rns_interfaces, {state.hash, %{state | pid: self()}})
     end
 
     {:noreply, state}
