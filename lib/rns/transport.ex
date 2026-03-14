@@ -385,6 +385,13 @@ defmodule RNS.Transport do
     GenServer.call(__MODULE__, {:register_destination, destination})
   end
 
+  @doc "Updates a previously registered destination in the Transport system."
+  @spec update_destination(map()) :: :ok
+  def update_destination(destination) do
+    :ets.insert(@destinations_table, {destination.hash, destination})
+    :ok
+  end
+
   @doc "Deregisters a destination from the Transport system."
   @spec deregister_destination(map()) :: :ok
   def deregister_destination(destination) do
@@ -585,6 +592,17 @@ defmodule RNS.Transport do
       :ets.insert(@active_links_table, {link.link_id, link})
     end
 
+    :ok
+  end
+
+  @doc """
+  Updates a previously registered link in the Transport system.
+
+  Writes to the active links table (used after receive_packet updates link state).
+  """
+  @spec update_link(map()) :: :ok
+  def update_link(link) do
+    :ets.insert(@active_links_table, {link.link_id, link})
     :ok
   end
 
@@ -1895,10 +1913,9 @@ defmodule RNS.Transport do
       Enum.each(destinations, fn destination ->
         if destination.hash == packet.destination_hash and
              destination.type == packet.destination_type do
-          # Deliver to destination
-          if is_function(Map.get(destination, :receive_packet), 1) do
-            destination.receive_packet.(packet)
-          end
+          # Deliver to destination via module function
+          {_success, updated_dest} = RNS.Destination.receive_packet(destination, packet)
+          update_destination(updated_dest)
         end
       end)
     end
@@ -1917,9 +1934,13 @@ defmodule RNS.Transport do
 
         link ->
           if Map.get(link, :attached_interface) == packet.receiving_interface do
-            if is_function(Map.get(link, :receive), 1) do
-              packet_with_link = Map.put(packet, :link, link)
-              link.receive.(packet_with_link)
+            case RNS.Link.receive_packet(link, packet) do
+              {:ok, updated_link, actions} ->
+                update_link(updated_link)
+                execute_link_actions(actions)
+
+              {:ignored, updated_link} ->
+                update_link(updated_link)
             end
           end
       end
@@ -1930,15 +1951,11 @@ defmodule RNS.Transport do
       Enum.each(destinations, fn destination ->
         if destination.hash == packet.destination_hash and
              destination.type == packet.destination_type do
-          delivered =
-            if is_function(Map.get(destination, :receive_packet), 1) do
-              destination.receive_packet.(packet)
-            else
-              false
-            end
+          {delivered, updated_dest} = RNS.Destination.receive_packet(destination, packet)
+          update_destination(updated_dest)
 
           if delivered do
-            handle_proof_strategy(packet, destination)
+            handle_proof_strategy(packet, updated_dest)
           end
         end
       end)
@@ -1947,22 +1964,48 @@ defmodule RNS.Transport do
     :ok
   end
 
+  defp execute_link_actions(actions) do
+    Enum.each(actions, fn
+      {:callback, fun, args} when is_function(fun) ->
+        try do
+          apply(fun, args)
+        rescue
+          e ->
+            require Logger
+            Logger.error("Error executing link callback: #{inspect(e)}")
+        end
+
+      {:send_proof, _proof_data} ->
+        # Proof sending is handled by the link's own packet infrastructure
+        :ok
+
+      {:send_keepalive_response, _data} ->
+        # Keepalive responses are handled by the link's own packet infrastructure
+        :ok
+
+      {:channel_receive, _plaintext} ->
+        # Channel data delivery is handled within the link
+        :ok
+
+      _ ->
+        :ok
+    end)
+  end
+
   defp handle_proof_strategy(packet, destination) do
     prove_all = 0x23
     prove_app = 0x22
 
     cond do
       Map.get(destination, :proof_strategy) == prove_all ->
-        if is_function(Map.get(packet, :prove), 0) do
-          packet.prove.()
-        end
+        RNS.Packet.prove(packet)
 
       Map.get(destination, :proof_strategy) == prove_app ->
         callback = get_in(destination, [:callbacks, :proof_requested])
 
         if is_function(callback, 1) do
           try do
-            if callback.(packet), do: packet.prove.()
+            if callback.(packet), do: RNS.Packet.prove(packet)
           rescue
             e ->
               Logger.error("Error in proof request callback: #{Exception.message(e)}")
@@ -2039,8 +2082,12 @@ defmodule RNS.Transport do
         if packet.hops == expected_hops or expected_hops == @pathfinder_m do
           mark_packet_hash(packet.packet_hash)
 
-          if is_function(Map.get(link, :validate_proof), 1) do
-            link.validate_proof.(packet)
+          case RNS.Link.validate_proof(link, packet) do
+            {:ok, updated_link} ->
+              update_link(updated_link)
+
+            {:error, _reason} ->
+              :ok
           end
         end
     end
@@ -2073,10 +2120,8 @@ defmodule RNS.Transport do
         end
 
       if validated do
-        if is_function(Map.get(receipt, :validate_proof_packet), 1) do
-          if receipt.validate_proof_packet.(packet) do
-            remove_receipt(receipt.hash)
-          end
+        if RNS.PacketReceipt.validate_proof_packet(receipt, packet) do
+          remove_receipt(receipt.hash)
         end
       end
     end)

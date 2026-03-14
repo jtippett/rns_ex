@@ -1243,7 +1243,7 @@ defmodule RNS.Interfaces.RNodeInterface do
     end
 
     close_port(state)
-    :ok
+    RNS.Interfaces.Interface.deregister_on_terminate(state)
   end
 
   # ── should_ingress_limit ─────────────────────────────────────────

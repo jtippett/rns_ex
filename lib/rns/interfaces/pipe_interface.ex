@@ -252,7 +252,7 @@ defmodule RNS.Interfaces.PipeInterface do
   @impl GenServer
   def terminate(_reason, state) do
     close_pipe(state)
-    :ok
+    RNS.Interfaces.Interface.deregister_on_terminate(state)
   end
 
   # ── should_ingress_limit (always false, matching Python) ─────────

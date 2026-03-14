@@ -491,7 +491,7 @@ defmodule RNS.Interfaces.AX25KISSInterface do
   @impl GenServer
   def terminate(_reason, state) do
     close_port(state)
-    :ok
+    RNS.Interfaces.Interface.deregister_on_terminate(state)
   end
 
   # ── should_ingress_limit (always false, matching Python) ─────────

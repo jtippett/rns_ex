@@ -136,6 +136,9 @@ defmodule RNS.Interfaces.LocalClientInterface do
   @spec stop(GenServer.server()) :: :ok
   def stop(server) do
     GenServer.call(server, :detach)
+    GenServer.stop(server, :normal)
+  catch
+    :exit, _ -> :ok
   end
 
   # ── Behaviour callbacks ───────────────────────────────────────────
@@ -382,7 +385,7 @@ defmodule RNS.Interfaces.LocalClientInterface do
   @impl GenServer
   def terminate(_reason, state) do
     close_socket(state.socket)
-    :ok
+    RNS.Interfaces.Interface.deregister_on_terminate(state)
   end
 
   # ── Private helpers ───────────────────────────────────────────────
@@ -648,6 +651,9 @@ defmodule RNS.Interfaces.LocalServerInterface do
   @spec stop(GenServer.server()) :: :ok
   def stop(server) do
     GenServer.call(server, :detach)
+    GenServer.stop(server, :normal)
+  catch
+    :exit, _ -> :ok
   end
 
   # ── Behaviour callbacks ───────────────────────────────────────────
@@ -825,7 +831,7 @@ defmodule RNS.Interfaces.LocalServerInterface do
       :gen_tcp.close(state.listen_socket)
     end
 
-    :ok
+    RNS.Interfaces.Interface.deregister_on_terminate(state)
   end
 
   # ── Private helpers ───────────────────────────────────────────────

@@ -1826,14 +1826,17 @@ defmodule RNS.ReticulumTest do
       result2 = Reticulum.start_local_interface(state2)
       assert result2.is_connected_to_shared_instance == true
 
-      # Clean up
+      # Clean up — processes may already be dead due to cascading stop
       for iface_pid <- result2.started_interfaces do
         if Process.alive?(iface_pid), do: GenServer.stop(iface_pid)
       end
 
-      GenServer.call(result1.shared_instance_interface, :detach)
-      GenServer.stop(pid1)
-      GenServer.stop(pid2)
+      if Process.alive?(result1.shared_instance_interface) do
+        GenServer.call(result1.shared_instance_interface, :detach)
+      end
+
+      if Process.alive?(pid1), do: GenServer.stop(pid1)
+      if Process.alive?(pid2), do: GenServer.stop(pid2)
       File.rm_rf!(configdir2)
     end
   end

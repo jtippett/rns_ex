@@ -23,6 +23,18 @@ defmodule RNS.Application do
     # CLI utilities store Reticulum opts in Application env before starting
     reticulum_opts = Application.get_env(:rns_ex, :reticulum_opts, [])
 
+    # Library consumers can set `config :rns_ex, start_network: false` to prevent
+    # automatic network startup. This is useful when only crypto/identity/packet
+    # functionality is needed, without starting interfaces or connecting to peers.
+    start_network = Application.get_env(:rns_ex, :start_network, true)
+
+    reticulum_opts =
+      if start_network do
+        reticulum_opts
+      else
+        Keyword.put(reticulum_opts, :skip_start, true)
+      end
+
     children = [
       RNS.IdentityStore,
       RNS.Transport,

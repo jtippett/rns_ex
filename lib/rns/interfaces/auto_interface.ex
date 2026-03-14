@@ -568,7 +568,7 @@ defmodule RNS.Interfaces.AutoInterface do
   @impl GenServer
   def terminate(_reason, state) do
     do_detach(state)
-    :ok
+    RNS.Interfaces.Interface.deregister_on_terminate(state)
   end
 
   # ── Private: Network setup ───────────────────────────────────

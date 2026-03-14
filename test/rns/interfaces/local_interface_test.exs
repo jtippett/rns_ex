@@ -387,12 +387,9 @@ defmodule RNS.Interfaces.LocalInterfaceTest do
 
       :ok = LocalClientInterface.stop(iface)
 
-      state_after = LocalClientInterface.get_state(iface)
-      assert state_after.online == false
-      assert state_after.detached == true
-      assert state_after.socket == nil
+      # stop/1 now fully terminates the process
+      refute Process.alive?(iface)
 
-      GenServer.stop(iface)
       :gen_tcp.close(client_sock)
       :gen_tcp.close(listen)
     end
@@ -412,14 +409,8 @@ defmodule RNS.Interfaces.LocalInterfaceTest do
 
       :ok = LocalServerInterface.stop(server)
 
-      state_after = LocalServerInterface.get_state(server)
-      assert state_after.online == false
-      assert state_after.detached == true
-      assert state_after.listen_socket == nil
-      assert state_after.clients == 0
-      assert state_after.spawned_interfaces == []
-
-      GenServer.stop(server)
+      # stop/1 now fully terminates the process
+      refute Process.alive?(server)
     end
   end
 

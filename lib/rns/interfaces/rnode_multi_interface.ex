@@ -779,7 +779,7 @@ defmodule RNS.Interfaces.RNodeMultiInterface do
   @impl true
   def terminate(_reason, state) do
     do_detach(state)
-    :ok
+    RNS.Interfaces.Interface.deregister_on_terminate(state)
   end
 
   # ── Serial data processing ────────────────────────────────────────

@@ -287,7 +287,7 @@ defmodule RNS.Interfaces.BackboneInterface do
       :gen_tcp.close(state.listen_socket)
     end
 
-    :ok
+    RNS.Interfaces.Interface.deregister_on_terminate(state)
   end
 
   # ── Private helpers ──────────────────────────────────────────────
@@ -843,7 +843,7 @@ defmodule RNS.Interfaces.BackboneClientInterface do
   @impl GenServer
   def terminate(_reason, state) do
     close_socket(state.socket)
-    :ok
+    RNS.Interfaces.Interface.deregister_on_terminate(state)
   end
 
   # ── Private helpers ──────────────────────────────────────────────

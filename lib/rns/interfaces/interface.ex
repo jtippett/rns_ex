@@ -170,6 +170,24 @@ defmodule RNS.Interfaces.Interface do
   def age(_), do: 0.0
 
   @doc """
+  Deregisters an interface from Transport's ETS tables on termination.
+
+  Should be called from every interface's `terminate/2` callback to prevent
+  stale entries from lingering in the global Transport registry after the
+  interface process exits.
+  """
+  @spec deregister_on_terminate(map()) :: :ok
+  def deregister_on_terminate(state) do
+    iface_hash = Map.get(state, :hash) || hash(state)
+    RNS.Transport.deregister_interface(%{hash: iface_hash})
+    :ok
+  rescue
+    _ -> :ok
+  catch
+    :exit, _ -> :ok
+  end
+
+  @doc """
   Determines whether the interface should activate ingress limiting.
 
   Tracks burst detection using announce frequency. When a burst is

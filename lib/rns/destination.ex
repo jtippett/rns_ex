@@ -770,6 +770,7 @@ defmodule RNS.Destination do
   @spec set_link_established_callback(t(), function()) :: t()
   def set_link_established_callback(dest, callback) do
     %{dest | callbacks: Map.put(dest.callbacks, :link_established, callback)}
+    |> maybe_update_registration()
   end
 
   @doc """
@@ -780,6 +781,7 @@ defmodule RNS.Destination do
   @spec set_packet_callback(t(), function()) :: t()
   def set_packet_callback(dest, callback) do
     %{dest | callbacks: Map.put(dest.callbacks, :packet, callback)}
+    |> maybe_update_registration()
   end
 
   @doc """
@@ -790,6 +792,7 @@ defmodule RNS.Destination do
   @spec set_proof_requested_callback(t(), function()) :: t()
   def set_proof_requested_callback(dest, callback) do
     %{dest | callbacks: Map.put(dest.callbacks, :proof_requested, callback)}
+    |> maybe_update_registration()
   end
 
   @doc """
@@ -798,6 +801,7 @@ defmodule RNS.Destination do
   @spec set_proof_strategy(t(), non_neg_integer()) :: t()
   def set_proof_strategy(dest, strategy) when strategy in @proof_strategies do
     %{dest | proof_strategy: strategy}
+    |> maybe_update_registration()
   end
 
   def set_proof_strategy(_dest, strategy) do
@@ -810,6 +814,7 @@ defmodule RNS.Destination do
   @spec set_default_app_data(t(), binary() | function() | nil) :: t()
   def set_default_app_data(dest, app_data \\ nil) do
     %{dest | default_app_data: app_data}
+    |> maybe_update_registration()
   end
 
   @doc """
@@ -895,6 +900,20 @@ defmodule RNS.Destination do
     else
       {false, dest}
     end
+  end
+
+  # ── Registration Helpers ────────────────────────────────────────
+
+  # Updates the ETS registration in Transport after a setter mutates
+  # the destination struct. Silently no-ops if Transport is not running
+  # (e.g., in unit tests).
+  defp maybe_update_registration(%__MODULE__{} = dest) do
+    RNS.Transport.update_destination(dest)
+    dest
+  rescue
+    _ -> dest
+  catch
+    :exit, _ -> dest
   end
 
   # ── Receive ─────────────────────────────────────────────────────

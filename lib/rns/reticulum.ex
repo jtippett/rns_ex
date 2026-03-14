@@ -139,123 +139,133 @@ defmodule RNS.Reticulum do
   end
 
   @doc "Returns the current Reticulum instance's state."
-  @spec get_state() :: map()
-  def get_state do
-    GenServer.call(__MODULE__, :get_state)
+  @spec get_state(GenServer.server()) :: map()
+  def get_state(server \\ __MODULE__) do
+    GenServer.call(server, :get_state)
   end
 
   @doc "Returns the configuration directory path."
-  @spec configdir() :: String.t() | nil
-  def configdir, do: GenServer.call(__MODULE__, :configdir)
+  @spec configdir(GenServer.server()) :: String.t() | nil
+  def configdir(server \\ __MODULE__), do: GenServer.call(server, :configdir)
 
   @doc "Returns the configuration file path."
-  @spec configpath() :: String.t() | nil
-  def configpath, do: GenServer.call(__MODULE__, :configpath)
+  @spec configpath(GenServer.server()) :: String.t() | nil
+  def configpath(server \\ __MODULE__), do: GenServer.call(server, :configpath)
 
   @doc "Returns the storage directory path."
-  @spec storagepath() :: String.t() | nil
-  def storagepath, do: GenServer.call(__MODULE__, :storagepath)
+  @spec storagepath(GenServer.server()) :: String.t() | nil
+  def storagepath(server \\ __MODULE__), do: GenServer.call(server, :storagepath)
 
   @doc "Returns the cache directory path."
-  @spec cachepath() :: String.t() | nil
-  def cachepath, do: GenServer.call(__MODULE__, :cachepath)
+  @spec cachepath(GenServer.server()) :: String.t() | nil
+  def cachepath(server \\ __MODULE__), do: GenServer.call(server, :cachepath)
 
   @doc "Returns the resource storage path."
-  @spec resourcepath() :: String.t() | nil
-  def resourcepath, do: GenServer.call(__MODULE__, :resourcepath)
+  @spec resourcepath(GenServer.server()) :: String.t() | nil
+  def resourcepath(server \\ __MODULE__), do: GenServer.call(server, :resourcepath)
 
   @doc "Returns the identity storage path."
-  @spec identitypath() :: String.t() | nil
-  def identitypath, do: GenServer.call(__MODULE__, :identitypath)
+  @spec identitypath(GenServer.server()) :: String.t() | nil
+  def identitypath(server \\ __MODULE__), do: GenServer.call(server, :identitypath)
 
   @doc "Returns the blackhole storage path."
-  @spec blackholepath() :: String.t() | nil
-  def blackholepath, do: GenServer.call(__MODULE__, :blackholepath)
+  @spec blackholepath(GenServer.server()) :: String.t() | nil
+  def blackholepath(server \\ __MODULE__), do: GenServer.call(server, :blackholepath)
 
   @doc "Returns the interface modules path."
-  @spec interfacepath() :: String.t() | nil
-  def interfacepath, do: GenServer.call(__MODULE__, :interfacepath)
+  @spec interfacepath(GenServer.server()) :: String.t() | nil
+  def interfacepath(server \\ __MODULE__), do: GenServer.call(server, :interfacepath)
 
   @doc "Returns whether transport is enabled."
-  @spec transport_enabled?() :: boolean()
-  def transport_enabled?, do: GenServer.call(__MODULE__, :transport_enabled?)
+  @spec transport_enabled?(GenServer.server()) :: boolean()
+  def transport_enabled?(server \\ __MODULE__), do: GenServer.call(server, :transport_enabled?)
 
   @doc "Returns whether implicit proofs should be used."
-  @spec should_use_implicit_proof?() :: boolean()
-  def should_use_implicit_proof?, do: GenServer.call(__MODULE__, :should_use_implicit_proof?)
+  @spec should_use_implicit_proof?(GenServer.server()) :: boolean()
+  def should_use_implicit_proof?(server \\ __MODULE__),
+    do: GenServer.call(server, :should_use_implicit_proof?)
 
   @doc "Returns whether link MTU discovery is enabled."
-  @spec link_mtu_discovery?() :: boolean()
-  def link_mtu_discovery?, do: GenServer.call(__MODULE__, :link_mtu_discovery?)
+  @spec link_mtu_discovery?(GenServer.server()) :: boolean()
+  def link_mtu_discovery?(server \\ __MODULE__), do: GenServer.call(server, :link_mtu_discovery?)
 
   @doc "Returns whether remote management is enabled."
-  @spec remote_management_enabled?() :: boolean()
-  def remote_management_enabled?, do: GenServer.call(__MODULE__, :remote_management_enabled?)
+  @spec remote_management_enabled?(GenServer.server()) :: boolean()
+  def remote_management_enabled?(server \\ __MODULE__),
+    do: GenServer.call(server, :remote_management_enabled?)
 
   @doc "Returns whether probe destinations are enabled."
-  @spec probe_destination_enabled?() :: boolean()
-  def probe_destination_enabled?, do: GenServer.call(__MODULE__, :probe_destination_enabled?)
+  @spec probe_destination_enabled?(GenServer.server()) :: boolean()
+  def probe_destination_enabled?(server \\ __MODULE__),
+    do: GenServer.call(server, :probe_destination_enabled?)
 
   @doc "Returns the required discovery value."
-  @spec required_discovery_value() :: non_neg_integer() | nil
-  def required_discovery_value, do: GenServer.call(__MODULE__, :required_discovery_value)
+  @spec required_discovery_value(GenServer.server()) :: non_neg_integer() | nil
+  def required_discovery_value(server \\ __MODULE__),
+    do: GenServer.call(server, :required_discovery_value)
 
   @doc "Returns whether blackhole publishing is enabled."
-  @spec publish_blackhole_enabled?() :: boolean()
-  def publish_blackhole_enabled?, do: GenServer.call(__MODULE__, :publish_blackhole_enabled?)
+  @spec publish_blackhole_enabled?(GenServer.server()) :: boolean()
+  def publish_blackhole_enabled?(server \\ __MODULE__),
+    do: GenServer.call(server, :publish_blackhole_enabled?)
 
   @doc "Returns the list of blackhole source identity hashes."
-  @spec blackhole_sources() :: [binary()]
-  def blackhole_sources, do: GenServer.call(__MODULE__, :blackhole_sources)
+  @spec blackhole_sources(GenServer.server()) :: [binary()]
+  def blackhole_sources(server \\ __MODULE__), do: GenServer.call(server, :blackhole_sources)
 
   @doc "Returns the list of interface discovery source identity hashes."
-  @spec interface_discovery_sources() :: [binary()]
-  def interface_discovery_sources, do: GenServer.call(__MODULE__, :interface_discovery_sources)
+  @spec interface_discovery_sources(GenServer.server()) :: [binary()]
+  def interface_discovery_sources(server \\ __MODULE__),
+    do: GenServer.call(server, :interface_discovery_sources)
 
   @doc "Returns whether interface discovery is enabled."
-  @spec discover_interfaces?() :: boolean()
-  def discover_interfaces?, do: GenServer.call(__MODULE__, :discover_interfaces?)
+  @spec discover_interfaces?(GenServer.server()) :: boolean()
+  def discover_interfaces?(server \\ __MODULE__),
+    do: GenServer.call(server, :discover_interfaces?)
 
   @doc "Returns the parsed config (Section struct)."
-  @spec get_config() :: Section.t() | nil
-  def get_config, do: GenServer.call(__MODULE__, :get_config)
+  @spec get_config(GenServer.server()) :: Section.t() | nil
+  def get_config(server \\ __MODULE__), do: GenServer.call(server, :get_config)
 
   @doc "Returns whether this instance is a shared instance."
-  @spec is_shared_instance?() :: boolean()
-  def is_shared_instance?, do: GenServer.call(__MODULE__, :is_shared_instance?)
+  @spec is_shared_instance?(GenServer.server()) :: boolean()
+  def is_shared_instance?(server \\ __MODULE__),
+    do: GenServer.call(server, :is_shared_instance?)
 
   @doc "Returns whether this instance is standalone."
-  @spec is_standalone_instance?() :: boolean()
-  def is_standalone_instance?, do: GenServer.call(__MODULE__, :is_standalone_instance?)
+  @spec is_standalone_instance?(GenServer.server()) :: boolean()
+  def is_standalone_instance?(server \\ __MODULE__),
+    do: GenServer.call(server, :is_standalone_instance?)
 
   @doc "Returns whether connected to a shared instance."
-  @spec is_connected_to_shared_instance?() :: boolean()
-  def is_connected_to_shared_instance?,
-    do: GenServer.call(__MODULE__, :is_connected_to_shared_instance?)
+  @spec is_connected_to_shared_instance?(GenServer.server()) :: boolean()
+  def is_connected_to_shared_instance?(server \\ __MODULE__),
+    do: GenServer.call(server, :is_connected_to_shared_instance?)
 
   @doc "Returns whether auto-connecting discovered interfaces is enabled."
-  @spec should_autoconnect_discovered_interfaces?() :: boolean()
-  def should_autoconnect_discovered_interfaces? do
-    GenServer.call(__MODULE__, :should_autoconnect_discovered_interfaces?)
+  @spec should_autoconnect_discovered_interfaces?(GenServer.server()) :: boolean()
+  def should_autoconnect_discovered_interfaces?(server \\ __MODULE__) do
+    GenServer.call(server, :should_autoconnect_discovered_interfaces?)
   end
 
   @doc "Returns the maximum number of auto-connected interfaces (0 if disabled)."
-  @spec max_autoconnected_interfaces() :: non_neg_integer()
-  def max_autoconnected_interfaces do
-    GenServer.call(__MODULE__, :max_autoconnected_interfaces)
+  @spec max_autoconnected_interfaces(GenServer.server()) :: non_neg_integer()
+  def max_autoconnected_interfaces(server \\ __MODULE__) do
+    GenServer.call(server, :max_autoconnected_interfaces)
   end
 
   @doc "Returns whether a network identity is configured."
-  @spec has_network_identity?() :: boolean()
-  def has_network_identity?, do: GenServer.call(__MODULE__, :has_network_identity?)
+  @spec has_network_identity?(GenServer.server()) :: boolean()
+  def has_network_identity?(server \\ __MODULE__),
+    do: GenServer.call(server, :has_network_identity?)
 
   @doc "Returns the network identity if configured."
-  @spec network_identity() :: RNS.Identity.t() | nil
-  def network_identity, do: GenServer.call(__MODULE__, :network_identity)
+  @spec network_identity(GenServer.server()) :: RNS.Identity.t() | nil
+  def network_identity(server \\ __MODULE__), do: GenServer.call(server, :network_identity)
 
   @doc "Returns the identity used for this instance."
-  @spec identity() :: RNS.Identity.t() | nil
-  def identity, do: GenServer.call(__MODULE__, :identity)
+  @spec identity(GenServer.server()) :: RNS.Identity.t() | nil
+  def identity(server \\ __MODULE__), do: GenServer.call(server, :identity)
 
   @doc """
   Persists all state to disk (known destinations, packet hashlist, path table, tunnels).
@@ -263,17 +273,18 @@ defmodule RNS.Reticulum do
   Skips persistence when connected to a shared instance (the daemon owns the data).
   Called during shutdown and periodically during runtime.
   """
-  @spec persist_data() :: :ok
-  def persist_data, do: GenServer.call(__MODULE__, :persist_data)
+  @spec persist_data(GenServer.server()) :: :ok
+  def persist_data(server \\ __MODULE__), do: GenServer.call(server, :persist_data)
 
   @doc "Triggers gracious persistence if enough time has elapsed."
-  @spec should_persist_data() :: :ok
-  def should_persist_data, do: GenServer.cast(__MODULE__, :should_persist_data)
+  @spec should_persist_data(GenServer.server()) :: :ok
+  def should_persist_data(server \\ __MODULE__),
+    do: GenServer.cast(server, :should_persist_data)
 
   @doc "Adds a running interface process at runtime with the given options."
-  @spec add_interface(pid(), keyword()) :: :ok | {:error, term()}
-  def add_interface(interface_pid, opts \\ []) do
-    GenServer.call(__MODULE__, {:add_interface, interface_pid, opts})
+  @spec add_interface(GenServer.server(), pid(), keyword()) :: :ok | {:error, term()}
+  def add_interface(server \\ __MODULE__, interface_pid, opts \\ []) do
+    GenServer.call(server, {:add_interface, interface_pid, opts})
   end
 
   # ── Pure Functions (delegated to RNS.Reticulum.Config) ────────────────
@@ -751,7 +762,7 @@ defmodule RNS.Reticulum do
     if state.is_connected_to_shared_instance do
       Logger.debug("Skipping state persistence — connected to shared instance")
     else
-      persist_data(state)
+      do_persist_data(state)
     end
 
     {:reply, :ok, state}
@@ -763,7 +774,7 @@ defmodule RNS.Reticulum do
 
     state =
       if now > state.last_data_persist + @gracious_persist_interval do
-        persist_data(state)
+        do_persist_data(state)
         %{state | last_data_persist: now}
       else
         state
@@ -786,7 +797,7 @@ defmodule RNS.Reticulum do
 
     state =
       if now > state.last_data_persist + @persist_interval do
-        persist_data(state)
+        do_persist_data(state)
         %{state | last_data_persist: now}
       else
         state
@@ -811,7 +822,7 @@ defmodule RNS.Reticulum do
     if state.is_connected_to_shared_instance do
       Logger.debug("Skipping state persistence — connected to shared instance")
     else
-      persist_data(state)
+      do_persist_data(state)
     end
 
     :ok
@@ -835,7 +846,7 @@ defmodule RNS.Reticulum do
     Process.send_after(self(), :run_jobs, @job_interval * 1000)
   end
 
-  defp persist_data(_state) do
+  defp do_persist_data(_state) do
     # Delegate to each subsystem's own persist API — they know their own
     # storage paths and handle missing dirs gracefully.
     try do
@@ -868,14 +879,15 @@ defmodule RNS.Reticulum do
               "Existing shared instance required, but this instance started as shared instance. Aborting startup."
             )
 
-            detach_interface(state.shared_instance_interface)
+            cleanup_interface(state.shared_instance_interface)
 
             %{
               state
               | is_shared_instance: false,
                 is_standalone_instance: false,
                 is_connected_to_shared_instance: false,
-                shared_instance_interface: nil
+                shared_instance_interface: nil,
+                started_interfaces: List.delete(state.started_interfaces, state.shared_instance_interface)
             }
           else
             state
@@ -916,6 +928,27 @@ defmodule RNS.Reticulum do
 
   defp detach_interface(pid) when is_pid(pid) do
     if Process.alive?(pid), do: GenServer.call(pid, :detach)
+  catch
+    _, _ -> :ok
+  end
+
+  # Full cleanup: detach, deregister from Transport, and terminate the process
+  defp cleanup_interface(nil), do: :ok
+
+  defp cleanup_interface(pid) when is_pid(pid) do
+    detach_interface(pid)
+
+    # Deregister from Transport
+    try do
+      iface_state = GenServer.call(pid, :get_state)
+      hash = Map.get(iface_state, :hash) || RNS.Interfaces.Interface.hash(iface_state)
+      RNS.Transport.deregister_interface(%{hash: hash})
+    catch
+      _, _ -> :ok
+    end
+
+    # Terminate the process under DynamicSupervisor
+    DynamicSupervisor.terminate_child(RNS.InterfaceSupervisor, pid)
   catch
     _, _ -> :ok
   end

@@ -334,7 +334,7 @@ defmodule RNS.Interfaces.UDPInterface do
       :gen_udp.close(state.recv_socket)
     end
 
-    :ok
+    RNS.Interfaces.Interface.deregister_on_terminate(state)
   end
 
   # ── Private helpers ──────────────────────────────────────────────
