@@ -36,6 +36,7 @@ defmodule RNS.Application do
       end
 
     children = [
+      {Registry, keys: :duplicate, name: RNS.Transport.Registry},
       RNS.IdentityStore,
       RNS.Transport,
       {DynamicSupervisor, strategy: :one_for_one, name: RNS.InterfaceSupervisor},

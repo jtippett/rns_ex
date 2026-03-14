@@ -468,6 +468,58 @@ defmodule RNS.Transport do
     GenServer.call(__MODULE__, {:deregister_announce_handler, handler})
   end
 
+  # ── PubSub Event Subscriptions ─────────────────────────────────────────
+
+  @valid_topics [:announces]
+
+  @doc """
+  Subscribes the calling process to Transport events.
+
+  ## Topics
+
+    * `:announces` — receive `{:rns_announce, dest_hash, identity, app_data}` messages
+
+  ## Examples
+
+      RNS.Transport.subscribe(:announces)
+
+      # In a GenServer handle_info:
+      def handle_info({:rns_announce, dest_hash, identity, app_data}, state) do
+        # handle announce
+        {:noreply, state}
+      end
+  """
+  @spec subscribe(atom()) :: :ok | {:error, :invalid_topic}
+  def subscribe(topic) when topic in @valid_topics do
+    {:ok, _} = Registry.register(RNS.Transport.Registry, topic, [])
+    :ok
+  end
+
+  def subscribe(_topic), do: {:error, :invalid_topic}
+
+  @doc "Unsubscribes the calling process from a Transport event topic."
+  @spec unsubscribe(atom()) :: :ok
+  def unsubscribe(topic) do
+    Registry.unregister(RNS.Transport.Registry, topic)
+    :ok
+  end
+
+  @doc """
+  Notifies all subscribers of a Transport event.
+
+  Called internally by Transport when events occur.
+  """
+  @spec notify_subscribers(atom(), tuple()) :: :ok
+  def notify_subscribers(:announces, {dest_hash, identity, app_data}) do
+    Registry.dispatch(RNS.Transport.Registry, :announces, fn entries ->
+      for {pid, _value} <- entries do
+        send(pid, {:rns_announce, dest_hash, identity, app_data})
+      end
+    end)
+
+    :ok
+  end
+
   @doc "Returns all registered announce handlers."
   @spec get_announce_handlers() :: [map()]
   def get_announce_handlers do
@@ -1888,12 +1940,12 @@ defmodule RNS.Transport do
 
   defp call_announce_handlers(packet) do
     handlers = get_announce_handlers()
+    announce_identity = Identity.recall(packet.destination_hash)
+    app_data = Identity.recall_app_data(packet.destination_hash)
+    is_path_response = packet.context == @context_path_response
 
+    # Call registered callback handlers
     if handlers != [] do
-      announce_identity = Identity.recall(packet.destination_hash)
-      app_data = Identity.recall_app_data(packet.destination_hash)
-      is_path_response = packet.context == @context_path_response
-
       Enum.each(handlers, fn handler ->
         try do
           execute_callback =
@@ -1966,6 +2018,9 @@ defmodule RNS.Transport do
         end
       end)
     end
+
+    # Notify pub/sub subscribers
+    notify_subscribers(:announces, {packet.destination_hash, announce_identity, app_data})
   end
 
   # ── Link Request Handling ─────────────────────────────────────────────

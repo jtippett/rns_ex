@@ -65,9 +65,9 @@ defmodule RNS.ApplicationTest do
              }
     end
 
-    test "supervisor has exactly 7 children" do
+    test "supervisor has exactly 8 children" do
       counts = Supervisor.count_children(RNS.Supervisor)
-      assert counts[:active] == 7
+      assert counts[:active] == 8
     end
 
     test "supervisor uses :rest_for_one strategy" do
@@ -75,6 +75,7 @@ defmodule RNS.ApplicationTest do
       children = Supervisor.which_children(RNS.Supervisor)
       child_ids = Enum.map(children, fn {id, _, _, _} -> id end)
 
+      assert RNS.Transport.Registry in child_ids
       assert RNS.IdentityStore in child_ids
       assert RNS.Transport in child_ids
       assert RNS.InterfaceSupervisor in child_ids
