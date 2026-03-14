@@ -25,18 +25,23 @@ end
 identity = RNS.Identity.new()
 
 # Create a named destination
-destination = RNS.Destination.new(identity, :out, :single, "myapp", "service")
+destination = RNS.Destination.new(
+  identity,
+  RNS.Destination.direction_in(),
+  RNS.Destination.single(),
+  "myapp",
+  ["service"]
+)
 
 # Get the destination hash for sharing
-hash = RNS.Destination.hash(destination)
-IO.puts("Listening on #{RNS.hexrep(hash, false)}")
+IO.puts("Listening on #{RNS.prettyhexrep(destination.hash)}")
 
 # Send an announce so others can find this destination
 RNS.Destination.announce(destination)
 
-# Set up a packet callback
-destination = RNS.Destination.set_packet_callback(destination, fn packet ->
-  IO.puts("Received: #{packet.data}")
+# Set up a packet callback (receives plaintext data and the packet struct)
+destination = RNS.Destination.set_packet_callback(destination, fn data, _packet ->
+  IO.puts("Received: #{data}")
 end)
 ```
 
@@ -44,13 +49,59 @@ end)
 
 ```elixir
 # Server side — accept incoming links
-server_destination = RNS.Destination.new(identity, :in, :single, "myapp", "service")
+server_destination = RNS.Destination.new(
+  identity,
+  RNS.Destination.direction_in(),
+  RNS.Destination.single(),
+  "myapp",
+  ["service"]
+)
+
 server_destination = RNS.Destination.set_link_established_callback(server_destination, fn link ->
-  IO.puts("Link established with #{RNS.hexrep(link.destination_hash, false)}")
+  IO.puts("Link established with #{RNS.prettyhexrep(link.destination_hash)}")
 end)
 
 # Client side — establish an encrypted link
 link = RNS.Link.new(destination)
+```
+
+### Announce Discovery
+
+```elixir
+# Subscribe to announce events
+RNS.Transport.subscribe(:announces)
+
+# Receive announces as messages
+receive do
+  {:rns_announce, %RNS.Transport.Announce{} = announce} ->
+    IO.puts("Discovered: #{RNS.prettyhexrep(announce.dest_hash)}")
+    IO.puts("App data: #{announce.app_data}")
+end
+```
+
+### Programmatic Interface Startup
+
+```elixir
+# Start an interface at runtime (handles supervisor + Transport registration)
+{:ok, pid} = RNS.Reticulum.add_interface(RNS.Interfaces.TCPClientInterface,
+  name: "MyTCP",
+  target_host: "10.0.0.1",
+  target_port: 4242
+)
+```
+
+### Library Mode
+
+```elixir
+# In config/config.exs — skip auto-starting interfaces from config,
+# but Transport is still fully configured and ready to process packets.
+config :rns_ex, start_network: false
+
+# Then start interfaces programmatically at runtime:
+{:ok, _pid} = RNS.Reticulum.add_interface(RNS.Interfaces.UDPInterface,
+  name: "MyUDP",
+  listen_port: 7777
+)
 ```
 
 ### Channels and Messages
