@@ -388,7 +388,7 @@ defmodule RNS.Reticulum do
   """
   @spec add_interface(module(), keyword()) :: {:ok, pid()} | {:error, term()}
   def add_interface(module, opts \\ []) do
-    case DynamicSupervisor.start_child(RNS.InterfaceSupervisor, {module, opts}) do
+    case start_interface_child(module, opts) do
       {:ok, pid} ->
         post_init = %{
           out: Keyword.get(opts, :out, true),
@@ -994,21 +994,33 @@ defmodule RNS.Reticulum do
   end
 
   defp do_persist_data(_state) do
-    # Delegate to each subsystem's own persist API — they know their own
-    # storage paths and handle missing dirs gracefully.
-    try do
-      RNS.IdentityStore.save_known_destinations()
-    rescue
-      e -> Logger.debug("Could not save known destinations: #{Exception.message(e)}")
-    end
-
-    try do
-      RNS.Transport.persist_data()
-    rescue
-      e -> Logger.debug("Could not save transport state: #{Exception.message(e)}")
-    end
+    persist_subsystem(RNS.IdentityStore, :save_known_destinations, "known destinations")
+    persist_subsystem(RNS.Transport, :persist_data, "transport state")
 
     :ok
+  end
+
+  defp persist_subsystem(server, request, label) do
+    case GenServer.whereis(server) do
+      nil ->
+        :ok
+
+      _pid ->
+        try do
+          case GenServer.call(server, request) do
+            {:error, reason} ->
+              Logger.debug("Could not save #{label}: #{inspect(reason)}")
+              :ok
+
+            _ ->
+              :ok
+          end
+        catch
+          :exit, reason ->
+            Logger.debug("Could not save #{label}: #{inspect(reason)}")
+            :ok
+        end
+    end
   end
 
   # ── Interface Lifecycle ──────────────────────────────────────────────
@@ -1034,7 +1046,8 @@ defmodule RNS.Reticulum do
                 is_standalone_instance: false,
                 is_connected_to_shared_instance: false,
                 shared_instance_interface: nil,
-                started_interfaces: List.delete(state.started_interfaces, state.shared_instance_interface)
+                started_interfaces:
+                  List.delete(state.started_interfaces, state.shared_instance_interface)
             }
           else
             state
@@ -1105,10 +1118,7 @@ defmodule RNS.Reticulum do
       out: true
     ]
 
-    case DynamicSupervisor.start_child(
-           RNS.InterfaceSupervisor,
-           {RNS.Interfaces.LocalServerInterface, opts}
-         ) do
+    case start_interface_child(RNS.Interfaces.LocalServerInterface, opts) do
       {:ok, pid} ->
         Logger.debug("Started shared instance interface")
 
@@ -1142,10 +1152,7 @@ defmodule RNS.Reticulum do
       out: true
     ]
 
-    case DynamicSupervisor.start_child(
-           RNS.InterfaceSupervisor,
-           {RNS.Interfaces.LocalClientInterface, opts}
-         ) do
+    case start_interface_child(RNS.Interfaces.LocalClientInterface, opts) do
       {:ok, pid} ->
         Logger.debug("Connected to locally available Reticulum instance")
 
@@ -1190,7 +1197,9 @@ defmodule RNS.Reticulum do
 
             {seen, acc_state}
           else
-            new_state = synthesize_interface(acc_state, Section.get(interfaces_section, name), name)
+            new_state =
+              synthesize_interface(acc_state, Section.get(interfaces_section, name), name)
+
             {MapSet.put(seen, name), new_state}
           end
         end)
@@ -1329,10 +1338,9 @@ defmodule RNS.Reticulum do
   end
 
   defp start_interface_child(module, opts) do
-    case DynamicSupervisor.start_child(
-           RNS.InterfaceSupervisor,
-           {module, opts}
-         ) do
+    spec = Supervisor.child_spec({module, opts}, restart: :transient)
+
+    case DynamicSupervisor.start_child(RNS.InterfaceSupervisor, spec) do
       {:ok, pid} -> {:ok, pid}
       {:error, reason} -> {:error, reason}
     end
@@ -1358,62 +1366,136 @@ defmodule RNS.Reticulum do
   def register_interface_with_transport(pid, extra_updates \\ %{}) when is_pid(pid) do
     # Get the interface's current state, merge any post-init updates,
     # add the pid, compute the hash, and register with Transport.
-    state =
-      if Process.alive?(pid) do
-        GenServer.call(pid, :get_state)
-      end
+    case safe_interface_state(pid) do
+      {:ok, state} ->
+        registration =
+          state
+          |> Map.from_struct()
+          |> Map.merge(extra_updates)
+          |> Map.put(:pid, pid)
 
-    if state do
-      registration =
-        state
-        |> Map.from_struct()
-        |> Map.merge(extra_updates)
-        |> Map.put(:pid, pid)
+        # Ensure hash is set
+        registration =
+          if registration[:hash] == nil do
+            Map.put(
+              registration,
+              :hash,
+              RNS.Interfaces.Interface.hash(registration)
+            )
+          else
+            registration
+          end
 
-      # Ensure hash is set
-      registration =
-        if registration[:hash] == nil do
-          Map.put(
-            registration,
-            :hash,
-            RNS.Interfaces.Interface.hash(registration)
-          )
-        else
-          registration
-        end
+        safe_register_interface(registration)
 
-      RNS.Transport.register_interface(registration)
-    else
-      Logger.warning("Could not get state from interface #{inspect(pid)} for registration")
-      :ok
+      :error ->
+        Logger.warning("Could not get state from interface #{inspect(pid)} for registration")
+        :ok
     end
   end
 
   defdelegate build_post_init_updates(params, state), to: Config
 
   defp detach_all_interfaces(state) do
-    # Get all interfaces from Transport, detach them, and deregister
-    interfaces =
-      if Process.whereis(RNS.Transport) do
-        RNS.Transport.get_interfaces()
-      else
-        []
-      end
+    registered_by_pid = transport_interfaces_by_pid()
 
-    for interface <- interfaces do
-      if Process.whereis(RNS.Transport) do
-        RNS.Transport.deregister_interface(interface)
-      end
+    state
+    |> owned_interface_pids()
+    |> Enum.each(fn pid ->
+      registered_by_pid
+      |> Map.get(pid)
+      |> maybe_deregister_interface()
 
-      if is_map(interface) and Map.has_key?(interface, :pid) and is_pid(interface.pid) do
-        send(interface.pid, :detach)
+      detach_interface(pid)
+      terminate_interface(pid)
+    end)
+
+    :ok
+  end
+
+  defp safe_interface_state(pid) do
+    if Process.alive?(pid) do
+      try do
+        {:ok, GenServer.call(pid, :get_state)}
+      catch
+        :exit, _reason ->
+          :error
       end
+    else
+      :error
     end
+  end
 
-    # Also stop any interfaces we directly started
-    for pid <- Map.get(state, :started_interfaces, []) do
-      if Process.alive?(pid) do
+  defp safe_register_interface(registration) do
+    case GenServer.whereis(RNS.Transport) do
+      nil ->
+        :ok
+
+      _pid ->
+        try do
+          RNS.Transport.register_interface(registration)
+        catch
+          :exit, reason ->
+            Logger.debug("Could not register interface with Transport: #{inspect(reason)}")
+            :ok
+        end
+    end
+  end
+
+  defp owned_interface_pids(state) do
+    state
+    |> Map.get(:started_interfaces, [])
+    |> Kernel.++(List.wrap(Map.get(state, :shared_instance_interface)))
+    |> Enum.filter(&is_pid/1)
+    |> Enum.uniq()
+  end
+
+  defp transport_interfaces_by_pid do
+    case GenServer.whereis(RNS.Transport) do
+      nil ->
+        %{}
+
+      _pid ->
+        try do
+          RNS.Transport.get_interfaces()
+          |> Enum.reduce(%{}, fn interface, acc ->
+            case Map.get(interface, :pid) do
+              pid when is_pid(pid) -> Map.put(acc, pid, interface)
+              _ -> acc
+            end
+          end)
+        catch
+          :exit, _reason ->
+            %{}
+        end
+    end
+  end
+
+  defp maybe_deregister_interface(nil), do: :ok
+
+  defp maybe_deregister_interface(interface) do
+    case GenServer.whereis(RNS.Transport) do
+      nil ->
+        :ok
+
+      _pid ->
+        try do
+          RNS.Transport.deregister_interface(%{hash: Map.fetch!(interface, :hash)})
+        catch
+          :exit, reason ->
+            Logger.debug("Could not deregister interface: #{inspect(reason)}")
+            :ok
+        end
+    end
+  end
+
+  defp terminate_interface(pid) do
+    if Process.alive?(pid) do
+      try do
         DynamicSupervisor.terminate_child(RNS.InterfaceSupervisor, pid)
+      catch
+        :exit, _reason ->
+          :ok
       end
     end
 

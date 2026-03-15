@@ -634,15 +634,19 @@ defmodule RNS.Utilities.RNPath do
 
     Enum.each(interfaces, fn iface ->
       if Map.has_key?(iface, :announce_queue) do
-        # Clear the announce queue by sending a message if it's a GenServer
-        if iface[:pid] do
-          try do
-            GenServer.cast(iface.pid, :clear_announce_queue)
-          rescue
-            e ->
-              Logger.debug("Failed to clear announce queue: #{inspect(e)}")
-              :ok
-          end
+        # Clear the announce queue in the interface process state when we have a pid.
+        case Map.get(iface, :pid) do
+          pid when is_pid(pid) ->
+            try do
+              :sys.replace_state(pid, &Map.put(&1, :announce_queue, []))
+            catch
+              :exit, reason ->
+                Logger.debug("Failed to clear announce queue: #{inspect(reason)}")
+                :ok
+            end
+
+          _ ->
+            :ok
         end
       end
     end)

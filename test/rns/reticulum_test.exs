@@ -1608,7 +1608,7 @@ defmodule RNS.ReticulumTest do
 
       # Verify it's registered with Transport
       interfaces = RNS.Transport.get_interfaces()
-      assert Enum.any?(interfaces, fn iface -> iface[:pid] == pid end)
+      assert Enum.any?(interfaces, fn iface -> Map.get(iface, :pid) == pid end)
 
       # Cleanup
       DynamicSupervisor.terminate_child(RNS.InterfaceSupervisor, pid)
@@ -1620,12 +1620,12 @@ defmodule RNS.ReticulumTest do
       assert {:ok, pid} = RNS.Reticulum.add_interface(RNS.Interfaces.UDPInterface, opts)
 
       interfaces = RNS.Transport.get_interfaces()
-      iface = Enum.find(interfaces, fn i -> i[:pid] == pid end)
+      iface = Enum.find(interfaces, fn i -> Map.get(i, :pid) == pid end)
 
-      assert iface[:out] == true
-      assert iface[:mode] == RNS.Interfaces.Interface.mode_full()
-      assert iface[:ingress_control] == true
-      assert iface[:bootstrap_only] == false
+      assert Map.get(iface, :out) == true
+      assert Map.get(iface, :mode) == RNS.Interfaces.Interface.mode_full()
+      assert Map.get(iface, :ingress_control) == true
+      assert Map.get(iface, :bootstrap_only) == false
 
       DynamicSupervisor.terminate_child(RNS.InterfaceSupervisor, pid)
     end
@@ -1642,10 +1642,10 @@ defmodule RNS.ReticulumTest do
       assert {:ok, pid} = RNS.Reticulum.add_interface(RNS.Interfaces.UDPInterface, opts)
 
       interfaces = RNS.Transport.get_interfaces()
-      iface = Enum.find(interfaces, fn i -> i[:pid] == pid end)
+      iface = Enum.find(interfaces, fn i -> Map.get(i, :pid) == pid end)
 
-      assert iface[:out] == false
-      assert iface[:mode] == RNS.Interfaces.Interface.mode_access_point()
+      assert Map.get(iface, :out) == false
+      assert Map.get(iface, :mode) == RNS.Interfaces.Interface.mode_access_point()
 
       DynamicSupervisor.terminate_child(RNS.InterfaceSupervisor, pid)
     end
@@ -1904,13 +1904,6 @@ defmodule RNS.ReticulumTest do
         File.rm_rf!(configdir)
       end)
 
-      # Clear the interfaces ETS table before each test
-      try do
-        :ets.delete_all_objects(:rns_interfaces)
-      rescue
-        _ -> :ok
-      end
-
       %{configdir: configdir}
     end
 
@@ -1943,9 +1936,7 @@ defmodule RNS.ReticulumTest do
 
       # The shared server interface should be registered with Transport
       interfaces = RNS.Transport.get_interfaces()
-      assert interfaces != []
-
-      registered = Enum.find(interfaces, &(&1.name == "Shared Instance"))
+      registered = Enum.find(interfaces, &(&1.pid == result.shared_instance_interface))
       assert registered != nil
       assert registered.out == true
       assert is_pid(registered.pid)
@@ -1995,9 +1986,7 @@ defmodule RNS.ReticulumTest do
 
       # The client interface should be registered with Transport
       interfaces = RNS.Transport.get_interfaces()
-      assert interfaces != []
-
-      registered = Enum.find(interfaces, &(&1.name == "Local shared instance"))
+      registered = Enum.find(interfaces, &(&1.pid in result.started_interfaces))
       assert registered != nil
       assert registered.out == true
       assert is_pid(registered.pid)
@@ -2038,7 +2027,7 @@ defmodule RNS.ReticulumTest do
 
       # Verify at least one interface is registered
       interfaces_before = RNS.Transport.get_interfaces()
-      assert interfaces_before != []
+      assert Enum.any?(interfaces_before, &(&1.pid == result.shared_instance_interface))
 
       # Update Reticulum state with the started interfaces so terminate can deregister them
       :sys.replace_state(pid, fn _state -> result end)
@@ -2048,11 +2037,52 @@ defmodule RNS.ReticulumTest do
 
       # Interfaces should be deregistered
       interfaces_after = RNS.Transport.get_interfaces()
+      refute Enum.any?(interfaces_after, &(&1.pid == result.shared_instance_interface))
+    end
 
-      registered_names =
-        Enum.map(interfaces_after, & &1.name)
+    test "Reticulum shutdown leaves unrelated Transport interfaces registered", %{
+      configdir: configdir
+    } do
+      {:ok, unrelated_server} =
+        RNS.Interfaces.LocalServerInterface.start_link(
+          name: "unrelated_shared_instance",
+          bindport: 0
+        )
 
-      refute "Shared Instance" in registered_names
+      Reticulum.register_interface_with_transport(unrelated_server)
+
+      name = :"test_iface_scope_#{:rand.uniform(100_000)}"
+
+      {:ok, pid} =
+        Reticulum.start_link(
+          configdir: configdir,
+          skip_start: true,
+          server_name: name
+        )
+
+      state = :sys.get_state(pid)
+
+      state = %{
+        state
+        | share_instance: true,
+          local_interface_port: 0,
+          local_socket_path: nil,
+          force_shared_instance_bitrate: nil,
+          require_shared_instance: false,
+          started_interfaces: []
+      }
+
+      result = Reticulum.start_local_interface(state)
+      :sys.replace_state(pid, fn _state -> result end)
+
+      GenServer.stop(pid)
+
+      interfaces_after = RNS.Transport.get_interfaces()
+
+      assert Process.alive?(unrelated_server)
+      assert Enum.any?(interfaces_after, &(&1.pid == unrelated_server))
+
+      RNS.Interfaces.LocalServerInterface.stop(unrelated_server)
     end
 
     test "configured interface is registered with Transport after synthesis", %{
@@ -2088,8 +2118,9 @@ defmodule RNS.ReticulumTest do
 
       # The configured interface should be registered with Transport
       interfaces = RNS.Transport.get_interfaces()
-      registered = Enum.find(interfaces, &(&1.name == "Test Pipe"))
+      registered = Enum.find(interfaces, &(&1.pid in new_state.started_interfaces))
       assert registered != nil
+      assert registered.name == "Test Pipe"
       assert registered.out == true
       assert is_pid(registered.pid)
 

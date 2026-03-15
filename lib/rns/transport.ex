@@ -505,9 +505,16 @@ defmodule RNS.Transport do
   """
   @spec subscribe(atom()) :: :ok | {:error, :invalid_topic}
   def subscribe(topic) when topic in @valid_topics do
-    case Registry.register(RNS.Transport.Registry, topic, []) do
-      {:ok, _} -> :ok
-      {:error, {:already_registered, _}} -> :ok
+    case Registry.lookup(RNS.Transport.Registry, topic) do
+      entries when is_list(entries) ->
+        if Enum.any?(entries, fn {pid, _value} -> pid == self() end) do
+          :ok
+        else
+          case Registry.register(RNS.Transport.Registry, topic, []) do
+            {:ok, _} -> :ok
+            {:error, {:already_registered, _}} -> :ok
+          end
+        end
     end
   end
 
@@ -2047,16 +2054,18 @@ defmodule RNS.Transport do
           end
         rescue
           e ->
-            Logger.error(
-              "Error while processing external announce callback: #{inspect(e)}"
-            )
+            Logger.error("Error while processing external announce callback: #{inspect(e)}")
         end
       end)
     end
 
     # Notify pub/sub subscribers
     name_hash = RNS.Transport.AnnounceHandler.extract_name_hash(packet)
-    notify_subscribers(:announces, {packet.destination_hash, announce_identity, app_data, name_hash})
+
+    notify_subscribers(
+      :announces,
+      {packet.destination_hash, announce_identity, app_data, name_hash}
+    )
   end
 
   # ── Link Request Handling ─────────────────────────────────────────────
@@ -2554,17 +2563,25 @@ defmodule RNS.Transport do
 
     should_send =
       if on_interface != nil and recursive do
-        _announce_cap = Map.get(on_interface, :announce_cap, RNS.Interfaces.Interface.default_announce_cap())
+        _announce_cap =
+          Map.get(on_interface, :announce_cap, RNS.Interfaces.Interface.default_announce_cap())
+
         announce_allowed_at = Map.get(on_interface, :announce_allowed_at, 0)
         announce_queue = Map.get(on_interface, :announce_queue, [])
 
         cond do
           announce_queue != [] ->
-            Logger.debug("Blocking recursive path request on #{on_interface} due to queued announces")
+            Logger.debug(
+              "Blocking recursive path request on #{on_interface} due to queued announces"
+            )
+
             false
 
           System.system_time(:second) < announce_allowed_at ->
-            Logger.debug("Blocking recursive path request on #{on_interface} due to active announce cap")
+            Logger.debug(
+              "Blocking recursive path request on #{on_interface} due to active announce cap"
+            )
+
             false
 
           true ->
@@ -2700,7 +2717,10 @@ defmodule RNS.Transport do
     {remote_mgmt_dest, mgmt_hashes} =
       if remote_mgmt_enabled and not is_connected and identity != nil do
         dest =
-          build_destination(identity, RNS.Destination.single(), @app_name, ["remote", "management"])
+          build_destination(identity, RNS.Destination.single(), @app_name, [
+            "remote",
+            "management"
+          ])
           |> RNS.Destination.register_request_handler("/status",
             response_generator: &remote_status_handler/2,
             allow: RNS.Destination.allow_list(),
@@ -2741,7 +2761,13 @@ defmodule RNS.Transport do
       if net_identity != nil and not is_connected do
         hexhash = Base.encode16(net_identity.hash, case: :lower)
 
-        inst = build_destination(net_identity, RNS.Destination.single(), @app_name, ["network", "instance", hexhash])
+        inst =
+          build_destination(net_identity, RNS.Destination.single(), @app_name, [
+            "network",
+            "instance",
+            hexhash
+          ])
+
         net = build_destination(net_identity, RNS.Destination.single(), @app_name, ["network"])
 
         {inst, net, [net.hash, inst.hash | mgmt_hashes]}
@@ -2750,7 +2776,15 @@ defmodule RNS.Transport do
       end
 
     # Register all created destinations directly in ETS (bypassing GenServer.call)
-    all_dests = [path_req, tunnel_synth, probe_dest, remote_mgmt_dest, blackhole_dest, instance_dest, network_dest]
+    all_dests = [
+      path_req,
+      tunnel_synth,
+      probe_dest,
+      remote_mgmt_dest,
+      blackhole_dest,
+      instance_dest,
+      network_dest
+    ]
 
     Enum.each(all_dests, fn
       nil -> :ok
@@ -2785,7 +2819,11 @@ defmodule RNS.Transport do
 
   defp build_tunnel_synthesize_destination do
     dest = build_destination(nil, RNS.Destination.plain(), @app_name, ["tunnel", "synthesize"])
-    RNS.Destination.set_packet_callback(dest, &RNS.Transport.TunnelManagement.tunnel_synthesize_handler/2)
+
+    RNS.Destination.set_packet_callback(
+      dest,
+      &RNS.Transport.TunnelManagement.tunnel_synthesize_handler/2
+    )
   end
 
   # ── Path Request Processing ─────────────────────────────────────────
@@ -2794,17 +2832,29 @@ defmodule RNS.Transport do
   # from path_request_handler. Matches Python's Transport.path_request().
   @doc false
   def transport_enabled? do
-    case :ets.lookup(@path_states_table, :_transport_config) do
-      [{:_transport_config, config}] -> Map.get(config, :transport_enabled, false)
-      [] -> false
+    case :ets.whereis(@path_states_table) do
+      :undefined ->
+        false
+
+      _ref ->
+        case :ets.lookup(@path_states_table, :_transport_config) do
+          [{:_transport_config, config}] -> Map.get(config, :transport_enabled, false)
+          [] -> false
+        end
     end
   end
 
   @doc false
   def local_client_interfaces do
-    case :ets.lookup(@path_states_table, :_transport_config) do
-      [{:_transport_config, config}] -> Map.get(config, :local_client_interfaces, [])
-      [] -> []
+    case :ets.whereis(@path_states_table) do
+      :undefined ->
+        []
+
+      _ref ->
+        case :ets.lookup(@path_states_table, :_transport_config) do
+          [{:_transport_config, config}] -> Map.get(config, :local_client_interfaces, [])
+          [] -> []
+        end
     end
   end
 
@@ -2817,7 +2867,13 @@ defmodule RNS.Transport do
     :ets.insert(@path_states_table, {:_transport_config, config})
   end
 
-  defp do_path_request(destination_hash, is_from_local_client, attached_interface, requestor_transport_id, tag) do
+  defp do_path_request(
+         destination_hash,
+         is_from_local_client,
+         attached_interface,
+         requestor_transport_id,
+         tag
+       ) do
     transport_enabled = transport_enabled?()
     local_client_ifaces = local_client_interfaces()
     interface_str = if attached_interface, do: " on #{attached_interface}", else: ""
@@ -2829,7 +2885,10 @@ defmodule RNS.Transport do
       case get_path_entry(destination_hash) do
         %{interface: iface} when iface != nil ->
           if local_client_interface?(iface) do
-            :ets.insert(@pending_local_path_requests_table, {destination_hash, attached_interface})
+            :ets.insert(
+              @pending_local_path_requests_table,
+              {destination_hash, attached_interface}
+            )
           end
 
         _ ->
@@ -2927,7 +2986,13 @@ defmodule RNS.Transport do
   end
 
   # Branch 2 helper: handle path request when we have a known path
-  defp handle_known_path_request(destination_hash, is_from_local_client, attached_interface, requestor_transport_id, interface_str) do
+  defp handle_known_path_request(
+         destination_hash,
+         is_from_local_client,
+         attached_interface,
+         requestor_transport_id,
+         interface_str
+       ) do
     path_entry = get_path_entry(destination_hash)
     packet = get_cached_packet(path_entry.packet_hash, packet_type: "announce")
     next_hop = path_entry.next_hop
@@ -3063,9 +3128,7 @@ defmodule RNS.Transport do
             )
           end
         else
-          Logger.debug(
-            "Ignoring tagless path request for #{RNS.prettyhexrep(destination_hash)}"
-          )
+          Logger.debug("Ignoring tagless path request for #{RNS.prettyhexrep(destination_hash)}")
         end
       end
     rescue

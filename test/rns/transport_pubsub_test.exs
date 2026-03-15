@@ -15,13 +15,19 @@ defmodule RNS.Transport.PubSubTest do
   describe "subscribe/unsubscribe" do
     test "subscribe/1 subscribes calling process to event topic" do
       :ok = RNS.Transport.subscribe(:announces)
-      assert Registry.lookup(RNS.Transport.Registry, :announces) != []
+
+      assert Enum.any?(Registry.lookup(RNS.Transport.Registry, :announces), fn {pid, _value} ->
+               pid == self()
+             end)
     end
 
     test "unsubscribe/1 removes calling process subscription" do
       :ok = RNS.Transport.subscribe(:announces)
       :ok = RNS.Transport.unsubscribe(:announces)
-      assert Registry.lookup(RNS.Transport.Registry, :announces) == []
+
+      refute Enum.any?(Registry.lookup(RNS.Transport.Registry, :announces), fn {pid, _value} ->
+               pid == self()
+             end)
     end
 
     test "subscribe with invalid topic returns error" do
@@ -31,7 +37,11 @@ defmodule RNS.Transport.PubSubTest do
     test "subscribe is idempotent (calling twice does not crash)" do
       :ok = RNS.Transport.subscribe(:announces)
       :ok = RNS.Transport.subscribe(:announces)
-      assert Registry.lookup(RNS.Transport.Registry, :announces) != []
+
+      assert Enum.count(
+               Registry.lookup(RNS.Transport.Registry, :announces),
+               fn {pid, _value} -> pid == self() end
+             ) == 1
     end
   end
 

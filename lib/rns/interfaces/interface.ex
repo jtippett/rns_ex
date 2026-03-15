@@ -577,7 +577,8 @@ defmodule RNS.Interfaces.Interface do
   @spec start_child(module(), keyword()) :: {:ok, pid()} | {:error, term()}
   def start_child(module, opts) do
     if Process.whereis(RNS.InterfaceSupervisor) do
-      DynamicSupervisor.start_child(RNS.InterfaceSupervisor, {module, opts})
+      spec = Supervisor.child_spec({module, opts}, restart: :transient)
+      DynamicSupervisor.start_child(RNS.InterfaceSupervisor, spec)
     else
       module.start_link(opts)
     end
