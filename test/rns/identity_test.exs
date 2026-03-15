@@ -489,7 +489,7 @@ defmodule RNS.IdentityTest do
   end
 end
 
-defmodule RNS.IdentityStoreTest do
+defmodule RNS.IdentityStoreIntegrationTest do
   use ExUnit.Case, async: false
 
   alias RNS.Identity

@@ -78,6 +78,7 @@ defmodule RNS.Log do
   @spec trace(String.t()) :: :ok
   if Application.compile_env(:rns_ex, :verbose_logging, false) do
     def trace(msg) do
+      # credo:disable-for-next-line Credo.Check.Warning.MissedMetadataKeyInLoggerConfig
       Logger.debug(msg, rns_level: :extreme)
       :ok
     end

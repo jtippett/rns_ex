@@ -192,7 +192,7 @@ defmodule RNS.ShutdownPersistenceTest do
       refute File.exists?(fake_path)
 
       # This should not crash — should log errors but return :ok
-      log =
+      _log =
         capture_log(fn ->
           Transport.configure(storage_path: fake_path)
 

@@ -564,7 +564,7 @@ defmodule RNS.Interfaces.Interface do
   to the Transport ETS table. Call this from init/1 after the interface hash
   is computed.
   """
-  @spec schedule_ets_refresh() :: {:ok, reference()}
+  @spec schedule_ets_refresh() :: {:ok, :timer.tref()} | {:error, term()}
   def schedule_ets_refresh do
     :timer.send_interval(1_000, :refresh_ets)
   end

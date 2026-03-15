@@ -2,7 +2,6 @@ defmodule RNS.Transport.PathRequestTest do
   use ExUnit.Case, async: false
 
   alias RNS.Transport
-  alias RNS.Transport.AnnounceHandler
   alias RNS.Transport.DiscoveryRequest
 
   # ── Setup ──────────────────────────────────────────────────────────
